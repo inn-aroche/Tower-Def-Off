@@ -17,18 +17,6 @@ const BAR_WIDTH = 0.62;
 const BAR_HEIGHT = 0.11;
 const BAR_Y_ABOVE_MODEL = 0.45;
 
-/**
- * Health bars are flat quads with a single shared rotation, not per-instance billboarding — the
- * camera never orbits (see CameraRig's "fixed 3/4 perspective" comment), so one rotation aligned
- * to the camera's constant viewing direction reads correctly for every enemy on screen.
- * Must track CameraRig.frameGrid's height/back ratio (1.1 / 0.85) since that ratio, not the
- * grid-dependent span, determines the camera's viewing angle.
- */
-const BILLBOARD_QUAT = new THREE.Quaternion().setFromUnitVectors(
-  new THREE.Vector3(0, 0, 1),
-  new THREE.Vector3(0, 1.1, 0.85).normalize(),
-);
-
 function healthBarColor(hpPct: number): THREE.Color {
   if (hpPct > 0.5) return new THREE.Color(0x2ecc71);
   if (hpPct > 0.25) return new THREE.Color(0xf1c40f);
@@ -95,11 +83,14 @@ export class EnemyView {
     this.barFill.renderOrder = 11;
 
     this.group.add(this.barBg, this.barFill);
-    this.barDummy.quaternion.copy(BILLBOARD_QUAT);
   }
 
-  /** Rebuild instance transforms for every enemy type from current sim state, interpolated by alpha. */
-  sync(enemies: Enemy[], alpha: number): void {
+  /** Rebuild instance transforms for every enemy type from current sim state, interpolated by alpha.
+   * `billboardQuaternion` comes from CameraRig — the camera is fixed but has two distinct
+   * orientations (landscape vs. portrait, see CameraRig.reframe()), so the health bars must face
+   * whichever one is currently active rather than a hardcoded direction. */
+  sync(enemies: Enemy[], alpha: number, billboardQuaternion: THREE.Quaternion): void {
+    this.barDummy.quaternion.copy(billboardQuaternion);
     const counters = new Map<EnemyType, number>();
     for (const mesh of this.meshes.values()) mesh.count = 0;
     let barIdx = 0;

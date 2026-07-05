@@ -120,7 +120,7 @@ export class Renderer {
   }
 
   update(dt: number, alpha: number): void {
-    this.enemyView.sync(this.gameState.enemies, alpha);
+    this.enemyView.sync(this.gameState.enemies, alpha, this.cameraRig.billboardQuaternion);
     this.towerView.syncDisabled(this.gameState.towers);
     this.projectileView.update(dt);
     this.particles.update(dt);

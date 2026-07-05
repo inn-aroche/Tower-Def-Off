@@ -7,6 +7,11 @@ const DESIGN_ASPECT = 1.3;
 /** Fixed 3/4 perspective camera framing the whole grid — no orbit controls, matches the "read in 5s" pillar. */
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
+  /** Rotation that makes a unit plane (default normal +Z) face this fixed camera — shared by every
+   * billboarded sprite (enemy health bars, tower/tile textures) so they don't each hardcode their
+   * own camera-direction assumption. Recomputed in reframe() since portrait vs landscape puts the
+   * camera in a genuinely different position, not just a distance change. */
+  readonly billboardQuaternion = new THREE.Quaternion();
   private shakeOffset = new THREE.Vector3();
   private shakeTime = 0;
   private shakeStrength = 0;
@@ -61,6 +66,9 @@ export class CameraRig {
       this.camera.position.set(cx, height, cy + back);
     }
     this.camera.lookAt(this.target);
+
+    const facing = this.camera.position.clone().sub(this.target).normalize();
+    this.billboardQuaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), facing);
   }
 
   shake(strength: number, duration: number): void {
