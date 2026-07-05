@@ -221,10 +221,9 @@ async function main(): Promise<void> {
     const [col, row] = cell;
 
     if (placementTowerId) {
+      // Deliberately keep placementTowerId set after a placement (success or failure) so the
+      // player can drop several of the same tower in a row without re-clicking the shop button.
       gameState.tryPlaceTower(placementTowerId, col, row);
-      placementTowerId = null;
-      hud.clearPlacementSelection();
-      renderer.hidePlacementGhost();
       return;
     }
 
