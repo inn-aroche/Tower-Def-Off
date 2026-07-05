@@ -71,3 +71,10 @@ export function tileTexture(kind: TileKind): THREE.Texture | null {
 export function iconUrl(name: string): string | null {
   return iconUrls.get(`icon_${name}.png`) ?? null;
 }
+
+/** <img> tag for a provided icon, or the emoji fallback if that icon wasn't part of the art
+ * handoff (icon_lock/icon_play were never generated — see design_handoff_art_assets/README.md). */
+export function iconHtml(name: string, fallbackEmoji: string, className = 'ui-icon'): string {
+  const url = iconUrl(name);
+  return url ? `<img class="${className}" src="${url}" alt="" />` : fallbackEmoji;
+}

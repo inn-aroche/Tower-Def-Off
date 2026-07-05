@@ -3,6 +3,11 @@ import type { SaveManager } from '../meta/SaveManager';
 import { SKINS } from '../data/skins';
 import { SURVIVAL_TIERS, type SurvivalTier } from '../data/survival';
 import type { LevelConfig } from '../data/LevelConfig';
+import { iconHtml } from '../render/textures';
+
+function icon(name: string, fallbackEmoji: string): string {
+  return iconHtml(name, fallbackEmoji, 'menu-icon');
+}
 
 export interface MainMenuCallbacks {
   onSelectLevel(levelId: number): void;
@@ -104,7 +109,7 @@ export class MainMenu {
           <p class="menu-tagline">Sculpte le labyrinthe. Arrête la horde.</p>
         </div>
 
-        <div class="menu-stars-badge">⭐ ${totalStars} / ${maxStars}</div>
+        <div class="menu-stars-badge">${icon('star', '⭐')} ${totalStars} / ${maxStars}</div>
 
         <div class="menu-cta-stack">
           <button class="menu-cta menu-cta--play" data-nav="play">
@@ -113,11 +118,11 @@ export class MainMenu {
           </button>
           <div class="menu-cta-row">
             <button class="menu-cta menu-cta--settings" data-nav="settings">
-              <span class="menu-cta-icon">⚙</span>
+              <span class="menu-cta-icon">${icon('settings', '⚙')}</span>
               <span class="menu-cta-label">Paramètres</span>
             </button>
             <button class="menu-cta menu-cta--shop" data-nav="shop">
-              <span class="menu-cta-icon">🛒</span>
+              <span class="menu-cta-icon">${icon('shop', '🛒')}</span>
               <span class="menu-cta-label">Boutique</span>
             </button>
           </div>
@@ -184,7 +189,7 @@ export class MainMenu {
 
     const islandsHtml = nodes
       .map(({ level, pos, unlocked, stars }) => {
-        const starRow = unlocked ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '';
+        const starRow = unlocked ? icon('star', '⭐').repeat(stars) + '☆'.repeat(3 - stars) : '';
         return `
         <button class="menu-island${unlocked ? '' : ' locked'}" data-level="${level.id}" ${unlocked ? '' : 'disabled'}
           style="left:${pos.x}px; top:${pos.y}px;">
@@ -289,7 +294,7 @@ export class MainMenu {
       <button class="menu-shop-card${selected ? ' active' : ''}" data-skin="${skin.id}" ${unlocked ? '' : 'disabled'}>
         <span class="menu-swatch-row">${swatches}</span>
         <span class="menu-shop-name">${skin.name}</span>
-        <span class="menu-shop-status">${unlocked ? (selected ? 'Équipé' : 'Débloqué') : `🔒 ${skin.starsRequired}⭐ requises`}</span>
+        <span class="menu-shop-status">${unlocked ? (selected ? 'Équipé' : 'Débloqué') : `🔒 ${skin.starsRequired} ${icon('star', '⭐')} requises`}</span>
       </button>`;
     }).join('');
 
@@ -355,12 +360,14 @@ export class MainMenu {
       .menu-logo-td { color: var(--menu-gold); margin-left: 6px; }
       .menu-tagline { margin: 0; color: var(--menu-ink-dim); font-size: 14px; text-align: center; }
       .menu-stars-badge { padding: 6px 16px; border-radius: 999px; background: var(--menu-panel); font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
+      .menu-icon { width: 1.1em; height: 1.1em; vertical-align: -0.18em; object-fit: contain; }
 
       .menu-cta-stack { display: flex; flex-direction: column; gap: 12px; width: 100%; }
       .menu-cta { display: flex; flex-direction: column; align-items: center; gap: 4px; border: none; cursor: pointer; border-radius: 18px; color: #14161f; font-weight: 800; }
       .menu-cta--play { padding: 22px; background: linear-gradient(180deg, #ffc94d, var(--menu-gold)); box-shadow: 0 6px 0 var(--menu-gold-dark), 0 10px 20px rgba(255,177,0,0.25); font-size: 22px; }
       .menu-cta--play:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--menu-gold-dark); }
       .menu-cta-icon { font-size: 22px; }
+      .menu-cta-icon .menu-icon { width: 26px; height: 26px; }
       .menu-cta-row { display: flex; gap: 12px; }
       .menu-cta-row .menu-cta { flex: 1; padding: 14px 8px; font-size: 13px; }
       .menu-cta--settings { background: linear-gradient(180deg, #7adbd3, var(--menu-teal)); box-shadow: 0 5px 0 var(--menu-teal-dark); }

@@ -2,6 +2,11 @@ import type { GameState } from '../sim/GameState';
 import type { EventBus } from '../core/EventBus';
 import { TOWERS, type TowerId } from '../data/towers';
 import type { Tower } from '../sim/Tower';
+import { iconHtml } from '../render/textures';
+
+function icon(name: string, fallbackEmoji: string): string {
+  return iconHtml(name, fallbackEmoji, 'hud-icon');
+}
 
 export interface HUDCallbacks {
   onSelectTowerToPlace(towerId: TowerId | null): void;
@@ -152,7 +157,8 @@ export class HUD {
 
   showEndOverlay(won: boolean, opts: { stars?: number; message?: string; primaryLabel?: string } = {}): void {
     this.endOverlay.style.display = 'flex';
-    const starRow = opts.stars !== undefined ? '⭐'.repeat(opts.stars) + '☆'.repeat(3 - opts.stars) : '';
+    const starRow =
+      opts.stars !== undefined ? icon('star', '⭐').repeat(opts.stars) + '☆'.repeat(3 - opts.stars) : '';
     const primaryLabel = opts.primaryLabel ?? (won ? 'Continuer' : 'Réessayer');
     this.endOverlay.innerHTML = `
       <div class="hud-end-card">
@@ -187,11 +193,12 @@ export class HUD {
 
   refresh(): void {
     const { economy, waveScheduler, level, scoreTracker } = this.gameState;
-    this.goldEl.textContent = `💰 ${economy.gold}`;
-    this.livesEl.textContent = `❤️ ${economy.lives}`;
+    this.goldEl.innerHTML = `${icon('gold', '💰')} ${economy.gold}`;
+    this.livesEl.innerHTML = `${icon('life', '❤️')} ${economy.lives}`;
     const current = waveScheduler.waveIndex + 1 + this.waveNumberOffset;
-    this.waveEl.textContent = this.waveEndless ? `Vague ${current}` : `Vague ${current}/${level.waves.length}`;
-    this.scoreEl.textContent = `🏆 ${Math.floor(scoreTracker.score)} ×${scoreTracker.multiplier.toFixed(1)}`;
+    const waveText = this.waveEndless ? `Vague ${current}` : `Vague ${current}/${level.waves.length}`;
+    this.waveEl.innerHTML = `${icon('wave', '')} ${waveText}`;
+    this.scoreEl.innerHTML = `${icon('trophy', '🏆')} ${Math.floor(scoreTracker.score)} ×${scoreTracker.multiplier.toFixed(1)}`;
     this.earlyCallBtn.style.display = waveScheduler.phase === 'build' ? 'inline-block' : 'none';
     for (const [towerId, btn] of this.towerButtons) {
       btn.disabled = !economy.canAfford(TOWERS[towerId].tiers[0].cost);
@@ -204,6 +211,8 @@ export class HUD {
     style.id = 'hud-styles';
     style.textContent = `
       .hud-root { position: absolute; inset: 0; pointer-events: none; font-family: system-ui, sans-serif; color: #f1f2f6; }
+      .hud-icon { width: 1.15em; height: 1.15em; vertical-align: -0.22em; object-fit: contain; }
+      .hud-stars .hud-icon { width: 32px; height: 32px; vertical-align: middle; }
       .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; row-gap: 6px; gap: 16px; align-items: center; padding: 10px 14px; background: rgba(18,21,28,0.6); pointer-events: auto; font-size: 15px; }
       .hud-menu-btn { min-width: 44px; min-height: 44px; border: none; border-radius: 8px; background: #2f3542; color: #f1f2f6; font-size: 16px; cursor: pointer; flex-shrink: 0; }
       .hud-score { color: #ffd166; font-variant-numeric: tabular-nums; font-weight: 600; }
