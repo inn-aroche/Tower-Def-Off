@@ -2,15 +2,15 @@
   "id": 20,
   "name": "Front Multiple",
   "grid": {
-    "cols": 20,
-    "rows": 13,
+    "cols": 15,
+    "rows": 10,
     "blocked": [
-      [8, 2], [8, 3], [9, 2], [9, 3],
-      [8, 9], [8, 10], [9, 9], [9, 10],
-      [13, 5], [13, 6], [13, 7]
+      [4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6],
+      [8, 3], [8, 4], [8, 5], [8, 6], [8, 7], [8, 8], [8, 9],
+      [11, 0], [11, 1], [11, 2], [11, 3], [11, 4], [11, 5], [11, 6]
     ],
-    "spawns": [[0, 2], [0, 6], [0, 10]],
-    "exits": [[19, 6]]
+    "spawns": [[0, 1], [0, 4], [0, 8]],
+    "exits": [[14, 4]]
   },
   "startGold": 380,
   "baseHp": 5,
@@ -22,5 +22,5 @@
     { "delay": 7, "spawns": [{ "type": "kamikaze", "count": 6, "interval": 0.8 }, { "type": "swarm", "count": 14, "interval": 0.18 }] },
     { "delay": 7, "spawns": [{ "type": "soldier", "count": 12, "interval": 0.3 }, { "type": "golem", "count": 3, "interval": 1.6 }, { "type": "drone", "count": 5, "interval": 0.8 }] }
   ],
-  "starGoals": { "noLeak": true, "maxTowers": 15, "maxGoldSpent": 900 }
+  "starGoals": { "noLeak": true, "maxTowers": 9, "maxGoldSpent": 900 }
 }

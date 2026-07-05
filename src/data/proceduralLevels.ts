@@ -24,7 +24,7 @@ function clamp(value: number, min: number, max: number): number {
  */
 function generateZigzagWalls(cols: number, rows: number, wallCount: number): Array<[number, number]> {
   const blocked: Array<[number, number]> = [];
-  const wallSpan = Math.floor(rows * 0.6);
+  const wallSpan = Math.floor(rows * 0.7);
   for (let i = 0; i < wallCount; i++) {
     const col = Math.round(((i + 1) * cols) / (wallCount + 1));
     const gapAtTop = i % 2 === 0;
@@ -41,9 +41,12 @@ function generateZigzagWalls(cols: number, rows: number, wallCount: number): Arr
  * across the whole procedural range instead of resetting per level.
  */
 export function generateProceduralLevel(id: number): LevelConfig {
-  const cols = clamp(16 + Math.floor(id / 4), 16, 26);
-  const rows = clamp(10 + Math.floor(id / 6), 10, 16);
-  const wallCount = clamp(2 + Math.floor(id / 10), 2, 6);
+  // Capped at 15x10 (§ "les maps ne doivent pas faire plus de 10 case de largeur et 15 de
+  // longueur") — board size stays fixed once reached; difficulty keeps climbing via the wave
+  // curve and wall count instead of an ever-larger grid.
+  const cols = clamp(13 + Math.floor(id / 12), 13, 15);
+  const rows = clamp(8 + Math.floor(id / 15), 8, 10);
+  const wallCount = clamp(2 + Math.floor(id / 10), 2, 5);
   const midRow = Math.floor(rows / 2);
 
   const curveStart = CURVE_BASE_OFFSET + (id - 11) * CURVE_ADVANCE_PER_LEVEL;

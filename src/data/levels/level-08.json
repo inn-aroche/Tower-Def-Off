@@ -2,8 +2,8 @@
   "id": 8,
   "name": "Gestion du Cryo",
   "grid": {
-    "cols": 18,
-    "rows": 11,
+    "cols": 15,
+    "rows": 10,
     "blocked": [
       [
         6,
@@ -38,7 +38,7 @@
     ],
     "exits": [
       [
-        17,
+        14,
         5
       ]
     ]
@@ -131,7 +131,7 @@
   ],
   "starGoals": {
     "noLeak": true,
-    "maxTowers": 12,
+    "maxTowers": 9,
     "maxGoldSpent": 800
   }
 }

@@ -45,4 +45,11 @@ describe('Full 50-level campaign assembly (main.ts wiring)', () => {
     const again = buildCampaignLevels();
     expect(again).toEqual(levels);
   });
+
+  it('no map exceeds 15 cols x 10 rows (§ "pas plus de 10 case de largeur et 15 de longueur")', () => {
+    for (const level of levels) {
+      expect(level.grid.cols, `level ${level.id} cols`).toBeLessThanOrEqual(15);
+      expect(level.grid.rows, `level ${level.id} rows`).toBeLessThanOrEqual(10);
+    }
+  });
 });

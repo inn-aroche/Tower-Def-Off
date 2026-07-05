@@ -24,14 +24,15 @@ export const SURVIVAL_TIERS: Record<SurvivalTier, SurvivalTierDef> = {
 const SURVIVAL_WAVE_COUNT = 200;
 
 const SURVIVAL_GRID: LevelConfig['grid'] = {
-  cols: 18,
-  rows: 11,
+  cols: 15,
+  rows: 10,
   blocked: [
-    [6, 3], [6, 4], [6, 5], [6, 6], [6, 7],
-    [12, 3], [12, 4], [12, 5], [12, 6], [12, 7],
+    [4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6],
+    [8, 3], [8, 4], [8, 5], [8, 6], [8, 7], [8, 8], [8, 9],
+    [11, 0], [11, 1], [11, 2], [11, 3], [11, 4], [11, 5], [11, 6],
   ],
   spawns: [[0, 5]],
-  exits: [[17, 5]],
+  exits: [[14, 5]],
 };
 
 /** Survival ids live outside the 1-10 campaign range so they never collide with SaveManager star keys. */

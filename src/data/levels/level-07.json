@@ -2,7 +2,7 @@
   "id": 7,
   "name": "Le Sabotage",
   "grid": {
-    "cols": 16,
+    "cols": 15,
     "rows": 10,
     "blocked": [
       [
@@ -46,7 +46,7 @@
     ],
     "exits": [
       [
-        15,
+        14,
         5
       ]
     ]

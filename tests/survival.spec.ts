@@ -49,4 +49,10 @@ describe('Survival mode', () => {
       }
     }
   });
+
+  it('grid does not exceed 15 cols x 10 rows (§ "pas plus de 10 case de largeur et 15 de longueur")', () => {
+    const level = buildSurvivalLevelConfig('bronze');
+    expect(level.grid.cols).toBeLessThanOrEqual(15);
+    expect(level.grid.rows).toBeLessThanOrEqual(10);
+  });
 });
