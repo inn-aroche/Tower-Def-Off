@@ -74,4 +74,10 @@ export class TowerView {
     (visual.disabledOverlay.material as THREE.Material).dispose();
     this.visuals.delete(towerId);
   }
+
+  /** Removes every placed-tower mesh — must be called on level load, since GameState resets
+   * gameState.towers without emitting per-tower 'towerSold' events for the previous level. */
+  clear(): void {
+    for (const towerId of [...this.visuals.keys()]) this.remove(towerId);
+  }
 }

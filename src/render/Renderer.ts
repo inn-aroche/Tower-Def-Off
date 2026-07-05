@@ -96,6 +96,7 @@ export class Renderer {
   }
 
   loadLevelVisuals(): void {
+    this.towerView.clear();
     this.gridView.rebuild(this.gameState.grid);
     this.cameraRig.frameGrid(this.gameState.grid.cols, this.gameState.grid.rows);
   }
