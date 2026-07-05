@@ -6,6 +6,7 @@ import { Tower } from './Tower';
 import { Enemy } from './Enemy';
 import { ObjectPool } from './ObjectPool';
 import { EnemySpatialIndex, stepCombat } from './Combat';
+import { ScoreTracker } from './Score';
 import type { EventBus } from '../core/EventBus';
 import type { LevelConfig } from '../data/LevelConfig';
 import type { TowerId, T3Branch } from '../data/towers';
@@ -34,6 +35,7 @@ export class GameState {
   level!: LevelConfig;
   goldSpentTotal = 0;
   towersBuiltCount = 0;
+  readonly scoreTracker = new ScoreTracker();
   private leakedThisLevel = false;
   private enemyPool = new ObjectPool<Enemy>(
     () => new Enemy('soldier', [0, 0]),
@@ -44,7 +46,9 @@ export class GameState {
   );
   private spatialIndex = new EnemySpatialIndex();
 
-  constructor(private readonly bus: EventBus) {}
+  constructor(private readonly bus: EventBus) {
+    this.bus.on('enemyKilled', () => this.scoreTracker.registerKill());
+  }
 
   loadLevel(level: LevelConfig): void {
     this.level = level;
@@ -59,6 +63,7 @@ export class GameState {
     this.goldSpentTotal = 0;
     this.towersBuiltCount = 0;
     this.leakedThisLevel = false;
+    this.scoreTracker.reset();
   }
 
   isTowerAllowed(towerId: TowerId): boolean {
@@ -144,6 +149,8 @@ export class GameState {
 
   step(dt: number): void {
     if (this.outcome !== 'playing') return;
+
+    this.scoreTracker.tick(dt);
 
     const wasSpawning = this.waveScheduler.phase === 'spawning';
     this.waveScheduler.update(dt, this.grid.spawns.length, (type, spawnIndex) => this.spawnEnemy(type, spawnIndex));

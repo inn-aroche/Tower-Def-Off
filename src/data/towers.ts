@@ -1,4 +1,4 @@
-export type TowerId = 'laser' | 'mortar' | 'tesla' | 'cryo';
+export type TowerId = 'wall' | 'laser' | 'mortar' | 'tesla' | 'cryo';
 export type T3Branch = 'A' | 'B' | null;
 
 export interface TowerTierStats {
@@ -43,11 +43,40 @@ export interface TowerDef {
   tiers: [TowerTierStats, TowerTierStats, TowerTierStats];
   t3Branches: [T3BranchDef, T3BranchDef];
   sellRefundPct: number;
+  /** False for pure structural pieces (the Wall) — hides the upgrade path entirely. Defaults to true. */
+  upgradable?: boolean;
 }
 
 const SELL_REFUND_PCT = 0.7;
 
+/** A single inert tier reused for the Wall's 3 slots — upgradable:false means tier 2/3 are unreachable anyway. */
+const WALL_TIER: TowerTierStats = {
+  cost: 8,
+  damage: 0,
+  splashRadius: 0,
+  slowPct: 0,
+  dotPerSecond: 0,
+  fireRatePerSec: 0.1,
+  range: 0,
+  chainTargets: 1,
+  targetsAir: false,
+  targetsGround: false, // both false — it never qualifies as a valid target for any enemy, so it never fires
+  armorPierce: 0,
+};
+
 export const TOWERS: Record<TowerId, TowerDef> = {
+  wall: {
+    id: 'wall',
+    name: 'Mur',
+    description: "Bloc inerte, sans attaque — le moyen le moins cher de sculpter le chemin.",
+    sellRefundPct: SELL_REFUND_PCT,
+    upgradable: false,
+    tiers: [WALL_TIER, WALL_TIER, WALL_TIER],
+    t3Branches: [
+      { id: 'A', name: '—', description: '—' },
+      { id: 'B', name: '—', description: '—' },
+    ],
+  },
   laser: {
     id: 'laser',
     name: 'Laser',

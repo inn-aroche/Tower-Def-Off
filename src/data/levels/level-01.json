@@ -4,18 +4,65 @@
   "grid": {
     "cols": 12,
     "rows": 8,
-    "blocked": [[3, 3], [4, 3]],
-    "spawns": [[0, 4]],
-    "exits": [[11, 4]]
+    "blocked": [
+      [3, 0], [3, 1], [3, 2], [3, 3], [3, 4],
+      [7, 3], [7, 4], [7, 5], [7, 6], [7, 7]
+    ],
+    "spawns": [
+      [
+        0,
+        4
+      ]
+    ],
+    "exits": [
+      [
+        11,
+        4
+      ]
+    ]
   },
   "startGold": 100,
   "baseHp": 20,
-  "allowedTowers": ["laser"],
+  "allowedTowers": [
+    "wall",
+    "laser"
+  ],
   "tutorial": true,
   "waves": [
-    { "delay": 3, "spawns": [{ "type": "soldier", "count": 3, "interval": 1.2 }] },
-    { "delay": 5, "spawns": [{ "type": "soldier", "count": 8, "interval": 0.8 }] },
-    { "delay": 5, "spawns": [{ "type": "soldier", "count": 12, "interval": 0.6 }] }
+    {
+      "delay": 3,
+      "spawns": [
+        {
+          "type": "soldier",
+          "count": 3,
+          "interval": 1.2
+        }
+      ]
+    },
+    {
+      "delay": 5,
+      "spawns": [
+        {
+          "type": "soldier",
+          "count": 8,
+          "interval": 0.8
+        }
+      ]
+    },
+    {
+      "delay": 5,
+      "spawns": [
+        {
+          "type": "soldier",
+          "count": 12,
+          "interval": 0.6
+        }
+      ]
+    }
   ],
-  "starGoals": { "noLeak": true, "maxTowers": 6, "maxGoldSpent": 400 }
+  "starGoals": {
+    "noLeak": true,
+    "maxTowers": 6,
+    "maxGoldSpent": 400
+  }
 }

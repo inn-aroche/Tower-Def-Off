@@ -4,20 +4,134 @@
   "grid": {
     "cols": 18,
     "rows": 11,
-    "blocked": [[6, 4], [6, 5], [6, 6], [12, 4], [12, 5], [12, 6]],
-    "spawns": [[0, 5]],
-    "exits": [[17, 5]]
+    "blocked": [
+      [
+        6,
+        4
+      ],
+      [
+        6,
+        5
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        12,
+        4
+      ],
+      [
+        12,
+        5
+      ],
+      [
+        12,
+        6
+      ]
+    ],
+    "spawns": [
+      [
+        0,
+        5
+      ]
+    ],
+    "exits": [
+      [
+        17,
+        5
+      ]
+    ]
   },
   "startGold": 170,
   "baseHp": 20,
-  "allowedTowers": ["laser", "mortar", "tesla", "cryo"],
-  "waves": [
-    { "delay": 3, "spawns": [{ "type": "soldier", "count": 6, "interval": 0.7 }] },
-    { "delay": 5, "spawns": [{ "type": "swarm", "count": 12, "interval": 0.22 }] },
-    { "delay": 5, "spawns": [{ "type": "golem", "count": 3, "interval": 2.2 }] },
-    { "delay": 6, "spawns": [{ "type": "swarm", "count": 10, "interval": 0.2 }, { "type": "golem", "count": 2, "interval": 2.2 }] },
-    { "delay": 6, "spawns": [{ "type": "drone", "count": 5, "interval": 1.0 }, { "type": "soldier", "count": 8, "interval": 0.5 }] },
-    { "delay": 7, "spawns": [{ "type": "golem", "count": 4, "interval": 1.8 }, { "type": "swarm", "count": 10, "interval": 0.2 }] }
+  "allowedTowers": [
+    "wall",
+    "laser",
+    "mortar",
+    "tesla",
+    "cryo"
   ],
-  "starGoals": { "noLeak": true, "maxTowers": 12, "maxGoldSpent": 800 }
+  "waves": [
+    {
+      "delay": 3,
+      "spawns": [
+        {
+          "type": "soldier",
+          "count": 6,
+          "interval": 0.7
+        }
+      ]
+    },
+    {
+      "delay": 5,
+      "spawns": [
+        {
+          "type": "swarm",
+          "count": 12,
+          "interval": 0.22
+        }
+      ]
+    },
+    {
+      "delay": 5,
+      "spawns": [
+        {
+          "type": "golem",
+          "count": 3,
+          "interval": 2.2
+        }
+      ]
+    },
+    {
+      "delay": 6,
+      "spawns": [
+        {
+          "type": "swarm",
+          "count": 10,
+          "interval": 0.2
+        },
+        {
+          "type": "golem",
+          "count": 2,
+          "interval": 2.2
+        }
+      ]
+    },
+    {
+      "delay": 6,
+      "spawns": [
+        {
+          "type": "drone",
+          "count": 5,
+          "interval": 1.0
+        },
+        {
+          "type": "soldier",
+          "count": 8,
+          "interval": 0.5
+        }
+      ]
+    },
+    {
+      "delay": 7,
+      "spawns": [
+        {
+          "type": "golem",
+          "count": 4,
+          "interval": 1.8
+        },
+        {
+          "type": "swarm",
+          "count": 10,
+          "interval": 0.2
+        }
+      ]
+    }
+  ],
+  "starGoals": {
+    "noLeak": true,
+    "maxTowers": 12,
+    "maxGoldSpent": 800
+  }
 }

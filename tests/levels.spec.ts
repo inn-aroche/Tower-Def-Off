@@ -36,7 +36,7 @@ describe('Level content sanity', () => {
       });
 
       it('only allows towers that exist and starts with non-negative gold/hp', () => {
-        const validTowers = ['laser', 'mortar', 'tesla', 'cryo'];
+        const validTowers = ['wall', 'laser', 'mortar', 'tesla', 'cryo'];
         for (const t of level.allowedTowers) expect(validTowers).toContain(t);
         expect(level.startGold).toBeGreaterThanOrEqual(0);
         expect(level.baseHp).toBeGreaterThan(0);

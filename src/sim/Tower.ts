@@ -54,12 +54,12 @@ export class Tower {
 
   costForNextTier(): number | null {
     const tier = this.tier;
-    if (tier === 3) return null;
+    if (tier === 3 || this.def.upgradable === false) return null;
     return this.def.tiers[tier].cost;
   }
 
   canUpgrade(): boolean {
-    return this.tier !== 3;
+    return this.tier !== 3 && this.def.upgradable !== false;
   }
 
   upgrade(chooseBranch?: T3Branch): { spent: number } | null {

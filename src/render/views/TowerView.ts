@@ -10,6 +10,12 @@ interface TowerVisual {
   towerId: TowerId;
 }
 
+/** Cone reads as "attack tower" for the 4 combat pieces; the Wall gets a squat block instead,
+ * so its silhouette alone signals "this is a barrier, not a shooter" before you even select it. */
+function geometryFor(towerId: TowerId): THREE.BufferGeometry {
+  return towerId === 'wall' ? new THREE.BoxGeometry(0.62, 0.42, 0.62) : new THREE.ConeGeometry(0.32, 0.7, 6);
+}
+
 /** One low-poly mesh per placed tower (counts stay small — a few dozen max — so no instancing needed). */
 export class TowerView {
   readonly group = new THREE.Group();
@@ -24,10 +30,10 @@ export class TowerView {
   }
 
   add(tower: Tower): void {
-    const geo = new THREE.ConeGeometry(0.32, 0.7, 6);
+    const geo = geometryFor(tower.towerId);
     const mat = new THREE.MeshStandardMaterial({ color: this.colors[tower.towerId] });
     const body = new THREE.Mesh(geo, mat);
-    body.position.y = 0.35;
+    body.position.y = tower.towerId === 'wall' ? 0.21 : 0.35;
 
     const overlayGeo = new THREE.RingGeometry(0.4, 0.48, 16);
     const overlayMat = new THREE.MeshBasicMaterial({ color: 0x3742fa, transparent: true, opacity: 0, side: THREE.DoubleSide });

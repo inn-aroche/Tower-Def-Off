@@ -11,6 +11,7 @@ import type { EventBus } from '../core/EventBus';
 import type { TowerId } from '../data/towers';
 
 const TOWER_TRACER_COLORS: Record<TowerId, number> = {
+  wall: 0x6b7280, // unused in practice — the Wall never targets anything, so 'projectileFired' never fires for it
   laser: 0xff4757,
   mortar: 0xffa502,
   tesla: 0x70a1ff,

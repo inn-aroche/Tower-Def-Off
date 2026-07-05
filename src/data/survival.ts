@@ -80,7 +80,7 @@ export function buildSurvivalLevelConfig(tier: SurvivalTier): LevelConfig {
     grid: SURVIVAL_GRID,
     startGold: def.startGold,
     baseHp: 20,
-    allowedTowers: ['laser', 'mortar', 'tesla', 'cryo'],
+    allowedTowers: ['wall', 'laser', 'mortar', 'tesla', 'cryo'],
     waves,
     starGoals: { noLeak: false },
   };

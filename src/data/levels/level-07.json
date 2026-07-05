@@ -4,19 +4,131 @@
   "grid": {
     "cols": 16,
     "rows": 10,
-    "blocked": [[3, 3], [3, 4], [3, 5], [3, 6], [9, 2], [9, 3], [9, 6], [9, 7]],
-    "spawns": [[0, 4]],
-    "exits": [[15, 5]]
+    "blocked": [
+      [
+        3,
+        3
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        5
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        9,
+        2
+      ],
+      [
+        9,
+        3
+      ],
+      [
+        9,
+        6
+      ],
+      [
+        9,
+        7
+      ]
+    ],
+    "spawns": [
+      [
+        0,
+        4
+      ]
+    ],
+    "exits": [
+      [
+        15,
+        5
+      ]
+    ]
   },
   "startGold": 160,
   "baseHp": 20,
-  "allowedTowers": ["laser", "mortar", "tesla"],
-  "waves": [
-    { "delay": 3, "spawns": [{ "type": "soldier", "count": 5, "interval": 0.8 }] },
-    { "delay": 5, "spawns": [{ "type": "kamikaze", "count": 4, "interval": 1.4 }] },
-    { "delay": 5, "spawns": [{ "type": "kamikaze", "count": 3, "interval": 1.2 }, { "type": "soldier", "count": 5, "interval": 0.7 }] },
-    { "delay": 6, "spawns": [{ "type": "swarm", "count": 8, "interval": 0.25 }, { "type": "kamikaze", "count": 4, "interval": 1.1 }] },
-    { "delay": 6, "spawns": [{ "type": "kamikaze", "count": 6, "interval": 0.9 }, { "type": "golem", "count": 2, "interval": 2.5 }] }
+  "allowedTowers": [
+    "wall",
+    "laser",
+    "mortar",
+    "tesla"
   ],
-  "starGoals": { "noLeak": true, "maxTowers": 10, "maxGoldSpent": 700 }
+  "waves": [
+    {
+      "delay": 3,
+      "spawns": [
+        {
+          "type": "soldier",
+          "count": 5,
+          "interval": 0.8
+        }
+      ]
+    },
+    {
+      "delay": 5,
+      "spawns": [
+        {
+          "type": "kamikaze",
+          "count": 4,
+          "interval": 1.4
+        }
+      ]
+    },
+    {
+      "delay": 5,
+      "spawns": [
+        {
+          "type": "kamikaze",
+          "count": 3,
+          "interval": 1.2
+        },
+        {
+          "type": "soldier",
+          "count": 5,
+          "interval": 0.7
+        }
+      ]
+    },
+    {
+      "delay": 6,
+      "spawns": [
+        {
+          "type": "swarm",
+          "count": 8,
+          "interval": 0.25
+        },
+        {
+          "type": "kamikaze",
+          "count": 4,
+          "interval": 1.1
+        }
+      ]
+    },
+    {
+      "delay": 6,
+      "spawns": [
+        {
+          "type": "kamikaze",
+          "count": 6,
+          "interval": 0.9
+        },
+        {
+          "type": "golem",
+          "count": 2,
+          "interval": 2.5
+        }
+      ]
+    }
+  ],
+  "starGoals": {
+    "noLeak": true,
+    "maxTowers": 10,
+    "maxGoldSpent": 700
+  }
 }

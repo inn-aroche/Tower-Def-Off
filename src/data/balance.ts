@@ -8,6 +8,12 @@ export const BALANCE = {
   earlyCallBonusPct: 0.25,
   sellRefundPct: 0.7,
   simHz: 30,
+  /** Passive points earned per second at multiplier x1 — ticks constantly during a run. */
+  scorePerSecondBase: 10,
+  /** Each kill raises the multiplier, so points-per-second escalates as the run heats up. */
+  scoreMultiplierPerKill: 0.1,
+  /** Soft cap so the multiplier can't run away to absurd numbers over a long Survie run. */
+  scoreMultiplierMax: 10,
 } as const;
 
 export function waveCompletionBonus(waveIndex: number): number {

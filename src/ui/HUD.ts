@@ -18,6 +18,7 @@ export class HUD {
   private goldEl: HTMLSpanElement;
   private livesEl: HTMLSpanElement;
   private waveEl: HTMLSpanElement;
+  private scoreEl: HTMLSpanElement;
   private earlyCallBtn: HTMLButtonElement;
   private towerBar: HTMLDivElement;
   private towerButtons = new Map<TowerId, HTMLButtonElement>();
@@ -41,11 +42,13 @@ export class HUD {
     this.goldEl = document.createElement('span');
     this.livesEl = document.createElement('span');
     this.waveEl = document.createElement('span');
+    this.scoreEl = document.createElement('span');
+    this.scoreEl.className = 'hud-score';
     this.earlyCallBtn = document.createElement('button');
     this.earlyCallBtn.textContent = 'Appel anticipé (+or)';
     this.earlyCallBtn.className = 'hud-early-call';
     this.earlyCallBtn.onclick = () => this.callbacks.onCallWaveEarly();
-    top.append(menuBtn, this.goldEl, this.livesEl, this.waveEl, this.earlyCallBtn);
+    top.append(menuBtn, this.goldEl, this.livesEl, this.waveEl, this.scoreEl, this.earlyCallBtn);
     this.root.appendChild(top);
 
     this.towerBar = document.createElement('div');
@@ -94,8 +97,13 @@ export class HUD {
   showSelectedTower(tower: Tower): void {
     const stats = tower.effectiveStats;
     const upgradeCost = tower.costForNextTier();
-    let html = `<strong>${tower.def.name}</strong> — palier ${tower.tier}<br/>`;
-    html += `Dégâts ${stats.damage.toFixed(0)} · Cadence ${stats.fireRatePerSec.toFixed(1)}/s · Portée ${stats.range.toFixed(1)}<br/>`;
+    let html: string;
+    if (tower.def.upgradable === false) {
+      html = `<strong>${tower.def.name}</strong><br/>Bloc inerte — aucune attaque, sert juste à guider le chemin.<br/>`;
+    } else {
+      html = `<strong>${tower.def.name}</strong> — palier ${tower.tier}<br/>`;
+      html += `Dégâts ${stats.damage.toFixed(0)} · Cadence ${stats.fireRatePerSec.toFixed(1)}/s · Portée ${stats.range.toFixed(1)}<br/>`;
+    }
     if (tower.tier === 2 && upgradeCost !== null) {
       html += `<button data-action="upgrade-a">Améliorer (${upgradeCost} or, choisir branche T3)</button>`;
     } else if (upgradeCost !== null) {
@@ -178,11 +186,12 @@ export class HUD {
   }
 
   refresh(): void {
-    const { economy, waveScheduler, level } = this.gameState;
+    const { economy, waveScheduler, level, scoreTracker } = this.gameState;
     this.goldEl.textContent = `💰 ${economy.gold}`;
     this.livesEl.textContent = `❤️ ${economy.lives}`;
     const current = waveScheduler.waveIndex + 1 + this.waveNumberOffset;
     this.waveEl.textContent = this.waveEndless ? `Vague ${current}` : `Vague ${current}/${level.waves.length}`;
+    this.scoreEl.textContent = `🏆 ${Math.floor(scoreTracker.score)} ×${scoreTracker.multiplier.toFixed(1)}`;
     this.earlyCallBtn.style.display = waveScheduler.phase === 'build' ? 'inline-block' : 'none';
     for (const [towerId, btn] of this.towerButtons) {
       btn.disabled = !economy.canAfford(TOWERS[towerId].tiers[0].cost);
@@ -197,6 +206,7 @@ export class HUD {
       .hud-root { position: absolute; inset: 0; pointer-events: none; font-family: system-ui, sans-serif; color: #f1f2f6; }
       .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 16px; align-items: center; padding: 10px 14px; background: rgba(18,21,28,0.6); pointer-events: auto; font-size: 15px; }
       .hud-menu-btn { min-width: 44px; min-height: 44px; border: none; border-radius: 8px; background: #2f3542; color: #f1f2f6; font-size: 16px; cursor: pointer; }
+      .hud-score { color: #ffd166; font-variant-numeric: tabular-nums; font-weight: 600; }
       .hud-early-call { margin-left: auto; padding: 8px 14px; min-height: 44px; border: none; border-radius: 8px; background: #ffa502; color: #12151c; font-weight: 600; cursor: pointer; }
       .hud-tower-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 10px; background: rgba(18,21,28,0.6); pointer-events: auto; overflow-x: auto; }
       .hud-tower-btn { min-width: 76px; min-height: 44px; padding: 6px 10px; border-radius: 8px; border: 2px solid transparent; background: #2f3542; color: #f1f2f6; cursor: pointer; font-size: 12px; }

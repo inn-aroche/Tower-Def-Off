@@ -258,6 +258,7 @@ async function main(): Promise<void> {
     (alpha) => {
       renderer.update(SIM_DT, alpha);
       renderer.render();
+      if (mode.kind !== 'menu') hud.refresh(); // score ticks every frame, not just on discrete events
     },
   );
 
