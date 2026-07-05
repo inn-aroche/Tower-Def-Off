@@ -12,6 +12,28 @@ const ENEMY_COLORS: Record<EnemyType, number> = {
 };
 
 const MAX_PER_TYPE = 220;
+const MAX_BARS = 260;
+const BAR_WIDTH = 0.5;
+const BAR_HEIGHT = 0.07;
+const BAR_Y_ABOVE_MODEL = 0.4;
+
+/**
+ * Health bars are flat quads with a single shared rotation, not per-instance billboarding — the
+ * camera never orbits (see CameraRig's "fixed 3/4 perspective" comment), so one rotation aligned
+ * to the camera's constant viewing direction reads correctly for every enemy on screen.
+ * Must track CameraRig.frameGrid's height/back ratio (1.1 / 0.85) since that ratio, not the
+ * grid-dependent span, determines the camera's viewing angle.
+ */
+const BILLBOARD_QUAT = new THREE.Quaternion().setFromUnitVectors(
+  new THREE.Vector3(0, 0, 1),
+  new THREE.Vector3(0, 1.1, 0.85).normalize(),
+);
+
+function healthBarColor(hpPct: number): THREE.Color {
+  if (hpPct > 0.5) return new THREE.Color(0x2ecc71);
+  if (hpPct > 0.25) return new THREE.Color(0xf1c40f);
+  return new THREE.Color(0xe74c3c);
+}
 
 /**
  * Distinct low-poly silhouette per enemy type — not just color — so type is readable under any
@@ -41,6 +63,11 @@ export class EnemyView {
   readonly group = new THREE.Group();
   private meshes = new Map<EnemyType, THREE.InstancedMesh>();
   private dummy = new THREE.Object3D();
+  /** Separate from `dummy` — its quaternion is set to the fixed billboard rotation and must never
+   * leak back into the (unrotated) enemy-body transforms computed from the shared `dummy`. */
+  private barDummy = new THREE.Object3D();
+  private barBg: THREE.InstancedMesh;
+  private barFill: THREE.InstancedMesh;
 
   constructor() {
     for (const type of Object.keys(ENEMY_COLORS) as EnemyType[]) {
@@ -51,12 +78,31 @@ export class EnemyView {
       this.meshes.set(type, mesh);
       this.group.add(mesh);
     }
+
+    const bgGeometry = new THREE.PlaneGeometry(BAR_WIDTH, BAR_HEIGHT);
+    const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x1a1a1a, depthTest: false, transparent: true, opacity: 0.85 });
+    this.barBg = new THREE.InstancedMesh(bgGeometry, bgMaterial, MAX_BARS);
+    this.barBg.count = 0;
+    this.barBg.renderOrder = 10;
+
+    // Left-anchored: geometry shifted so its local x spans [0, BAR_WIDTH] instead of the
+    // PlaneGeometry default [-w/2, w/2] — scaling x by hpPct then shrinks from the left edge inward.
+    const fillGeometry = new THREE.PlaneGeometry(BAR_WIDTH, BAR_HEIGHT);
+    fillGeometry.translate(BAR_WIDTH / 2, 0, 0);
+    const fillMaterial = new THREE.MeshBasicMaterial({ depthTest: false, transparent: true });
+    this.barFill = new THREE.InstancedMesh(fillGeometry, fillMaterial, MAX_BARS);
+    this.barFill.count = 0;
+    this.barFill.renderOrder = 11;
+
+    this.group.add(this.barBg, this.barFill);
+    this.barDummy.quaternion.copy(BILLBOARD_QUAT);
   }
 
   /** Rebuild instance transforms for every enemy type from current sim state, interpolated by alpha. */
   sync(enemies: Enemy[], alpha: number): void {
     const counters = new Map<EnemyType, number>();
     for (const mesh of this.meshes.values()) mesh.count = 0;
+    let barIdx = 0;
 
     for (const enemy of enemies) {
       if (!enemy.alive) continue;
@@ -69,17 +115,41 @@ export class EnemyView {
       const y = THREE.MathUtils.lerp(enemy.prevY, enemy.y, alpha);
       const height = enemy.def.movement === 'flying' ? 1.4 : 0.25;
       this.dummy.position.set(x, height, y);
-      const scale = 0.6 + (enemy.hp / enemy.maxHp) * 0.4;
+      const hpPct = enemy.hp / enemy.maxHp;
+      const scale = 0.6 + hpPct * 0.4;
       this.dummy.scale.setScalar(scale);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(idx, this.dummy.matrix);
 
       counters.set(enemy.type, idx + 1);
+
+      if (barIdx < MAX_BARS) {
+        const barY = height + BAR_Y_ABOVE_MODEL;
+
+        this.barDummy.position.set(x, barY, y);
+        this.barDummy.scale.set(1, 1, 1);
+        this.barDummy.updateMatrix();
+        this.barBg.setMatrixAt(barIdx, this.barDummy.matrix);
+
+        this.barDummy.position.set(x - BAR_WIDTH / 2, barY, y);
+        this.barDummy.scale.set(Math.max(hpPct, 0), 1, 1);
+        this.barDummy.updateMatrix();
+        this.barFill.setMatrixAt(barIdx, this.barDummy.matrix);
+        this.barFill.setColorAt(barIdx, healthBarColor(hpPct));
+
+        barIdx++;
+      }
     }
 
     for (const [type, mesh] of this.meshes) {
       mesh.count = counters.get(type) ?? 0;
       mesh.instanceMatrix.needsUpdate = true;
     }
+
+    this.barBg.count = barIdx;
+    this.barBg.instanceMatrix.needsUpdate = true;
+    this.barFill.count = barIdx;
+    this.barFill.instanceMatrix.needsUpdate = true;
+    if (this.barFill.instanceColor) this.barFill.instanceColor.needsUpdate = true;
   }
 }
