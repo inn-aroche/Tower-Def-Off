@@ -1,0 +1,26 @@
+{
+  "id": 25,
+  "name": "Nuée Sans Fin",
+  "grid": {
+    "cols": 21,
+    "rows": 13,
+    "blocked": [
+      [5, 0], [5, 1], [5, 2], [5, 3], [5, 4], [5, 5], [5, 6], [5, 7],
+      [10, 5], [10, 6], [10, 7], [10, 8], [10, 9], [10, 10], [10, 11], [10, 12],
+      [15, 0], [15, 1], [15, 2], [15, 3], [15, 4], [15, 5], [15, 6], [15, 7]
+    ],
+    "spawns": [[0, 6]],
+    "exits": [[20, 6]]
+  },
+  "startGold": 420,
+  "baseHp": 20,
+  "allowedTowers": ["wall", "laser", "mortar", "tesla", "cryo"],
+  "waves": [
+    { "delay": 5, "spawns": [{ "type": "swarm", "count": 24, "interval": 0.16 }] },
+    { "delay": 6, "spawns": [{ "type": "swarm", "count": 30, "interval": 0.14 }] },
+    { "delay": 6, "spawns": [{ "type": "swarm", "count": 20, "interval": 0.15 }, { "type": "soldier", "count": 8, "interval": 0.4 }] },
+    { "delay": 7, "spawns": [{ "type": "swarm", "count": 34, "interval": 0.12 }, { "type": "swarm", "count": 20, "interval": 0.14 }] },
+    { "delay": 7, "spawns": [{ "type": "swarm", "count": 28, "interval": 0.12 }, { "type": "golem", "count": 3, "interval": 2.0 }] }
+  ],
+  "starGoals": { "noLeak": true, "maxTowers": 16, "maxGoldSpent": 950 }
+}

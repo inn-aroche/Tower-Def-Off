@@ -1,7 +1,8 @@
 import type { SaveManager } from './SaveManager';
 import { SKINS } from '../data/skins';
+import { TOTAL_CAMPAIGN_LEVELS } from '../data/campaign';
 
-export const TOTAL_LEVELS = 10;
+export const TOTAL_LEVELS = TOTAL_CAMPAIGN_LEVELS;
 /** Access to Survie unlocks fully after N10, but early access opens after N5 (§11). */
 const SURVIVAL_EARLY_ACCESS_LEVEL = 5;
 

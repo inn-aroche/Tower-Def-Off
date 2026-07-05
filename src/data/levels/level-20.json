@@ -1,0 +1,26 @@
+{
+  "id": 20,
+  "name": "Front Multiple",
+  "grid": {
+    "cols": 20,
+    "rows": 13,
+    "blocked": [
+      [8, 2], [8, 3], [9, 2], [9, 3],
+      [8, 9], [8, 10], [9, 9], [9, 10],
+      [13, 5], [13, 6], [13, 7]
+    ],
+    "spawns": [[0, 2], [0, 6], [0, 10]],
+    "exits": [[19, 6]]
+  },
+  "startGold": 380,
+  "baseHp": 20,
+  "allowedTowers": ["wall", "laser", "mortar", "tesla", "cryo"],
+  "waves": [
+    { "delay": 5, "spawns": [{ "type": "soldier", "count": 10, "interval": 0.4 }] },
+    { "delay": 6, "spawns": [{ "type": "swarm", "count": 14, "interval": 0.2 }, { "type": "soldier", "count": 8, "interval": 0.4 }] },
+    { "delay": 6, "spawns": [{ "type": "golem", "count": 4, "interval": 1.6 }, { "type": "drone", "count": 4, "interval": 0.9 }] },
+    { "delay": 7, "spawns": [{ "type": "kamikaze", "count": 6, "interval": 0.8 }, { "type": "swarm", "count": 14, "interval": 0.18 }] },
+    { "delay": 7, "spawns": [{ "type": "soldier", "count": 12, "interval": 0.3 }, { "type": "golem", "count": 3, "interval": 1.6 }, { "type": "drone", "count": 5, "interval": 0.8 }] }
+  ],
+  "starGoals": { "noLeak": true, "maxTowers": 15, "maxGoldSpent": 900 }
+}

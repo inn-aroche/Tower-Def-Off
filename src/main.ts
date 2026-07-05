@@ -12,23 +12,12 @@ import type { AdProvider } from './platform/AdProvider';
 import { NullProvider } from './platform/NullProvider';
 import { PokiProvider } from './platform/PokiProvider';
 import { CrazyGamesProvider } from './platform/CrazyGamesProvider';
-import type { LevelConfig } from './data/LevelConfig';
 import { TOWERS, type TowerId } from './data/towers';
 import { buildSurvivalLevelConfig, survivalScore, SURVIVAL_TIERS, type SurvivalTier } from './data/survival';
-import level01 from './data/levels/level-01.json';
-import level02 from './data/levels/level-02.json';
-import level03 from './data/levels/level-03.json';
-import level04 from './data/levels/level-04.json';
-import level05 from './data/levels/level-05.json';
-import level06 from './data/levels/level-06.json';
-import level07 from './data/levels/level-07.json';
-import level08 from './data/levels/level-08.json';
-import level09 from './data/levels/level-09.json';
-import level10 from './data/levels/level-10.json';
+import { buildCampaignLevels } from './data/campaign';
+import type { LevelConfig } from './data/LevelConfig';
 
-const LEVELS: LevelConfig[] = [
-  level01, level02, level03, level04, level05, level06, level07, level08, level09, level10,
-] as unknown as LevelConfig[];
+const LEVELS = buildCampaignLevels();
 
 function detectProvider(): AdProvider {
   if (typeof window.PokiSDK !== 'undefined') return new PokiProvider();
