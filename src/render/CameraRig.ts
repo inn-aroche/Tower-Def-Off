@@ -52,7 +52,11 @@ export class CameraRig {
 
     this.target.set(cx, 0, cy);
     if (portrait) {
-      this.camera.position.set(cx - back, height, cy);
+      // Camera sits at LARGER x than the grid, looking back toward -X: col 0 (spawn) ends up
+      // farthest away (appears near the top of the screen), col (cols-1) (exit/base) ends up
+      // closest to the camera (near the bottom, close to the tower shop) — enemies read as
+      // marching down the screen toward the player, matching the requested direction.
+      this.camera.position.set(cx + back, height, cy);
     } else {
       this.camera.position.set(cx, height, cy + back);
     }
