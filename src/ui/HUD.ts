@@ -9,6 +9,7 @@ export interface HUDCallbacks {
   onSellSelected(): void;
   onCallWaveEarly(): void;
   onRestart(): void;
+  onOpenMenu(): void;
 }
 
 /** DOM overlay HUD — deliberately outside Three.js so it stays crisp and accessible on any device. */
@@ -23,6 +24,8 @@ export class HUD {
   private selectedPanel: HTMLDivElement;
   private endOverlay: HTMLDivElement;
   private selectedTowerId: TowerId | null = null;
+  private waveNumberOffset = 0;
+  private waveEndless = false;
 
   constructor(container: HTMLElement, private readonly gameState: GameState, private readonly bus: EventBus, private readonly callbacks: HUDCallbacks) {
     this.root = document.createElement('div');
@@ -31,6 +34,10 @@ export class HUD {
 
     const top = document.createElement('div');
     top.className = 'hud-top';
+    const menuBtn = document.createElement('button');
+    menuBtn.textContent = '☰';
+    menuBtn.className = 'hud-menu-btn';
+    menuBtn.onclick = () => this.callbacks.onOpenMenu();
     this.goldEl = document.createElement('span');
     this.livesEl = document.createElement('span');
     this.waveEl = document.createElement('span');
@@ -38,7 +45,7 @@ export class HUD {
     this.earlyCallBtn.textContent = 'Appel anticipé (+or)';
     this.earlyCallBtn.className = 'hud-early-call';
     this.earlyCallBtn.onclick = () => this.callbacks.onCallWaveEarly();
-    top.append(this.goldEl, this.livesEl, this.waveEl, this.earlyCallBtn);
+    top.append(menuBtn, this.goldEl, this.livesEl, this.waveEl, this.earlyCallBtn);
     this.root.appendChild(top);
 
     this.towerBar = document.createElement('div');
@@ -127,18 +134,33 @@ export class HUD {
     this.selectedPanel.innerHTML = '';
   }
 
-  showEndOverlay(won: boolean, stars: number): void {
+  show(): void {
+    this.root.style.display = 'block';
+  }
+
+  hide(): void {
+    this.root.style.display = 'none';
+  }
+
+  showEndOverlay(won: boolean, opts: { stars?: number; message?: string; primaryLabel?: string } = {}): void {
     this.endOverlay.style.display = 'flex';
-    const starRow = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+    const starRow = opts.stars !== undefined ? '⭐'.repeat(opts.stars) + '☆'.repeat(3 - opts.stars) : '';
+    const primaryLabel = opts.primaryLabel ?? (won ? 'Continuer' : 'Réessayer');
     this.endOverlay.innerHTML = `
       <div class="hud-end-card">
         <h2>${won ? 'Niveau réussi !' : 'Défaite'}</h2>
-        ${won ? `<div class="hud-stars">${starRow}</div>` : ''}
-        <button data-action="restart">${won ? 'Continuer' : 'Réessayer'}</button>
+        ${starRow ? `<div class="hud-stars">${starRow}</div>` : ''}
+        ${opts.message ? `<p>${opts.message}</p>` : ''}
+        <button data-action="restart">${primaryLabel}</button>
+        <button data-action="menu" class="hud-end-menu-btn">Menu</button>
       </div>`;
-    this.endOverlay.querySelector('button')?.addEventListener('click', () => {
+    this.endOverlay.querySelector('[data-action="restart"]')?.addEventListener('click', () => {
       this.endOverlay.style.display = 'none';
       this.callbacks.onRestart();
+    });
+    this.endOverlay.querySelector('[data-action="menu"]')?.addEventListener('click', () => {
+      this.endOverlay.style.display = 'none';
+      this.callbacks.onOpenMenu();
     });
   }
 
@@ -149,11 +171,18 @@ export class HUD {
     this.bus.on('waveCalledEarly', () => this.refresh());
   }
 
+  /** Survival slices a huge pre-generated wave array starting mid-way; display the absolute wave number instead. */
+  setWaveDisplayMode(offset: number, endless: boolean): void {
+    this.waveNumberOffset = offset;
+    this.waveEndless = endless;
+  }
+
   refresh(): void {
     const { economy, waveScheduler, level } = this.gameState;
     this.goldEl.textContent = `💰 ${economy.gold}`;
     this.livesEl.textContent = `❤️ ${economy.lives}`;
-    this.waveEl.textContent = `Vague ${waveScheduler.waveIndex + 1}/${level.waves.length}`;
+    const current = waveScheduler.waveIndex + 1 + this.waveNumberOffset;
+    this.waveEl.textContent = this.waveEndless ? `Vague ${current}` : `Vague ${current}/${level.waves.length}`;
     this.earlyCallBtn.style.display = waveScheduler.phase === 'build' ? 'inline-block' : 'none';
     for (const [towerId, btn] of this.towerButtons) {
       btn.disabled = !economy.canAfford(TOWERS[towerId].tiers[0].cost);
@@ -167,6 +196,7 @@ export class HUD {
     style.textContent = `
       .hud-root { position: absolute; inset: 0; pointer-events: none; font-family: system-ui, sans-serif; color: #f1f2f6; }
       .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 16px; align-items: center; padding: 10px 14px; background: rgba(18,21,28,0.6); pointer-events: auto; font-size: 15px; }
+      .hud-menu-btn { min-width: 44px; min-height: 44px; border: none; border-radius: 8px; background: #2f3542; color: #f1f2f6; font-size: 16px; cursor: pointer; }
       .hud-early-call { margin-left: auto; padding: 8px 14px; min-height: 44px; border: none; border-radius: 8px; background: #ffa502; color: #12151c; font-weight: 600; cursor: pointer; }
       .hud-tower-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 10px; background: rgba(18,21,28,0.6); pointer-events: auto; overflow-x: auto; }
       .hud-tower-btn { min-width: 76px; min-height: 44px; padding: 6px 10px; border-radius: 8px; border: 2px solid transparent; background: #2f3542; color: #f1f2f6; cursor: pointer; font-size: 12px; }
@@ -177,6 +207,8 @@ export class HUD {
       .hud-end-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); pointer-events: auto; }
       .hud-end-card { background: #1e2129; padding: 24px 32px; border-radius: 12px; text-align: center; }
       .hud-stars { font-size: 32px; margin: 10px 0; }
+      .hud-end-card button { min-height: 44px; min-width: 120px; margin: 12px 6px 0; padding: 8px 16px; border-radius: 8px; border: none; background: #70a1ff; color: #12151c; font-weight: 600; cursor: pointer; }
+      .hud-end-menu-btn { background: #2f3542 !important; color: #f1f2f6 !important; }
     `;
     document.head.appendChild(style);
   }

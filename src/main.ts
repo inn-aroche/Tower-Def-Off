@@ -3,6 +3,8 @@ import { GameLoop, SIM_DT } from './core/GameLoop';
 import { GameState } from './sim/GameState';
 import { Renderer } from './render/Renderer';
 import { HUD } from './ui/HUD';
+import { MainMenu } from './ui/MainMenu';
+import { Tutorial } from './ui/Tutorial';
 import { AudioManager } from './audio/AudioManager';
 import { SaveManager } from './meta/SaveManager';
 import { Progression } from './meta/Progression';
@@ -12,16 +14,29 @@ import { PokiProvider } from './platform/PokiProvider';
 import { CrazyGamesProvider } from './platform/CrazyGamesProvider';
 import type { LevelConfig } from './data/LevelConfig';
 import { TOWERS, type TowerId } from './data/towers';
+import { buildSurvivalLevelConfig, survivalScore, SURVIVAL_TIERS, type SurvivalTier } from './data/survival';
 import level01 from './data/levels/level-01.json';
 import level02 from './data/levels/level-02.json';
+import level03 from './data/levels/level-03.json';
+import level04 from './data/levels/level-04.json';
+import level05 from './data/levels/level-05.json';
+import level06 from './data/levels/level-06.json';
+import level07 from './data/levels/level-07.json';
+import level08 from './data/levels/level-08.json';
+import level09 from './data/levels/level-09.json';
+import level10 from './data/levels/level-10.json';
 
-const LEVELS: LevelConfig[] = [level01 as LevelConfig, level02 as LevelConfig];
+const LEVELS: LevelConfig[] = [
+  level01, level02, level03, level04, level05, level06, level07, level08, level09, level10,
+] as unknown as LevelConfig[];
 
 function detectProvider(): AdProvider {
   if (typeof window.PokiSDK !== 'undefined') return new PokiProvider();
   if (typeof window.CrazyGames !== 'undefined') return new CrazyGamesProvider();
   return new NullProvider();
 }
+
+type Mode = { kind: 'menu' } | { kind: 'level'; levelId: number } | { kind: 'survival'; tier: SurvivalTier };
 
 async function main(): Promise<void> {
   const container = document.getElementById('app');
@@ -36,11 +51,28 @@ async function main(): Promise<void> {
   const provider = detectProvider();
   await provider.init();
 
-  let currentLevelIndex = 0;
+  renderer.setTowerSkin(save.selectedSkin);
+  renderer.setReducedEffects(save.reduceEffects);
+
+  let mode: Mode = { kind: 'menu' };
   let placementTowerId: TowerId | null = null;
   let selectedTowerId: string | null = null;
-  let hoveredCell: [number, number] | null = null;
   let gameplayStarted = false;
+
+  const tutorial = new Tutorial(container, bus);
+
+  const menu = new MainMenu(container, LEVELS, progression, save, {
+    onSelectLevel: (levelId) => enterLevel(levelId),
+    onSelectSurvival: (tier) => enterSurvival(tier),
+    onSelectSkin: (skinId) => {
+      save.selectSkin(skinId);
+      renderer.setTowerSkin(skinId);
+    },
+    onToggleReduceEffects: (value) => {
+      save.setReduceEffects(value);
+      renderer.setReducedEffects(value);
+    },
+  });
 
   const hud = new HUD(container, gameState, bus, {
     onSelectTowerToPlace: (towerId) => {
@@ -65,22 +97,61 @@ async function main(): Promise<void> {
     onRestart: () => {
       void (async () => {
         provider.gameplayStop();
+        audio.setMuted(true); // muted for the ad break per SDK requirements (§15)
         await provider.interstitial();
-        loadLevel(currentLevelIndex);
+        audio.setMuted(false);
+        if (mode.kind === 'level') {
+          if (gameState.outcome === 'won') {
+            const nextId = mode.levelId + 1;
+            if (nextId <= LEVELS.length) enterLevel(nextId);
+            else openMenu();
+          } else {
+            enterLevel(mode.levelId); // retry same level on defeat
+          }
+        } else if (mode.kind === 'survival') {
+          enterSurvival(mode.tier); // fresh run at the same tier
+        }
         provider.gameplayStart();
       })();
     },
+    onOpenMenu: () => openMenu(),
   });
 
-  function loadLevel(index: number): void {
-    currentLevelIndex = index;
-    gameState.loadLevel(LEVELS[index]);
+  function openMenu(): void {
+    mode = { kind: 'menu' };
+    hud.hide();
+    tutorial.stop();
+    menu.show();
+    provider.gameplayStop();
+  }
+
+  function enterLevel(levelId: number): void {
+    const level = LEVELS.find((l) => l.id === levelId);
+    if (!level || !progression.isLevelUnlocked(levelId)) return;
+    mode = { kind: 'level', levelId };
+    hud.setWaveDisplayMode(0, false);
+    startRun(level);
+  }
+
+  function enterSurvival(tier: SurvivalTier): void {
+    if (!progression.isSurvivalUnlocked()) return;
+    mode = { kind: 'survival', tier };
+    hud.setWaveDisplayMode(SURVIVAL_TIERS[tier].startWaveIndex, true);
+    startRun(buildSurvivalLevelConfig(tier));
+  }
+
+  function startRun(level: LevelConfig): void {
+    menu.hide();
+    hud.show();
+    gameState.loadLevel(level);
     renderer.loadLevelVisuals();
-    hud.buildTowerBar(LEVELS[index].allowedTowers);
+    hud.buildTowerBar(level.allowedTowers);
     hud.refresh();
     placementTowerId = null;
     selectedTowerId = null;
     hud.hideSelectedTower();
+    if (level.tutorial) tutorial.start();
+    else tutorial.stop();
   }
 
   bus.on('towerPlaced', () => audio.play('towerPlace'));
@@ -88,17 +159,41 @@ async function main(): Promise<void> {
   bus.on('enemyLeaked', () => audio.play('enemyLeak'));
   bus.on('waveCompleted', () => audio.play('waveComplete'));
   bus.on('levelWon', ({ starsEarned }) => {
-    progression.recordLevelResult(LEVELS[currentLevelIndex].id, starsEarned);
     provider.happyTime();
     provider.gameplayStop();
-    const isLastLevel = currentLevelIndex >= LEVELS.length - 1;
-    hud.showEndOverlay(true, starsEarned);
-    if (!isLastLevel) currentLevelIndex += 1; // "Continuer" advances to the next level
+    if (mode.kind === 'level') {
+      const unlockedSkins = progression.recordLevelResult(mode.levelId, starsEarned);
+      menu.refresh();
+      hud.showEndOverlay(true, {
+        stars: starsEarned,
+        message: unlockedSkins.length ? `Nouveau skin débloqué : ${unlockedSkins.join(', ')} !` : undefined,
+        primaryLabel: mode.levelId < LEVELS.length ? 'Niveau suivant' : 'Retour au menu',
+      });
+    } else if (mode.kind === 'survival') {
+      const absoluteWave = survivalAbsoluteWaveIndex();
+      const score = survivalScore(mode.tier, absoluteWave);
+      save.reportSurvivalRun(mode.tier, score, absoluteWave);
+      hud.showEndOverlay(true, { message: `Survie terminée — score ${score}`, primaryLabel: 'Rejouer' });
+    }
   });
   bus.on('levelLost', () => {
     provider.gameplayStop();
-    hud.showEndOverlay(false, 0);
+    if (mode.kind === 'survival') {
+      const absoluteWave = survivalAbsoluteWaveIndex();
+      const score = survivalScore(mode.tier, absoluteWave);
+      save.reportSurvivalRun(mode.tier, score, absoluteWave);
+      hud.showEndOverlay(false, { message: `Score final : ${score} (vague ${absoluteWave + 1})`, primaryLabel: 'Rejouer' });
+    } else {
+      hud.showEndOverlay(false, {});
+    }
   });
+
+  function survivalAbsoluteWaveIndex(): number {
+    if (mode.kind !== 'survival') return 0;
+    const level = buildSurvivalLevelConfig(mode.tier);
+    const startIndex = level.id - 1000; // survival ids are 1000 + startWaveIndex, see data/survival.ts
+    return startIndex + gameState.waveScheduler.waveIndex;
+  }
 
   const canvas = renderer.renderer.domElement;
 
@@ -106,11 +201,13 @@ async function main(): Promise<void> {
     if (gameplayStarted) return;
     gameplayStarted = true;
     audio.init();
+    audio.startAmbient();
     provider.gameplayStart();
   }
 
   canvas.addEventListener('pointermove', (ev) => {
-    hoveredCell = renderer.screenToGridCell(ev.clientX, ev.clientY);
+    if (mode.kind === 'menu') return;
+    const hoveredCell = renderer.screenToGridCell(ev.clientX, ev.clientY);
     if (placementTowerId && hoveredCell) {
       const [col, row] = hoveredCell;
       const cost = TOWERS[placementTowerId].tiers[0].cost;
@@ -122,6 +219,7 @@ async function main(): Promise<void> {
   });
 
   canvas.addEventListener('pointerdown', (ev) => {
+    if (mode.kind === 'menu') return;
     ensureGameplayStarted();
     const cell = renderer.screenToGridCell(ev.clientX, ev.clientY);
     if (!cell) return;
@@ -148,14 +246,17 @@ async function main(): Promise<void> {
   window.addEventListener('resize', () => renderer.resize());
 
   const loop = new GameLoop(
-    (dt) => gameState.step(dt),
+    (dt) => {
+      if (mode.kind !== 'menu') gameState.step(dt);
+    },
     (alpha) => {
       renderer.update(SIM_DT, alpha);
       renderer.render();
     },
   );
 
-  loadLevel(0);
+  hud.hide();
+  menu.show();
   provider.loadingFinished();
   loop.start();
 

@@ -13,6 +13,29 @@ const ENEMY_COLORS: Record<EnemyType, number> = {
 
 const MAX_PER_TYPE = 220;
 
+/**
+ * Distinct low-poly silhouette per enemy type — not just color — so type is readable under any
+ * color-vision deficiency (§14 accessibility requirement): capsule (soldier), sharp tetrahedron
+ * (swarm, reads as "small threat"), blocky cube (golem, reads as "armored"), octahedron (drone,
+ * airborne), spiked cone (kamikaze, reads as "danger"), large icosahedron (boss).
+ */
+function geometryFor(type: EnemyType): THREE.BufferGeometry {
+  switch (type) {
+    case 'soldier':
+      return new THREE.CapsuleGeometry(0.22, 0.3, 3, 6);
+    case 'swarm':
+      return new THREE.TetrahedronGeometry(0.22);
+    case 'golem':
+      return new THREE.BoxGeometry(0.5, 0.6, 0.5);
+    case 'drone':
+      return new THREE.OctahedronGeometry(0.28);
+    case 'kamikaze':
+      return new THREE.ConeGeometry(0.24, 0.5, 5);
+    case 'boss':
+      return new THREE.IcosahedronGeometry(0.55);
+  }
+}
+
 /** One InstancedMesh per enemy type — required to stay smooth at ~150 concurrent enemies (Nuée swarms). */
 export class EnemyView {
   readonly group = new THREE.Group();
@@ -21,8 +44,7 @@ export class EnemyView {
 
   constructor() {
     for (const type of Object.keys(ENEMY_COLORS) as EnemyType[]) {
-      const isFlying = type === 'drone';
-      const geometry = isFlying ? new THREE.OctahedronGeometry(0.28) : new THREE.CapsuleGeometry(0.22, 0.3, 3, 6);
+      const geometry = geometryFor(type);
       const material = new THREE.MeshStandardMaterial({ color: ENEMY_COLORS[type] });
       const mesh = new THREE.InstancedMesh(geometry, material, MAX_PER_TYPE);
       mesh.count = 0;

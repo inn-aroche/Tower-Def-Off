@@ -121,6 +121,7 @@ export function stepCombat(
       const raw = stats.damage;
       const dmg = damageAfterArmor(raw, hit.def.armor, stats.armorPierce);
       hit.hp -= dmg;
+      bus.emit('damageDealt', { enemyId: hit.id, amount: dmg, x: hit.x, y: hit.y });
       if (stats.slowPct > 0) hit.applySlow(stats.slowPct, 1.5);
       if (stats.dotPerSecond > 0) hit.applyDot(stats.dotPerSecond, 3);
       if (branch?.freezePulse && hit.type !== 'boss') hit.applyFreeze(branch.freezePulse.duration);

@@ -5,6 +5,7 @@ import { TowerView } from './views/TowerView';
 import { EnemyView } from './views/EnemyView';
 import { ProjectileView } from './views/ProjectileView';
 import { Particles } from './fx/Particles';
+import { DamageNumbers } from './fx/DamageNumbers';
 import type { GameState } from '../sim/GameState';
 import type { EventBus } from '../core/EventBus';
 import type { TowerId } from '../data/towers';
@@ -26,7 +27,9 @@ export class Renderer {
   private enemyView = new EnemyView();
   private projectileView = new ProjectileView();
   private particles = new Particles();
+  private damageNumbers = new DamageNumbers();
   private unsubscribers: Array<() => void> = [];
+  private reducedEffects = false;
 
   constructor(private readonly container: HTMLElement, private readonly gameState: GameState, private readonly bus: EventBus) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
@@ -47,6 +50,7 @@ export class Renderer {
     this.scene.add(this.enemyView.group);
     this.scene.add(this.projectileView.group);
     this.scene.add(this.particles.group);
+    this.scene.add(this.damageNumbers.group);
 
     this.bindEvents();
     this.resize();
@@ -65,15 +69,22 @@ export class Renderer {
       }),
       this.bus.on('flowFieldRecomputed', () => this.gridView.rebuild(this.gameState.grid)),
       this.bus.on('enemyKilled', ({ col, row }) => {
-        this.particles.burst(col + 0.5, 0.3, row + 0.5, 0xffd700, 10);
+        this.particles.burst(col + 0.5, 0.3, row + 0.5, 0xffd700, this.reducedEffects ? 3 : 10);
       }),
-      this.bus.on('enemyLeaked', () => this.cameraRig.shake(0.06, 0.15)),
+      this.bus.on('enemyLeaked', () => {
+        if (!this.reducedEffects) this.cameraRig.shake(0.06, 0.15);
+      }),
+      this.bus.on('damageDealt', ({ enemyId, amount, x, y }) => {
+        const target = this.gameState.enemies.find((e) => e.id === enemyId);
+        const height = target?.def.movement === 'flying' ? 1.7 : 0.6;
+        this.damageNumbers.spawn(x, height, y, amount);
+      }),
       this.bus.on('projectileFired', ({ towerId, targetId }) => {
         const tower = this.gameState.towers.find((t) => t.id === towerId);
         const target = this.gameState.enemies.find((e) => e.id === targetId);
         if (!tower || !target) return;
         const stats = tower.effectiveStats;
-        if (stats.splashRadius > 0 && stats.fireRatePerSec < 1) {
+        if (!this.reducedEffects && stats.splashRadius > 0 && stats.fireRatePerSec < 1) {
           this.cameraRig.shake(0.1, 0.12); // punchy feedback for slow, heavy-hitting mortar shots
         }
         const from = new THREE.Vector3(tower.col + 0.5, 0.6, tower.row + 0.5);
@@ -89,6 +100,15 @@ export class Renderer {
     this.cameraRig.frameGrid(this.gameState.grid.cols, this.gameState.grid.rows);
   }
 
+  setTowerSkin(skinId: string): void {
+    this.towerView.setSkin(skinId);
+  }
+
+  setReducedEffects(value: boolean): void {
+    this.reducedEffects = value;
+    this.damageNumbers.enabled = !value;
+  }
+
   showPlacementGhost(col: number, row: number, valid: boolean): void {
     this.gridView.showGhost(col, row, valid);
   }
@@ -102,6 +122,7 @@ export class Renderer {
     this.towerView.syncDisabled(this.gameState.towers);
     this.projectileView.update(dt);
     this.particles.update(dt);
+    this.damageNumbers.update(dt);
     this.cameraRig.update(dt);
   }
 

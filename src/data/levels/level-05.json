@@ -1,0 +1,22 @@
+{
+  "id": 5,
+  "name": "Menace Aérienne",
+  "grid": {
+    "cols": 16,
+    "rows": 10,
+    "blocked": [[6, 3], [6, 4], [6, 5], [6, 6], [11, 3], [11, 4]],
+    "spawns": [[0, 5]],
+    "exits": [[15, 5]]
+  },
+  "startGold": 160,
+  "baseHp": 20,
+  "allowedTowers": ["laser", "mortar", "tesla"],
+  "waves": [
+    { "delay": 3, "spawns": [{ "type": "soldier", "count": 5, "interval": 0.8 }] },
+    { "delay": 5, "spawns": [{ "type": "drone", "count": 4, "interval": 1.2 }] },
+    { "delay": 5, "spawns": [{ "type": "swarm", "count": 8, "interval": 0.25 }, { "type": "drone", "count": 3, "interval": 1.4 }] },
+    { "delay": 6, "spawns": [{ "type": "drone", "count": 6, "interval": 1.0 }, { "type": "golem", "count": 2, "interval": 2.5 }] },
+    { "delay": 6, "spawns": [{ "type": "soldier", "count": 6, "interval": 0.6 }, { "type": "drone", "count": 6, "interval": 0.9 }] }
+  ],
+  "starGoals": { "noLeak": true, "maxTowers": 10, "maxGoldSpent": 700 }
+}

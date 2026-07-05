@@ -9,6 +9,19 @@
       #app { position: relative; width: 100vw; height: 100vh; }
       canvas { display: block; touch-action: none; }
     </style>
+    <!--
+      Platform SDK scripts — add exactly ONE of these before shipping to that platform.
+      Left out of the dev build on purpose: src/platform/NullProvider.ts is used locally,
+      and src/main.ts auto-detects PokiSDK/CrazyGames.SDK on window to pick the real adapter.
+      Signatures re-verified July 2026 against sdk.poki.com / docs.crazygames.com — re-check
+      before shipping, both SDKs evolve.
+
+      Poki:
+        <script src="//game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>
+
+      CrazyGames v3:
+        <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+    -->
   </head>
   <body>
     <div id="app"></div>

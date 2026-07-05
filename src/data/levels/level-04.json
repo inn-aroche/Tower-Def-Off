@@ -1,0 +1,22 @@
+{
+  "id": 4,
+  "name": "Premier Défi",
+  "grid": {
+    "cols": 16,
+    "rows": 10,
+    "blocked": [[7, 4], [7, 5], [8, 4], [8, 5], [12, 2], [12, 7]],
+    "spawns": [[0, 2], [0, 7]],
+    "exits": [[15, 4]]
+  },
+  "startGold": 140,
+  "baseHp": 20,
+  "allowedTowers": ["laser", "mortar"],
+  "waves": [
+    { "delay": 4, "spawns": [{ "type": "soldier", "count": 5, "interval": 0.8 }] },
+    { "delay": 5, "spawns": [{ "type": "soldier", "count": 5, "interval": 0.7 }, { "type": "swarm", "count": 6, "interval": 0.3 }] },
+    { "delay": 5, "spawns": [{ "type": "swarm", "count": 8, "interval": 0.25 }, { "type": "golem", "count": 2, "interval": 2.5 }] },
+    { "delay": 6, "spawns": [{ "type": "soldier", "count": 8, "interval": 0.6 }, { "type": "swarm", "count": 8, "interval": 0.25 }] },
+    { "delay": 6, "spawns": [{ "type": "golem", "count": 3, "interval": 2.0 }, { "type": "soldier", "count": 6, "interval": 0.6 }] }
+  ],
+  "starGoals": { "noLeak": true, "maxTowers": 10, "maxGoldSpent": 650 }
+}

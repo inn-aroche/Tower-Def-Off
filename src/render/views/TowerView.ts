@@ -1,28 +1,31 @@
 import * as THREE from 'three';
 import type { Tower } from '../../sim/Tower';
 import type { TowerId } from '../../data/towers';
-
-const TOWER_COLORS: Record<TowerId, number> = {
-  laser: 0xff4757,
-  mortar: 0xffa502,
-  tesla: 0x70a1ff,
-  cryo: 0x7bed9f,
-};
+import { SKINS, getSkin } from '../../data/skins';
 
 interface TowerVisual {
   root: THREE.Group;
   body: THREE.Mesh;
   disabledOverlay: THREE.Mesh;
+  towerId: TowerId;
 }
 
 /** One low-poly mesh per placed tower (counts stay small — a few dozen max — so no instancing needed). */
 export class TowerView {
   readonly group = new THREE.Group();
   private visuals = new Map<string, TowerVisual>();
+  private colors: Record<TowerId, number> = SKINS[0].towerColors;
+
+  setSkin(skinId: string): void {
+    this.colors = getSkin(skinId).towerColors;
+    for (const visual of this.visuals.values()) {
+      (visual.body.material as THREE.MeshStandardMaterial).color.set(this.colors[visual.towerId]);
+    }
+  }
 
   add(tower: Tower): void {
     const geo = new THREE.ConeGeometry(0.32, 0.7, 6);
-    const mat = new THREE.MeshStandardMaterial({ color: TOWER_COLORS[tower.towerId] });
+    const mat = new THREE.MeshStandardMaterial({ color: this.colors[tower.towerId] });
     const body = new THREE.Mesh(geo, mat);
     body.position.y = 0.35;
 
@@ -38,7 +41,7 @@ export class TowerView {
     root.add(disabledOverlay);
     this.applyTierScale(body, tower.tier);
     this.group.add(root);
-    this.visuals.set(tower.id, { root, body, disabledOverlay });
+    this.visuals.set(tower.id, { root, body, disabledOverlay, towerId: tower.towerId });
   }
 
   private applyTierScale(body: THREE.Mesh, tier: number): void {

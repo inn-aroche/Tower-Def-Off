@@ -5,6 +5,7 @@ export type GameEventMap = {
   towerUpgraded: { towerId: string; tier: number };
   enemySpawned: { enemyId: string; type: string };
   enemyKilled: { enemyId: string; bounty: number; col: number; row: number };
+  damageDealt: { enemyId: string; amount: number; x: number; y: number };
   enemyLeaked: { enemyId: string; damage: number };
   towerDisabled: { towerId: string; duration: number };
   projectileFired: { towerId: string; targetId: string };
