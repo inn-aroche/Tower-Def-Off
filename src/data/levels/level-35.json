@@ -13,7 +13,7 @@
     "exits": [[22, 6]]
   },
   "startGold": 520,
-  "baseHp": 20,
+  "baseHp": 5,
   "allowedTowers": ["wall", "laser", "mortar", "tesla", "cryo"],
   "waves": [
     { "delay": 5, "spawns": [{ "type": "drone", "count": 8, "interval": 0.7 }] },

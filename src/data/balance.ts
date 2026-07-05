@@ -1,8 +1,9 @@
 /** Global tunable economy/balance constants. Single source of truth for iteration during playtest. */
 export const BALANCE = {
   startGoldDefault: 100,
-  baseLivesDefault: 20,
-  baseLivesBoss: 10,
+  /** Hard cap, no purchasable extra lives in this build. */
+  baseLivesDefault: 5,
+  baseLivesBoss: 3,
   waveBonusBase: 10,
   waveBonusPerWaveIndex: 2,
   earlyCallBonusPct: 0.25,

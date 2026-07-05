@@ -13,7 +13,7 @@
     "exits": [[21, 6]]
   },
   "startGold": 480,
-  "baseHp": 20,
+  "baseHp": 5,
   "allowedTowers": ["wall", "laser", "mortar", "tesla", "cryo"],
   "waves": [
     { "delay": 5, "spawns": [{ "type": "golem", "count": 4, "interval": 1.8 }] },

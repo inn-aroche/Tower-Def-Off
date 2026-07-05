@@ -34,7 +34,7 @@ describe('GameState placement rules', () => {
     gs.loadLevel(makeLevel({ grid: { cols: 5, rows: 3, blocked: [], spawns: [[0, 1]], exits: [[4, 1]] } }));
     const result = gs.tryPlaceTower('laser', 2, 1);
     expect(result.ok).toBe(true);
-    expect(gs.economy.gold).toBe(200 - 50);
+    expect(gs.economy.gold).toBe(200 - 15);
     expect(gs.flowField.allSpawnsReachable()).toBe(true);
   });
 
@@ -53,7 +53,7 @@ describe('GameState placement rules', () => {
     const tower = gs.towers[0];
     const goldAfterBuild = gs.economy.gold;
     gs.sellTower(tower.id);
-    expect(gs.economy.gold).toBe(goldAfterBuild + Math.round(50 * 0.7));
+    expect(gs.economy.gold).toBe(goldAfterBuild + Math.round(15 * 0.7));
   });
 
   it('credits gold for kills made during step() — regression for the dropped stepCombat bounty', () => {

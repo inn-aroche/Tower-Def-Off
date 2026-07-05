@@ -51,7 +51,7 @@ const SELL_REFUND_PCT = 0.7;
 
 /** A single inert tier reused for the Wall's 3 slots — upgradable:false means tier 2/3 are unreachable anyway. */
 const WALL_TIER: TowerTierStats = {
-  cost: 8,
+  cost: 5,
   damage: 0,
   splashRadius: 0,
   slowPct: 0,
@@ -83,9 +83,9 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     description: 'Mono-cible, gros dégâts uniques — le contre du Golem blindé.',
     sellRefundPct: SELL_REFUND_PCT,
     tiers: [
-      { cost: 50, damage: 8, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.0, range: 2.5, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 60, damage: 14, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.2, range: 2.8, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 90, damage: 22, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.5, range: 3.0, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
+      { cost: 15, damage: 8, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.0, range: 2.5, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
+      { cost: 100, damage: 14, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.2, range: 2.8, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
+      { cost: 200, damage: 22, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.5, range: 3.0, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
     ],
     t3Branches: [
       { id: 'A', name: 'Perce-armure', description: "Ignore l'armure des Golems.", armorPierceOverride: 999 },
@@ -98,9 +98,9 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     description: 'Dégâts de zone au sol — le contre des Nuées. Ne touche pas les volants.',
     sellRefundPct: SELL_REFUND_PCT,
     tiers: [
-      { cost: 90, damage: 20, splashRadius: 1.2, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.5, range: 3.0, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 80, damage: 30, splashRadius: 1.4, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.6, range: 3.2, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 110, damage: 42, splashRadius: 1.6, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.7, range: 3.4, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
+      { cost: 75, damage: 20, splashRadius: 1.2, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.5, range: 3.0, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
+      { cost: 100, damage: 30, splashRadius: 1.4, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.6, range: 3.2, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
+      { cost: 200, damage: 42, splashRadius: 1.6, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.7, range: 3.4, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
     ],
     t3Branches: [
       { id: 'A', name: 'Nappe', description: '+rayon, applique une brûlure (DoT léger).', splashRadiusAdd: 0.4, dotPerSecondAdd: 3 },
@@ -113,9 +113,9 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     description: 'Multi-cible en chaîne — seule tour anti-air native.',
     sellRefundPct: SELL_REFUND_PCT,
     tiers: [
-      { cost: 80, damage: 6, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.5, range: 3.0, chainTargets: 3, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 70, damage: 9, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.6, range: 3.2, chainTargets: 4, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 100, damage: 13, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.8, range: 3.5, chainTargets: 5, targetsAir: true, targetsGround: true, armorPierce: 0 },
+      { cost: 50, damage: 6, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.5, range: 3.0, chainTargets: 3, targetsAir: true, targetsGround: true, armorPierce: 0 },
+      { cost: 100, damage: 9, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.6, range: 3.2, chainTargets: 4, targetsAir: true, targetsGround: true, armorPierce: 0 },
+      { cost: 200, damage: 13, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.8, range: 3.5, chainTargets: 5, targetsAir: true, targetsGround: true, armorPierce: 0 },
     ],
     t3Branches: [
       { id: 'A', name: 'Foudre', description: '+dégâts, priorité volants.', damageMul: 1.3, airPriority: true },
@@ -128,9 +128,9 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     description: "Utilitaire de ralentissement — multiplie la valeur des autres tours, ne tue pas seul.",
     sellRefundPct: SELL_REFUND_PCT,
     tiers: [
-      { cost: 70, damage: 0, splashRadius: 1.5, slowPct: 0.4, dotPerSecond: 0, fireRatePerSec: 1.0, range: 1.5, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 60, damage: 1, splashRadius: 1.8, slowPct: 0.5, dotPerSecond: 0, fireRatePerSec: 1.0, range: 1.8, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 90, damage: 2, splashRadius: 2.1, slowPct: 0.6, dotPerSecond: 0, fireRatePerSec: 1.0, range: 2.1, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
+      { cost: 25, damage: 0, splashRadius: 1.5, slowPct: 0.4, dotPerSecond: 0, fireRatePerSec: 1.0, range: 1.5, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
+      { cost: 100, damage: 1, splashRadius: 1.8, slowPct: 0.5, dotPerSecond: 0, fireRatePerSec: 1.0, range: 1.8, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
+      { cost: 200, damage: 2, splashRadius: 2.1, slowPct: 0.6, dotPerSecond: 0, fireRatePerSec: 1.0, range: 2.1, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
     ],
     t3Branches: [
       { id: 'A', name: 'Gel', description: 'Fige 0.5s les ennemis normaux périodiquement.', freezePulse: { duration: 0.5, interval: 4 } },

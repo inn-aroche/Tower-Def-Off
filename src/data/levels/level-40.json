@@ -13,7 +13,7 @@
     "exits": [[23, 7]]
   },
   "startGold": 460,
-  "baseHp": 20,
+  "baseHp": 5,
   "allowedTowers": ["wall", "laser", "mortar", "tesla", "cryo"],
   "waves": [
     { "delay": 5, "spawns": [{ "type": "kamikaze", "count": 8, "interval": 0.7 }] },

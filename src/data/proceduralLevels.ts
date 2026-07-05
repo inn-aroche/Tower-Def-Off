@@ -63,7 +63,7 @@ export function generateProceduralLevel(id: number): LevelConfig {
       exits: [[cols - 1, midRow]],
     },
     startGold,
-    baseHp: 20,
+    baseHp: 5,
     allowedTowers: ['wall', 'laser', 'mortar', 'tesla', 'cryo'],
     waves,
     starGoals: {
