@@ -53,6 +53,7 @@ async function main(): Promise<void> {
 
   renderer.setTowerSkin(save.selectedSkin);
   renderer.setReducedEffects(save.reduceEffects);
+  audio.setMuted(save.audioMuted);
 
   let mode: Mode = { kind: 'menu' };
   let placementTowerId: TowerId | null = null;
@@ -71,6 +72,10 @@ async function main(): Promise<void> {
     onToggleReduceEffects: (value) => {
       save.setReduceEffects(value);
       renderer.setReducedEffects(value);
+    },
+    onToggleAudioMuted: (value) => {
+      save.setAudioMuted(value);
+      audio.setMuted(value);
     },
   });
 
@@ -118,10 +123,11 @@ async function main(): Promise<void> {
   });
 
   function openMenu(): void {
+    const returnScreen = mode.kind === 'survival' ? 'survival' : mode.kind === 'level' ? 'adventure' : 'title';
     mode = { kind: 'menu' };
     hud.hide();
     tutorial.stop();
-    menu.show();
+    menu.show(returnScreen);
     provider.gameplayStop();
   }
 

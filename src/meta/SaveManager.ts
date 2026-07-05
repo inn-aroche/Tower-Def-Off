@@ -19,6 +19,7 @@ export interface SaveDataV2 {
   unlockedSkins: string[];
   selectedSkin: string | null;
   reduceEffects: boolean;
+  audioMuted?: boolean; // added post-v2, optional so existing saves parse without a migration bump
 }
 
 const STORAGE_KEY = 'polymaze-td-save';
@@ -140,6 +141,15 @@ export class SaveManager {
 
   setReduceEffects(value: boolean): void {
     this.data.reduceEffects = value;
+    this.persist();
+  }
+
+  get audioMuted(): boolean {
+    return this.data.audioMuted ?? false;
+  }
+
+  setAudioMuted(value: boolean): void {
+    this.data.audioMuted = value;
     this.persist();
   }
 }
