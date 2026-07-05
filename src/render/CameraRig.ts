@@ -37,11 +37,25 @@ export class CameraRig {
     const cy = this.rows / 2;
     const span = Math.max(this.cols, this.rows);
     const aspect = this.camera.aspect;
-    const widthCompensation = aspect < DESIGN_ASPECT ? DESIGN_ASPECT / aspect : 1;
-    this.target.set(cx, 0, cy);
+
+    // Levels are landscape-shaped (cols > rows). Squeezing that into a portrait viewport by just
+    // pulling the camera back (old behavior) shrinks the whole board to fit its WIDE axis into a
+    // NARROW screen width. Instead, below aspect 1 rotate the rig 90°: the grid's short axis
+    // (rows) becomes the screen-width axis and its long axis (cols) recedes into screen depth —
+    // the portrait screen's tall dimension is what actually needs the room, so this is a much
+    // better fit than uniformly zooming out.
+    const portrait = aspect < 1;
+    const wideDim = portrait ? this.rows : this.cols;
+    const widthCompensation = aspect < DESIGN_ASPECT ? (DESIGN_ASPECT / aspect) * (wideDim / span) : 1;
     const height = span * 1.1 * widthCompensation;
     const back = span * 0.85 * widthCompensation;
-    this.camera.position.set(cx, height, cy + back);
+
+    this.target.set(cx, 0, cy);
+    if (portrait) {
+      this.camera.position.set(cx - back, height, cy);
+    } else {
+      this.camera.position.set(cx, height, cy + back);
+    }
     this.camera.lookAt(this.target);
   }
 
