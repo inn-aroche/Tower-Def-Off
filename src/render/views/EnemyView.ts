@@ -13,9 +13,9 @@ const ENEMY_COLORS: Record<EnemyType, number> = {
 
 const MAX_PER_TYPE = 220;
 const MAX_BARS = 260;
-const BAR_WIDTH = 0.5;
-const BAR_HEIGHT = 0.07;
-const BAR_Y_ABOVE_MODEL = 0.4;
+const BAR_WIDTH = 0.62;
+const BAR_HEIGHT = 0.11;
+const BAR_Y_ABOVE_MODEL = 0.45;
 
 /**
  * Health bars are flat quads with a single shared rotation, not per-instance billboarding — the

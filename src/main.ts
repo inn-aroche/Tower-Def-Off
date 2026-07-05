@@ -220,6 +220,17 @@ async function main(): Promise<void> {
     if (!cell) return;
     const [col, row] = cell;
 
+    // An existing tower always takes priority over placement mode — otherwise, once a shop
+    // tower type stays armed (see the persistent-selection note below), clicking a placed tower
+    // to upgrade/sell it would be permanently unreachable, since a cell already holding a tower
+    // can never be a valid placement target anyway.
+    const tower = gameState.towers.find((t) => t.col === col && t.row === row);
+    if (tower) {
+      selectedTowerId = tower.id;
+      hud.showSelectedTower(tower);
+      return;
+    }
+
     if (placementTowerId) {
       // Deliberately keep placementTowerId set after a placement (success or failure) so the
       // player can drop several of the same tower in a row without re-clicking the shop button.
@@ -227,17 +238,13 @@ async function main(): Promise<void> {
       return;
     }
 
-    const tower = gameState.towers.find((t) => t.col === col && t.row === row);
-    if (tower) {
-      selectedTowerId = tower.id;
-      hud.showSelectedTower(tower);
-    } else {
-      selectedTowerId = null;
-      hud.hideSelectedTower();
-    }
+    selectedTowerId = null;
+    hud.hideSelectedTower();
   });
 
   window.addEventListener('resize', () => renderer.resize());
+  // 'resize' alone can lag or be skipped on an orientation flip on some mobile browsers.
+  window.addEventListener('orientationchange', () => renderer.resize());
 
   const loop = new GameLoop(
     (dt) => {

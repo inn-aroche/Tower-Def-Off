@@ -204,10 +204,15 @@ export class HUD {
     style.id = 'hud-styles';
     style.textContent = `
       .hud-root { position: absolute; inset: 0; pointer-events: none; font-family: system-ui, sans-serif; color: #f1f2f6; }
-      .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 16px; align-items: center; padding: 10px 14px; background: rgba(18,21,28,0.6); pointer-events: auto; font-size: 15px; }
-      .hud-menu-btn { min-width: 44px; min-height: 44px; border: none; border-radius: 8px; background: #2f3542; color: #f1f2f6; font-size: 16px; cursor: pointer; }
+      .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; row-gap: 6px; gap: 16px; align-items: center; padding: 10px 14px; background: rgba(18,21,28,0.6); pointer-events: auto; font-size: 15px; }
+      .hud-menu-btn { min-width: 44px; min-height: 44px; border: none; border-radius: 8px; background: #2f3542; color: #f1f2f6; font-size: 16px; cursor: pointer; flex-shrink: 0; }
       .hud-score { color: #ffd166; font-variant-numeric: tabular-nums; font-weight: 600; }
-      .hud-early-call { margin-left: auto; padding: 8px 14px; min-height: 44px; border: none; border-radius: 8px; background: #ffa502; color: #12151c; font-weight: 600; cursor: pointer; }
+      .hud-early-call { margin-left: auto; padding: 8px 14px; min-height: 44px; border: none; border-radius: 8px; background: #ffa502; color: #12151c; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+      @media (max-width: 480px) {
+        .hud-top { gap: 10px; padding: 8px 10px; font-size: 13px; }
+        .hud-menu-btn { min-width: 38px; min-height: 38px; font-size: 14px; }
+        .hud-early-call { padding: 6px 10px; min-height: 38px; font-size: 12px; }
+      }
       .hud-tower-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 10px; background: rgba(18,21,28,0.6); pointer-events: auto; overflow-x: auto; }
       .hud-tower-btn { min-width: 76px; min-height: 44px; padding: 6px 10px; border-radius: 8px; border: 2px solid transparent; background: #2f3542; color: #f1f2f6; cursor: pointer; font-size: 12px; }
       .hud-tower-btn.active { border-color: #ffa502; }

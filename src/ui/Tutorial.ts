@@ -32,8 +32,9 @@ export class Tutorial {
   private stepIndex = 0;
   private cleanupCurrent: (() => void) | null = null;
   private timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  private hudObserver: ResizeObserver | null = null;
 
-  constructor(container: HTMLElement, private readonly bus: EventBus) {
+  constructor(private readonly container: HTMLElement, private readonly bus: EventBus) {
     this.banner = document.createElement('div');
     this.banner.className = 'tutorial-banner';
     this.banner.style.display = 'none';
@@ -43,7 +44,22 @@ export class Tutorial {
 
   start(): void {
     this.stepIndex = 0;
+    this.ensureHudObserver();
     this.showStep();
+  }
+
+  /** The HUD's top bar can wrap to a second row (early-call button, narrow portrait screens), so
+   * its height isn't a fixed constant — track it live instead of guessing a pixel offset. */
+  private ensureHudObserver(): void {
+    if (this.hudObserver) return;
+    const hudTop = this.container.querySelector<HTMLElement>('.hud-top');
+    if (!hudTop) return;
+    const reposition = () => {
+      this.banner.style.top = `${hudTop.getBoundingClientRect().height + 8}px`;
+    };
+    reposition();
+    this.hudObserver = new ResizeObserver(reposition);
+    this.hudObserver.observe(hudTop);
   }
 
   stop(): void {
@@ -82,6 +98,7 @@ export class Tutorial {
     style.id = 'tutorial-styles';
     style.textContent = `
       .tutorial-banner { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); max-width: min(90vw, 480px);
+        /* 'top' above is only the first-paint fallback — ensureHudObserver() overrides it inline once the actual HUD height is known. */
         padding: 10px 18px; background: rgba(112,161,255,0.15); border: 1px solid #70a1ff; border-radius: 10px;
         color: #f1f2f6; font-family: system-ui, sans-serif; font-size: 14px; text-align: center; pointer-events: none; }
     `;
