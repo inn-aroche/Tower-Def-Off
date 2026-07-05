@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   let selectedTowerId: string | null = null;
   let gameplayStarted = false;
 
-  const tutorial = new Tutorial(container, bus);
+  const tutorial = new Tutorial(container, bus, gameState);
 
   const menu = new MainMenu(container, LEVELS, progression, save, {
     onSelectLevel: (levelId) => enterLevel(levelId),

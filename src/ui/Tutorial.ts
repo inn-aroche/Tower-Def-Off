@@ -1,27 +1,50 @@
 import type { EventBus } from '../core/EventBus';
+import type { GameState } from '../sim/GameState';
 
 interface HintStep {
   text: string;
   /** Resolves once whatever this hint is teaching has been demonstrated by the player. */
-  advanceOn: (bus: EventBus, done: () => void) => () => void;
-  /** Fallback auto-advance so a hint never blocks progress if the trigger event never fires. */
+  advanceOn: (bus: EventBus, gameState: GameState, done: () => void) => () => void;
+  /** Fallback auto-advance so a hint never blocks progress if the trigger event never fires —
+   * every mechanic still gets explained even if the player never happens to trigger it themselves. */
   timeoutMs?: number;
 }
 
 const STEPS: HintStep[] = [
   {
-    text: "Les ennemis arrivent par le vert et visent le rouge. Pose une tour pour leur barrer la route !",
-    advanceOn: (bus, done) => bus.on('towerPlaced', () => done()),
+    text: 'Les ennemis arrivent par le vert et visent le rouge. Pose une tour pour leur barrer la route ! (Le bouton reste sélectionné : pas besoin de recliquer pour en poser plusieurs.)',
+    advanceOn: (bus, _gs, done) => bus.on('towerPlaced', () => done()),
     timeoutMs: 15000,
   },
   {
-    text: 'Bien joué — le chemin vient de se rallonger ! Chaque ennemi vaincu rapporte de l\'or.',
-    advanceOn: (bus, done) => bus.on('enemyKilled', () => done()),
+    text: "Bien joué — le chemin vient de se rallonger ! Chaque ennemi vaincu rapporte de l'or et augmente ton multiplicateur de score (en haut à droite).",
+    advanceOn: (bus, _gs, done) => bus.on('enemyKilled', () => done()),
     timeoutMs: 12000,
   },
   {
+    text: "Le Mur (5 or) ne tire jamais, mais il bloque le passage — combine-le à tes tours pour rallonger le chemin sans dépenser dans l'attaque.",
+    advanceOn: (bus, gameState, done) =>
+      bus.on('towerPlaced', ({ towerId }) => {
+        const tower = gameState.towers.find((t) => t.id === towerId);
+        if (tower?.towerId === 'wall') done();
+      }),
+    timeoutMs: 16000,
+  },
+  {
+    text: 'Clique sur une tour posée pour l\'améliorer (plus de dégâts, de portée...) ou la vendre contre un remboursement partiel.',
+    advanceOn: (bus, _gs, done) => {
+      const offUpgrade = bus.on('towerUpgraded', () => done());
+      const offSold = bus.on('towerSold', () => done());
+      return () => {
+        offUpgrade();
+        offSold();
+      };
+    },
+    timeoutMs: 20000,
+  },
+  {
     text: 'Astuce : lance la vague suivante en avance pour gagner un bonus d\'or.',
-    advanceOn: (bus, done) => bus.on('waveCalledEarly', () => done()),
+    advanceOn: (bus, _gs, done) => bus.on('waveCalledEarly', () => done()),
     timeoutMs: 10000,
   },
 ];
@@ -34,7 +57,7 @@ export class Tutorial {
   private timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   private hudObserver: ResizeObserver | null = null;
 
-  constructor(private readonly container: HTMLElement, private readonly bus: EventBus) {
+  constructor(private readonly container: HTMLElement, private readonly bus: EventBus, private readonly gameState: GameState) {
     this.banner = document.createElement('div');
     this.banner.className = 'tutorial-banner';
     this.banner.style.display = 'none';
@@ -86,7 +109,7 @@ export class Tutorial {
       this.stepIndex++;
       this.showStep();
     };
-    this.cleanupCurrent = step.advanceOn(this.bus, advance);
+    this.cleanupCurrent = step.advanceOn(this.bus, this.gameState, advance);
     if (step.timeoutMs) {
       this.timeoutHandle = setTimeout(advance, step.timeoutMs);
     }
