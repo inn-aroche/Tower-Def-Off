@@ -1,0 +1,21 @@
+{
+  "id": 1,
+  "name": "Les Bases",
+  "grid": {
+    "cols": 12,
+    "rows": 8,
+    "blocked": [[3, 3], [4, 3]],
+    "spawns": [[0, 4]],
+    "exits": [[11, 4]]
+  },
+  "startGold": 100,
+  "baseHp": 20,
+  "allowedTowers": ["laser"],
+  "tutorial": true,
+  "waves": [
+    { "delay": 3, "spawns": [{ "type": "soldier", "count": 3, "interval": 1.2 }] },
+    { "delay": 5, "spawns": [{ "type": "soldier", "count": 8, "interval": 0.8 }] },
+    { "delay": 5, "spawns": [{ "type": "soldier", "count": 12, "interval": 0.6 }] }
+  ],
+  "starGoals": { "noLeak": true, "maxTowers": 6, "maxGoldSpent": 400 }
+}

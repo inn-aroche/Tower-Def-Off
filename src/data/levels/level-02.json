@@ -1,0 +1,21 @@
+{
+  "id": 2,
+  "name": "La Ruée",
+  "grid": {
+    "cols": 14,
+    "rows": 9,
+    "blocked": [[4, 2], [4, 3], [4, 4], [9, 5], [9, 6]],
+    "spawns": [[0, 4]],
+    "exits": [[13, 4]]
+  },
+  "startGold": 120,
+  "baseHp": 20,
+  "allowedTowers": ["laser"],
+  "waves": [
+    { "delay": 3, "spawns": [{ "type": "soldier", "count": 4, "interval": 1.0 }] },
+    { "delay": 5, "spawns": [{ "type": "swarm", "count": 6, "interval": 0.3 }, { "type": "soldier", "count": 4, "interval": 1.0 }] },
+    { "delay": 5, "spawns": [{ "type": "swarm", "count": 8, "interval": 0.25 }, { "type": "swarm", "count": 8, "interval": 0.25 }] },
+    { "delay": 6, "spawns": [{ "type": "soldier", "count": 6, "interval": 0.6 }, { "type": "swarm", "count": 10, "interval": 0.2 }] }
+  ],
+  "starGoals": { "noLeak": true, "maxTowers": 8, "maxGoldSpent": 500 }
+}
