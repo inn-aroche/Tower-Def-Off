@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Grid, CellKind } from '../../sim/Grid';
-import { tileTexture, type TileKind } from '../textures';
+import { flatTileTexture, type TileKind } from '../textures';
 
 /** Maps sim cell kinds to their tile art. 'occupied' (buildable ground with a tower on it) reuses
  * the ground texture — the tower's own billboard on top is what actually signals occupancy.
@@ -16,27 +16,30 @@ const TILE_FOR_KIND: Record<CellKind, TileKind> = {
 
 const MAX_CELLS_PER_KIND = 260;
 
-/** Renders every grid cell as a camera-facing billboarded tile (Dice-Dreams-style floating
- * islands, per the art direction) — one InstancedMesh per tile kind so a full rebuild is still
- * just a handful of draw calls regardless of grid size (levels top out at 15x10). */
+/** Renders every grid cell as a flat tile lying on the ground plane — laid flat (not billboarded
+ * toward the camera like towers/health bars) so adjacent cells tile together seamlessly into one
+ * connected floor instead of reading as separate tilted cards. One InstancedMesh per tile kind so
+ * a full rebuild is still just a handful of draw calls regardless of grid size. */
 export class GridView {
   readonly group = new THREE.Group();
   private meshes = new Map<TileKind, THREE.InstancedMesh>();
   private highlightMesh: THREE.Mesh;
-  private lastGrid: Grid | null = null;
-  private billboardQuaternion = new THREE.Quaternion();
 
   constructor() {
-    const geometry = new THREE.PlaneGeometry(0.94, 0.94);
+    // Lying flat: rotate the default XY-plane geometry -90° about X so its normal points up (+Y)
+    // instead of at the camera (+Z). Baked into the shared geometry, not per-instance, since every
+    // tile always lies flat regardless of camera direction (unlike towers, which billboard). Sized
+    // very slightly over 1x1 so adjacent tiles overlap a hair rather than leaving a seam.
+    const geometry = new THREE.PlaneGeometry(1.01, 1.01).rotateX(-Math.PI / 2);
     for (const kind of ['ground', 'path', 'blocked', 'spawn', 'exit'] as TileKind[]) {
-      const material = new THREE.MeshBasicMaterial({ map: tileTexture(kind), transparent: true, side: THREE.DoubleSide });
+      const material = new THREE.MeshBasicMaterial({ map: flatTileTexture(kind) });
       const mesh = new THREE.InstancedMesh(geometry, material, MAX_CELLS_PER_KIND);
       mesh.count = 0;
       this.meshes.set(kind, mesh);
       this.group.add(mesh);
     }
 
-    const highlightGeo = new THREE.PlaneGeometry(1, 1);
+    const highlightGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     const highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthTest: false });
     this.highlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
     this.highlightMesh.visible = false;
@@ -44,20 +47,8 @@ export class GridView {
     this.group.add(this.highlightMesh);
   }
 
-  /** Tiles face the fixed camera the same way towers/health bars do. Unlike a single Mesh, an
-   * InstancedMesh's own object-level rotation would swing every instance around the MESH's
-   * origin rather than each tile's own position — the rotation has to be baked into each
-   * per-instance matrix instead, so changing it means rebuilding all instances. */
-  setBillboardQuaternion(quaternion: THREE.Quaternion): void {
-    this.billboardQuaternion.copy(quaternion);
-    this.highlightMesh.quaternion.copy(quaternion);
-    if (this.lastGrid) this.rebuild(this.lastGrid);
-  }
-
   rebuild(grid: Grid): void {
-    this.lastGrid = grid;
     const dummy = new THREE.Object3D();
-    dummy.quaternion.copy(this.billboardQuaternion);
     const counters = new Map<TileKind, number>();
 
     for (let row = 0; row < grid.rows; row++) {

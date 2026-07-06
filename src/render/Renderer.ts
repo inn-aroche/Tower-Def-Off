@@ -99,7 +99,6 @@ export class Renderer {
   loadLevelVisuals(): void {
     this.towerView.clear();
     this.cameraRig.frameGrid(this.gameState.grid.cols, this.gameState.grid.rows);
-    this.gridView.setBillboardQuaternion(this.cameraRig.billboardQuaternion);
     this.gridView.rebuild(this.gameState.grid);
   }
 
@@ -137,9 +136,6 @@ export class Renderer {
     const { clientWidth, clientHeight } = this.container;
     this.renderer.setSize(clientWidth, clientHeight);
     this.cameraRig.setAspect(clientWidth / clientHeight);
-    // Portrait/landscape can flip the camera's fixed direction (see CameraRig.reframe()) —
-    // re-orient the tile billboards to match, same as towers/health bars do every frame already.
-    this.gridView.setBillboardQuaternion(this.cameraRig.billboardQuaternion);
   }
 
   screenToGridCell(clientX: number, clientY: number): [number, number] | null {

@@ -67,6 +67,57 @@ export function tileTexture(kind: TileKind): THREE.Texture | null {
   return url ? loadCached(url) : null;
 }
 
+/** Base colors sampled from the corresponding tile_<kind>.png art, so the flat tiles below stay
+ * on-palette with the rest of the (isometric-diamond) art set even though they don't reuse its pixels. */
+const FLAT_TILE_COLORS: Record<TileKind, string> = {
+  ground: '#50b764',
+  path: '#f3c27d',
+  blocked: '#484765',
+  spawn: '#99e68e',
+  exit: '#f48d90',
+};
+
+function darken(hex: string, factor: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round(((n >> 16) & 0xff) * factor);
+  const g = Math.round(((n >> 8) & 0xff) * factor);
+  const b = Math.round((n & 0xff) * factor);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+const flatTileCache = new Map<TileKind, THREE.Texture>();
+
+/** Flat, edge-to-edge square tile for the ground plane: solid fill plus a thin inset border, so
+ * adjacent cells read as one connected floor with just enough delineation to tell cells apart.
+ * The tile_<kind>.png art is drawn as an isometric diamond with a thick 3D bevel — correct for a
+ * diamond-tiled isometric grid, but this game uses a flat top-down square grid, so stamping that
+ * art edge-to-edge on square cells left visible gaps and read as separate tilted floating tiles. */
+export function flatTileTexture(kind: TileKind): THREE.Texture | null {
+  if (!hasDom) return null;
+  const cached = flatTileCache.get(kind);
+  if (cached) return cached;
+
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const color = FLAT_TILE_COLORS[kind];
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = darken(color, 0.65);
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, size - 4, size - 4);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  flatTileCache.set(kind, tex);
+  return tex;
+}
+
 /** Plain <img>-friendly URL (not a THREE.Texture) for DOM icons in HUD.ts / MainMenu.ts. */
 export function iconUrl(name: string): string | null {
   return iconUrls.get(`icon_${name}.png`) ?? null;
