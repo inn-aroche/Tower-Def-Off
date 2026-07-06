@@ -63,6 +63,10 @@ export class EnemyView {
       const material = new THREE.MeshStandardMaterial({ color: ENEMY_COLORS[type] });
       const mesh = new THREE.InstancedMesh(geometry, material, MAX_PER_TYPE);
       mesh.count = 0;
+      // See GridView's identical setting — Three.js frustum-culls an InstancedMesh by its
+      // GEOMETRY's local-origin bounding sphere, not by where its scattered instances actually
+      // sit, which can wrongly cull the entire mesh under the tight-fit orthographic camera.
+      mesh.frustumCulled = false;
       this.meshes.set(type, mesh);
       this.group.add(mesh);
     }
@@ -72,6 +76,7 @@ export class EnemyView {
     this.barBg = new THREE.InstancedMesh(bgGeometry, bgMaterial, MAX_BARS);
     this.barBg.count = 0;
     this.barBg.renderOrder = 10;
+    this.barBg.frustumCulled = false;
 
     // Left-anchored: geometry shifted so its local x spans [0, BAR_WIDTH] instead of the
     // PlaneGeometry default [-w/2, w/2] — scaling x by hpPct then shrinks from the left edge inward.
@@ -81,6 +86,7 @@ export class EnemyView {
     this.barFill = new THREE.InstancedMesh(fillGeometry, fillMaterial, MAX_BARS);
     this.barFill.count = 0;
     this.barFill.renderOrder = 11;
+    this.barFill.frustumCulled = false;
 
     this.group.add(this.barBg, this.barFill);
   }

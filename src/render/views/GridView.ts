@@ -35,6 +35,13 @@ export class GridView {
       const material = new THREE.MeshBasicMaterial({ map: flatTileTexture(kind) });
       const mesh = new THREE.InstancedMesh(geometry, material, MAX_CELLS_PER_KIND);
       mesh.count = 0;
+      // Three.js frustum-culls an InstancedMesh by its GEOMETRY's local-origin bounding sphere,
+      // not by where its instances actually sit — with the tight-fit orthographic camera (unlike
+      // the old perspective camera's generous FOV) that origin can fall outside the frustum even
+      // though most instances (scattered across the whole grid) are clearly visible, culling the
+      // entire mesh to nothing. These instances are already bounded by the on-screen grid, so
+      // per-object culling has no benefit here anyway.
+      mesh.frustumCulled = false;
       this.meshes.set(kind, mesh);
       this.group.add(mesh);
     }
