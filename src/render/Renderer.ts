@@ -10,6 +10,25 @@ import type { GameState } from '../sim/GameState';
 import type { EventBus } from '../core/EventBus';
 import type { TowerId } from '../data/towers';
 
+/** Bright vertical sky gradient backdrop — replaces the old flat near-black background with the
+ * saturated, "outdoor toy diorama" look of mobile tower-defense games (Raid Rush and kin), instead
+ * of a plain dark void behind the board. */
+function createSkyTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, '#3f8fe8');
+  gradient.addColorStop(0.6, '#79c3f2');
+  gradient.addColorStop(1, '#cdeaff');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 const TOWER_TRACER_COLORS: Record<TowerId, number> = {
   wall: 0x6b7280, // unused in practice — the Wall never targets anything, so 'projectileFired' never fires for it
   laser: 0xff4757,
@@ -38,7 +57,7 @@ export class Renderer {
     container.appendChild(this.renderer.domElement);
 
     this.cameraRig = new CameraRig(container.clientWidth / container.clientHeight);
-    this.scene.background = new THREE.Color(0x12151c);
+    this.scene.background = createSkyTexture();
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0x3a4256, 1.3);
     const sun = new THREE.DirectionalLight(0xffffff, 1.4);

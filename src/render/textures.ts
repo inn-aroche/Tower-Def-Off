@@ -67,6 +67,33 @@ export function tileTexture(kind: TileKind): THREE.Texture | null {
   return url ? loadCached(url) : null;
 }
 
+let toonGradient: THREE.Texture | null = null;
+
+/** 3-step greyscale ramp for MeshToonMaterial.gradientMap — hard-edged cel shading (cartoon mobile
+ * TD look) instead of MeshStandardMaterial's smooth PBR falloff. Grayscale, not colored: three.js
+ * samples this texture by N·L and multiplies it against the material's own `color`, so a tinted
+ * ramp would shift the enemy's hue rather than just its shading steps. */
+export function toonGradientMap(): THREE.Texture | null {
+  if (!hasDom) return null;
+  if (toonGradient) return toonGradient;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 3;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d')!;
+  ['#595966', '#a3a3b3', '#ffffff'].forEach((shade, i) => {
+    ctx.fillStyle = shade;
+    ctx.fillRect(i, 0, 1, 1);
+  });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  toonGradient = tex;
+  return tex;
+}
+
 /** Base colors sampled from the corresponding tile_<kind>.png art, so the flat tiles below stay
  * on-palette with the rest of the (isometric-diamond) art set even though they don't reuse its pixels. */
 const FLAT_TILE_COLORS: Record<TileKind, string> = {

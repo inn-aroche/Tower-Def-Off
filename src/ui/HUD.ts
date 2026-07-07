@@ -210,29 +210,48 @@ export class HUD {
     const style = document.createElement('style');
     style.id = 'hud-styles';
     style.textContent = `
-      .hud-root { position: absolute; inset: 0; pointer-events: none; font-family: system-ui, sans-serif; color: #f1f2f6; }
+      .hud-root { position: absolute; inset: 0; pointer-events: none; font-family: system-ui, sans-serif; color: #f1f2f6;
+        --hud-grey: #2f3542; --hud-grey-lt: #454d60; --hud-grey-dk: #1a1d26;
+        --hud-gold: #ffa502; --hud-gold-lt: #ffc14d; --hud-gold-dk: #cc8400;
+        --hud-blue: #70a1ff; --hud-blue-lt: #9ebfff; --hud-blue-dk: #4a78cc; }
       .hud-icon { width: 1.15em; height: 1.15em; vertical-align: -0.22em; object-fit: contain; }
       .hud-stars .hud-icon { width: 32px; height: 32px; vertical-align: middle; }
       .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; row-gap: 6px; gap: 16px; align-items: center; padding: 10px 14px; background: rgba(18,21,28,0.6); pointer-events: auto; font-size: 15px; }
-      .hud-menu-btn { min-width: 44px; min-height: 44px; border: none; border-radius: 8px; background: #2f3542; color: #f1f2f6; font-size: 16px; cursor: pointer; flex-shrink: 0; }
-      .hud-score { color: #ffd166; font-variant-numeric: tabular-nums; font-weight: 600; }
-      .hud-early-call { margin-left: auto; padding: 8px 14px; min-height: 44px; border: none; border-radius: 8px; background: #ffa502; color: #12151c; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+      .hud-menu-btn { min-width: 44px; min-height: 44px; border: 2px solid rgba(255,255,255,0.15); border-radius: 12px;
+        background: linear-gradient(180deg, var(--hud-grey-lt), var(--hud-grey)); box-shadow: 0 4px 0 var(--hud-grey-dk);
+        color: #f1f2f6; font-size: 16px; font-weight: 700; cursor: pointer; flex-shrink: 0; transition: transform 0.08s, box-shadow 0.08s; }
+      .hud-menu-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--hud-grey-dk); }
+      .hud-score { color: #ffd166; font-variant-numeric: tabular-nums; font-weight: 700; }
+      .hud-early-call { margin-left: auto; padding: 8px 16px; min-height: 44px; border: 2px solid rgba(255,255,255,0.25); border-radius: 12px;
+        background: linear-gradient(180deg, var(--hud-gold-lt), var(--hud-gold)); box-shadow: 0 4px 0 var(--hud-gold-dk);
+        color: #14161f; font-weight: 800; cursor: pointer; flex-shrink: 0; transition: transform 0.08s, box-shadow 0.08s; }
+      .hud-early-call:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--hud-gold-dk); }
       @media (max-width: 480px) {
         .hud-top { gap: 10px; padding: 8px 10px; font-size: 13px; }
         .hud-menu-btn { min-width: 38px; min-height: 38px; font-size: 14px; }
-        .hud-early-call { padding: 6px 10px; min-height: 38px; font-size: 12px; }
+        .hud-early-call { padding: 6px 12px; min-height: 38px; font-size: 12px; }
       }
       .hud-tower-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 8px; padding: 10px; background: rgba(18,21,28,0.6); pointer-events: auto; overflow-x: auto; }
-      .hud-tower-btn { min-width: 76px; min-height: 44px; padding: 6px 10px; border-radius: 8px; border: 2px solid transparent; background: #2f3542; color: #f1f2f6; cursor: pointer; font-size: 12px; }
-      .hud-tower-btn.active { border-color: #ffa502; }
+      .hud-tower-btn { min-width: 76px; min-height: 44px; padding: 6px 10px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.12);
+        background: linear-gradient(180deg, var(--hud-grey-lt), var(--hud-grey)); box-shadow: 0 4px 0 var(--hud-grey-dk);
+        color: #f1f2f6; font-weight: 600; cursor: pointer; font-size: 12px; transition: transform 0.08s, box-shadow 0.08s; }
+      .hud-tower-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--hud-grey-dk); }
+      .hud-tower-btn.active { border-color: var(--hud-gold); box-shadow: 0 4px 0 var(--hud-gold-dk), 0 0 0 2px var(--hud-gold) inset; }
       .hud-tower-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-      .hud-selected-panel { position: absolute; bottom: 74px; left: 10px; right: 10px; background: rgba(18,21,28,0.85); padding: 10px; border-radius: 8px; pointer-events: auto; font-size: 13px; }
-      .hud-selected-panel button { min-height: 44px; margin-top: 6px; padding: 6px 10px; border-radius: 6px; border: none; background: #70a1ff; cursor: pointer; }
+      .hud-selected-panel { position: absolute; bottom: 74px; left: 10px; right: 10px; background: rgba(18,21,28,0.9); padding: 12px; border-radius: 14px; border: 2px solid rgba(255,255,255,0.08); pointer-events: auto; font-size: 13px; }
+      .hud-selected-panel button { min-height: 44px; margin-top: 6px; padding: 6px 10px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.25);
+        background: linear-gradient(180deg, var(--hud-blue-lt), var(--hud-blue)); box-shadow: 0 4px 0 var(--hud-blue-dk);
+        color: #14161f; font-weight: 700; cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
+      .hud-selected-panel button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--hud-blue-dk); }
       .hud-end-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); pointer-events: auto; }
-      .hud-end-card { background: #1e2129; padding: 24px 32px; border-radius: 12px; text-align: center; }
+      .hud-end-card { background: #1e2129; padding: 24px 32px; border-radius: 18px; border: 2px solid rgba(255,255,255,0.08); text-align: center; }
       .hud-stars { font-size: 32px; margin: 10px 0; }
-      .hud-end-card button { min-height: 44px; min-width: 120px; margin: 12px 6px 0; padding: 8px 16px; border-radius: 8px; border: none; background: #70a1ff; color: #12151c; font-weight: 600; cursor: pointer; }
-      .hud-end-menu-btn { background: #2f3542 !important; color: #f1f2f6 !important; }
+      .hud-end-card button { min-height: 44px; min-width: 120px; margin: 12px 6px 0; padding: 8px 16px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.25);
+        background: linear-gradient(180deg, var(--hud-blue-lt), var(--hud-blue)); box-shadow: 0 4px 0 var(--hud-blue-dk);
+        color: #14161f; font-weight: 800; cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
+      .hud-end-card button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--hud-blue-dk); }
+      .hud-end-menu-btn { background: linear-gradient(180deg, var(--hud-grey-lt), var(--hud-grey)) !important; box-shadow: 0 4px 0 var(--hud-grey-dk) !important; color: #f1f2f6 !important; }
+      .hud-end-menu-btn:active { box-shadow: 0 1px 0 var(--hud-grey-dk) !important; }
     `;
     document.head.appendChild(style);
   }

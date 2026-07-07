@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Enemy } from '../../sim/Enemy';
 import type { EnemyType } from '../../data/enemies';
+import { toonGradientMap } from '../textures';
 
 const ENEMY_COLORS: Record<EnemyType, number> = {
   soldier: 0xdfe4ea,
@@ -16,6 +17,11 @@ const MAX_BARS = 260;
 const BAR_WIDTH = 0.62;
 const BAR_HEIGHT = 0.11;
 const BAR_Y_ABOVE_MODEL = 0.45;
+
+/** How much larger the outline shell is than the body it wraps — the gap between the two is what
+ * reads as the outline's stroke width. */
+const OUTLINE_SCALE = 1.18;
+const OUTLINE_COLOR = 0x181a24;
 
 function healthBarColor(hpPct: number): THREE.Color {
   if (hpPct > 0.5) return new THREE.Color(0x2ecc71);
@@ -50,6 +56,9 @@ function geometryFor(type: EnemyType): THREE.BufferGeometry {
 export class EnemyView {
   readonly group = new THREE.Group();
   private meshes = new Map<EnemyType, THREE.InstancedMesh>();
+  /** Slightly-inflated, black, back-face-only copy of each body mesh rendered behind it — the
+   * classic "inverted hull" trick for a bold cartoon outline (cheap: no post-processing pass). */
+  private outlineMeshes = new Map<EnemyType, THREE.InstancedMesh>();
   private dummy = new THREE.Object3D();
   /** Separate from `dummy` — its quaternion is set to the fixed billboard rotation and must never
    * leak back into the (unrotated) enemy-body transforms computed from the shared `dummy`. */
@@ -60,7 +69,9 @@ export class EnemyView {
   constructor() {
     for (const type of Object.keys(ENEMY_COLORS) as EnemyType[]) {
       const geometry = geometryFor(type);
-      const material = new THREE.MeshStandardMaterial({ color: ENEMY_COLORS[type] });
+      // MeshToonMaterial + a hard-edged gradient map gives flat, banded cel shading instead of
+      // MeshStandardMaterial's smooth PBR falloff — reads as a cartoon mobile-game monster.
+      const material = new THREE.MeshToonMaterial({ color: ENEMY_COLORS[type], gradientMap: toonGradientMap() });
       const mesh = new THREE.InstancedMesh(geometry, material, MAX_PER_TYPE);
       mesh.count = 0;
       // See GridView's identical setting — Three.js frustum-culls an InstancedMesh by its
@@ -68,7 +79,15 @@ export class EnemyView {
       // sit, which can wrongly cull the entire mesh under the tight-fit orthographic camera.
       mesh.frustumCulled = false;
       this.meshes.set(type, mesh);
-      this.group.add(mesh);
+
+      const outlineGeometry = geometry.clone().scale(OUTLINE_SCALE, OUTLINE_SCALE, OUTLINE_SCALE);
+      const outlineMaterial = new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide });
+      const outlineMesh = new THREE.InstancedMesh(outlineGeometry, outlineMaterial, MAX_PER_TYPE);
+      outlineMesh.count = 0;
+      outlineMesh.frustumCulled = false;
+      this.outlineMeshes.set(type, outlineMesh);
+
+      this.group.add(outlineMesh, mesh);
     }
 
     const bgGeometry = new THREE.PlaneGeometry(BAR_WIDTH, BAR_HEIGHT);
@@ -99,12 +118,14 @@ export class EnemyView {
     this.barDummy.quaternion.copy(billboardQuaternion);
     const counters = new Map<EnemyType, number>();
     for (const mesh of this.meshes.values()) mesh.count = 0;
+    for (const mesh of this.outlineMeshes.values()) mesh.count = 0;
     let barIdx = 0;
 
     for (const enemy of enemies) {
       if (!enemy.alive) continue;
       const mesh = this.meshes.get(enemy.type);
-      if (!mesh) continue;
+      const outlineMesh = this.outlineMeshes.get(enemy.type);
+      if (!mesh || !outlineMesh) continue;
       const idx = counters.get(enemy.type) ?? 0;
       if (idx >= MAX_PER_TYPE) continue;
 
@@ -117,6 +138,9 @@ export class EnemyView {
       this.dummy.scale.setScalar(scale);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(idx, this.dummy.matrix);
+      // Outline geometry is already pre-inflated (see OUTLINE_SCALE) — the same per-instance
+      // matrix (position + HP scale) works for both, no extra scaling needed here.
+      outlineMesh.setMatrixAt(idx, this.dummy.matrix);
 
       counters.set(enemy.type, idx + 1);
 
@@ -139,6 +163,10 @@ export class EnemyView {
     }
 
     for (const [type, mesh] of this.meshes) {
+      mesh.count = counters.get(type) ?? 0;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    for (const [type, mesh] of this.outlineMeshes) {
       mesh.count = counters.get(type) ?? 0;
       mesh.instanceMatrix.needsUpdate = true;
     }
