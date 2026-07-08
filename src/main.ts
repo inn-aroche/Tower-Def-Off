@@ -223,8 +223,9 @@ async function main(): Promise<void> {
     // An existing tower always takes priority over placement mode — otherwise, once a shop
     // tower type stays armed (see the persistent-selection note below), clicking a placed tower
     // to upgrade/sell it would be permanently unreachable, since a cell already holding a tower
-    // can never be a valid placement target anyway.
-    const tower = gameState.towers.find((t) => t.col === col && t.row === row);
+    // can never be a valid placement target anyway. The 'base' turret is excluded — it's the
+    // map's own built-in defense, not something the player can select, upgrade, or sell.
+    const tower = gameState.towers.find((t) => t.col === col && t.row === row && t.towerId !== 'base');
     if (tower) {
       selectedTowerId = tower.id;
       hud.showSelectedTower(tower);

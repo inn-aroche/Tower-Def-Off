@@ -21,7 +21,9 @@ export interface HUDCallbacks {
 export class HUD {
   private root: HTMLDivElement;
   private goldEl: HTMLSpanElement;
-  private livesEl: HTMLSpanElement;
+  private baseEl: HTMLDivElement;
+  private baseFillEl: HTMLDivElement;
+  private baseLabelEl: HTMLSpanElement;
   private waveEl: HTMLSpanElement;
   private scoreEl: HTMLSpanElement;
   private earlyCallBtn: HTMLButtonElement;
@@ -45,15 +47,28 @@ export class HUD {
     menuBtn.className = 'hud-menu-btn';
     menuBtn.onclick = () => this.callbacks.onOpenMenu();
     this.goldEl = document.createElement('span');
-    this.livesEl = document.createElement('span');
     this.waveEl = document.createElement('span');
     this.scoreEl = document.createElement('span');
     this.scoreEl.className = 'hud-score';
+
+    this.baseEl = document.createElement('div');
+    this.baseEl.className = 'hud-base';
+    const baseIcon = document.createElement('span');
+    baseIcon.innerHTML = icon('life', '🏰');
+    const baseBarTrack = document.createElement('div');
+    baseBarTrack.className = 'hud-base-track';
+    this.baseFillEl = document.createElement('div');
+    this.baseFillEl.className = 'hud-base-fill';
+    baseBarTrack.appendChild(this.baseFillEl);
+    this.baseLabelEl = document.createElement('span');
+    this.baseLabelEl.className = 'hud-base-label';
+    this.baseEl.append(baseIcon, baseBarTrack, this.baseLabelEl);
+
     this.earlyCallBtn = document.createElement('button');
     this.earlyCallBtn.textContent = 'Appel anticipé (+or)';
     this.earlyCallBtn.className = 'hud-early-call';
     this.earlyCallBtn.onclick = () => this.callbacks.onCallWaveEarly();
-    top.append(menuBtn, this.goldEl, this.livesEl, this.waveEl, this.scoreEl, this.earlyCallBtn);
+    top.append(menuBtn, this.goldEl, this.baseEl, this.waveEl, this.scoreEl, this.earlyCallBtn);
     this.root.appendChild(top);
 
     this.towerBar = document.createElement('div');
@@ -194,7 +209,10 @@ export class HUD {
   refresh(): void {
     const { economy, waveScheduler, level, scoreTracker } = this.gameState;
     this.goldEl.innerHTML = `${icon('gold', '💰')} ${economy.gold}`;
-    this.livesEl.innerHTML = `${icon('life', '❤️')} ${economy.lives}`;
+    const hpRatio = Math.max(economy.livesRatio, 0);
+    this.baseFillEl.style.width = `${Math.round(hpRatio * 100)}%`;
+    this.baseFillEl.style.background = hpRatio > 0.5 ? '#2ecc71' : hpRatio > 0.25 ? '#f1c40f' : '#e74c3c';
+    this.baseLabelEl.textContent = `${economy.lives}`;
     const current = waveScheduler.waveIndex + 1 + this.waveNumberOffset;
     const waveText = this.waveEndless ? `Vague ${current}` : `Vague ${current}/${level.waves.length}`;
     this.waveEl.innerHTML = `${icon('wave', '')} ${waveText}`;
@@ -217,6 +235,14 @@ export class HUD {
       .hud-icon { width: 1.15em; height: 1.15em; vertical-align: -0.22em; object-fit: contain; }
       .hud-stars .hud-icon { width: 32px; height: 32px; vertical-align: middle; }
       .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; row-gap: 6px; gap: 16px; align-items: center; padding: 10px 14px; background: rgba(18,21,28,0.6); pointer-events: auto; font-size: 15px; }
+      .hud-base { display: flex; align-items: center; gap: 6px; }
+      .hud-base-track { width: 64px; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.15); overflow: hidden; border: 1px solid rgba(255,255,255,0.2); }
+      .hud-base-fill { height: 100%; border-radius: 999px; transition: width 0.2s ease, background 0.2s ease; }
+      .hud-base-label { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; }
+      @media (max-width: 480px) {
+        .hud-base-track { width: 42px; height: 10px; }
+        .hud-base-label { font-size: 11px; }
+      }
       .hud-menu-btn { min-width: 44px; min-height: 44px; border: 2px solid rgba(255,255,255,0.15); border-radius: 12px;
         background: linear-gradient(180deg, var(--hud-grey-lt), var(--hud-grey)); box-shadow: 0 4px 0 var(--hud-grey-dk);
         color: #f1f2f6; font-size: 16px; font-weight: 700; cursor: pointer; flex-shrink: 0; transition: transform 0.08s, box-shadow 0.08s; }

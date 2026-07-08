@@ -56,7 +56,10 @@ export class GameState {
     this.flowField = new FlowField(this.grid);
     this.economy = new Economy(this.bus, level.startGold, level.baseHp);
     this.waveScheduler = new WaveScheduler(level.waves);
-    this.towers = [];
+    // The base defends itself, weakly — a free, non-buildable, non-upgradable, non-sellable
+    // 'base' Tower sitting on the exit cell, going through none of tryPlaceTower's gold/placement
+    // machinery. It doesn't occupy the cell (kind stays 'exit'), so it never affects pathing.
+    this.towers = this.grid.exits.map(([col, row]) => new Tower('base', col, row));
     this.enemyPool.releaseAll();
     this.enemies = [];
     this.outcome = 'playing';
@@ -121,6 +124,7 @@ export class GameState {
     const idx = this.towers.findIndex((t) => t.id === towerId);
     if (idx === -1) return false;
     const tower = this.towers[idx];
+    if (tower.towerId === 'base') return false;
     const refund = tower.refundValue();
     this.grid.setKind(tower.col, tower.row, 'empty');
     this.towers.splice(idx, 1);

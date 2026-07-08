@@ -3,6 +3,7 @@ import { CameraRig } from './CameraRig';
 import { GridView } from './views/GridView';
 import { TowerView } from './views/TowerView';
 import { EnemyView } from './views/EnemyView';
+import { BaseView } from './views/BaseView';
 import { ProjectileView } from './views/ProjectileView';
 import { Particles } from './fx/Particles';
 import { DamageNumbers } from './fx/DamageNumbers';
@@ -31,6 +32,7 @@ function createSkyTexture(): THREE.CanvasTexture {
 
 const TOWER_TRACER_COLORS: Record<TowerId, number> = {
   wall: 0x6b7280, // unused in practice — the Wall never targets anything, so 'projectileFired' never fires for it
+  base: 0xffd166,
   laser: 0xff4757,
   mortar: 0xffa502,
   tesla: 0x70a1ff,
@@ -45,6 +47,7 @@ export class Renderer {
   private gridView = new GridView();
   private towerView = new TowerView();
   private enemyView = new EnemyView();
+  private baseView = new BaseView();
   private projectileView = new ProjectileView();
   private particles = new Particles();
   private damageNumbers = new DamageNumbers();
@@ -67,6 +70,7 @@ export class Renderer {
 
     this.scene.add(this.gridView.group);
     this.scene.add(this.towerView.group);
+    this.scene.add(this.baseView.group);
     this.scene.add(this.enemyView.group);
     this.scene.add(this.projectileView.group);
     this.scene.add(this.particles.group);
@@ -119,6 +123,7 @@ export class Renderer {
     this.towerView.clear();
     this.cameraRig.frameGrid(this.gameState.grid.cols, this.gameState.grid.rows);
     this.gridView.rebuild(this.gameState.grid);
+    this.baseView.placeAt(this.gameState.grid);
   }
 
   setTowerSkin(skinId: string): void {
@@ -141,6 +146,9 @@ export class Renderer {
   update(dt: number, alpha: number): void {
     this.enemyView.sync(this.gameState.enemies, alpha, this.cameraRig.billboardQuaternion);
     this.towerView.syncDisabled(this.gameState.towers, this.cameraRig.billboardQuaternion);
+    // gameState.economy only exists once a level has actually been loaded — this runs every frame
+    // starting at the main menu, before that's true.
+    if (this.gameState.economy) this.baseView.sync(this.gameState.economy, this.cameraRig.billboardQuaternion);
     this.projectileView.update(dt);
     this.particles.update(dt);
     this.damageNumbers.update(dt);

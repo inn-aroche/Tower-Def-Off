@@ -67,7 +67,7 @@ describe('GameState + ScoreTracker integration', () => {
     const gs = new GameState(new EventBus());
     gs.loadLevel(makeLevel());
     gs.towers.push(new Tower('laser', 2, 1)); // tier 1 laser is enough to kill a 30hp soldier in a couple hits
-    gs.towers[0].tier = 3;
+    gs.towers.find((t) => t.towerId === 'laser')!.tier = 3;
 
     for (let i = 0; i < 300 && gs.scoreTracker.multiplier === 1; i++) gs.step(1 / 30);
 

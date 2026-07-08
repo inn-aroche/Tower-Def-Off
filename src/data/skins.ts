@@ -5,7 +5,8 @@ export interface SkinDef {
   name: string;
   /** Total campaign stars (out of 30) required to unlock. 0 = unlocked from the start. */
   starsRequired: number;
-  towerColors: Record<TowerId, number>;
+  /** 'base' is excluded — it's the map's built-in defense, not a buildable/skinnable tower. */
+  towerColors: Record<Exclude<TowerId, 'base'>, number>;
 }
 
 export const SKINS: SkinDef[] = [

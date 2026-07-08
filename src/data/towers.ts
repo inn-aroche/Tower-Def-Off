@@ -1,4 +1,4 @@
-export type TowerId = 'wall' | 'laser' | 'mortar' | 'tesla' | 'cryo';
+export type TowerId = 'wall' | 'laser' | 'mortar' | 'tesla' | 'cryo' | 'base';
 export type T3Branch = 'A' | 'B' | null;
 
 export interface TowerTierStats {
@@ -64,7 +64,37 @@ const WALL_TIER: TowerTierStats = {
   armorPierce: 0,
 };
 
+/** The base's own built-in defense — weak on purpose ("peut se défendre, mais de manière plus
+ * limitée"): roughly half a T1 Laser's damage, well under half its fire rate and range. Never
+ * placed via tryPlaceTower (no cost/sell/upgrade path), so cost/sellRefundPct are unused in
+ * practice — kept only because TowerTierStats/TowerDef require them. */
+const BASE_TIER: TowerTierStats = {
+  cost: 0,
+  damage: 4,
+  splashRadius: 0,
+  slowPct: 0,
+  dotPerSecond: 0,
+  fireRatePerSec: 0.6,
+  range: 1.8,
+  chainTargets: 1,
+  targetsAir: true,
+  targetsGround: true,
+  armorPierce: 0,
+};
+
 export const TOWERS: Record<TowerId, TowerDef> = {
+  base: {
+    id: 'base',
+    name: 'Base',
+    description: "Défense intégrée de la base — faible, ne remplace pas de vraies tours.",
+    sellRefundPct: 0,
+    upgradable: false,
+    tiers: [BASE_TIER, BASE_TIER, BASE_TIER],
+    t3Branches: [
+      { id: 'A', name: '—', description: '—' },
+      { id: 'B', name: '—', description: '—' },
+    ],
+  },
   wall: {
     id: 'wall',
     name: 'Mur',

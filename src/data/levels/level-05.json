@@ -23,7 +23,7 @@
     ]
   },
   "startGold": 160,
-  "baseHp": 5,
+  "baseHp": 100,
   "allowedTowers": [
     "wall",
     "laser",

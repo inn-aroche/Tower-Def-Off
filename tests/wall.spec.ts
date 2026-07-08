@@ -64,7 +64,7 @@ describe('Wall — cheap, inert path-shaper', () => {
     expect(second.ok).toBe(false);
     expect(second.reason).toBe('not-buildable');
 
-    const wall = gs.towers[0];
+    const wall = gs.towers.find((t) => t.towerId === 'wall')!;
     const goldAfterBuild = gs.economy.gold;
     gs.sellTower(wall.id);
     expect(gs.economy.gold).toBe(goldAfterBuild + Math.round(TOWERS.wall.tiers[0].cost * TOWERS.wall.sellRefundPct));

@@ -14,7 +14,7 @@
     "exits": [[14, 4]]
   },
   "startGold": 320,
-  "baseHp": 5,
+  "baseHp": 100,
   "allowedTowers": ["wall", "laser", "mortar", "tesla", "cryo"],
   "waves": [
     { "delay": 4, "spawns": [{ "type": "soldier", "count": 16, "interval": 0.35 }] },

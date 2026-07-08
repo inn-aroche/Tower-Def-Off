@@ -50,7 +50,7 @@ describe('GameState placement rules', () => {
     const gs = new GameState(new EventBus());
     gs.loadLevel(makeLevel({ grid: { cols: 5, rows: 3, blocked: [], spawns: [[0, 1]], exits: [[4, 1]] } }));
     gs.tryPlaceTower('laser', 2, 1);
-    const tower = gs.towers[0];
+    const tower = gs.towers.find((t) => t.towerId === 'laser')!;
     const goldAfterBuild = gs.economy.gold;
     gs.sellTower(tower.id);
     expect(gs.economy.gold).toBe(goldAfterBuild + Math.round(15 * 0.7));
@@ -65,7 +65,7 @@ describe('GameState placement rules', () => {
       }),
     );
     gs.tryPlaceTower('laser', 2, 1);
-    const tower = gs.towers[0];
+    const tower = gs.towers.find((t) => t.towerId === 'laser')!;
     tower.tier = 3; // one-shots the 30hp soldier so the kill happens deterministically within a few ticks
     const goldAfterBuild = gs.economy.gold;
 
