@@ -2,44 +2,41 @@
  * Headless balance validation — required by the studio-jeu-mobile skill before any tuning is
  * trusted ("aucun tuning sans re-simulation").
  *
- * M1 has no PvP bots yet (that lands in M4), so this validates the one thing M1 introduces: is
- * the PvE campaign curve winnable-but-non-trivial for a competent-but-simple scripted player?
- * Per-unit-family win-rate validation (bots vs bots, 50±7%) is the M4 concern once the same
+ * The M2 sim is fully deterministic (no RNG: enemies follow a fixed path, summon is card-choice),
+ * so a single policy gives one binary outcome per level — a weak signal. Instead we sweep a
+ * *skill* knob (how fast the scripted player reacts / buys) across a spread, and report the win
+ * rate over that spread: a forgiving level is won even by a slow player; a hard level only by a
+ * fast one. That graded margin is the difficulty curve we tune against.
+ *
+ * Per-unit-family PvP win-rate validation (bots vs bots, 50±7%) is the M4 concern once the same
  * engine plays both sides — deferred and tracked in decisions.md, not silently dropped.
  */
 import { CombatSim } from '../src/sim/CombatSim';
+import { isPathCell } from '../src/sim/Path';
 import { ECONOMY } from '../src/data/economy';
 import { UNITS, DEFAULT_DECK } from '../src/data/units';
 import { ENEMIES } from '../src/data/enemies';
 import { LEVELS } from '../src/data/levels';
 import type { CombatSnapshot, LevelDef } from '../src/sim/types';
 
-const SEEDS_PER_LEVEL = 40;
 const DT = 1 / 30;
 const MAX_SIM_SECONDS = 5 * 60;
+const COST = new Map(UNITS.map((u) => [u.id, u.cost]));
+// Seconds a player waits between actions — higher = slower/weaker. The spread is our skill sample.
+const SKILL_SWEEP = [0.0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8];
 
-/**
- * Deterministic placement heuristic standing in for "a reasonable player": spread defenders
- * across the least-covered lane first, and prefer rows 2+ — row 0/1 windows get clipped against
- * the top edge (range can't extend past row 0), wasting most of a unit's range there.
- */
-function chooseSummonCell(snapshot: CombatSnapshot): { col: number; row: number } | null {
-  const occupied = new Set(snapshot.units.map((u) => `${u.col},${u.row}`));
-  const colCounts = new Array(ECONOMY.gridCols).fill(0);
-  for (const u of snapshot.units) colCounts[u.col]++;
-  const colsByLoad = [...Array(ECONOMY.gridCols).keys()].sort((a, b) => colCounts[a] - colCounts[b]);
-
-  for (const col of colsByLoad) {
-    for (let row = 2; row < ECONOMY.gridRows; row++) {
-      if (!occupied.has(`${col},${row}`)) return { col, row };
+function rankedGrassCells(level: LevelDef): Array<{ col: number; row: number }> {
+  const cells: Array<{ col: number; row: number; d: number }> = [];
+  for (let row = 0; row < ECONOMY.gridRows; row++) {
+    for (let col = 0; col < ECONOMY.gridCols; col++) {
+      if (isPathCell(level.path, col, row)) continue;
+      let best = Infinity;
+      for (const p of level.path) best = Math.min(best, Math.hypot(col - p.col, row - p.row));
+      cells.push({ col, row, d: best });
     }
   }
-  for (const col of colsByLoad) {
-    for (let row = 0; row < 2; row++) {
-      if (!occupied.has(`${col},${row}`)) return { col, row };
-    }
-  }
-  return null;
+  cells.sort((a, b) => a.d - b.d);
+  return cells.map(({ col, row }) => ({ col, row }));
 }
 
 function tryGreedyMerge(sim: CombatSim, snapshot: CombatSnapshot): boolean {
@@ -47,12 +44,22 @@ function tryGreedyMerge(sim: CombatSim, snapshot: CombatSnapshot): boolean {
   for (let i = 0; i < units.length; i++) {
     for (let j = i + 1; j < units.length; j++) {
       if (units[i].unitId === units[j].unitId && units[i].level === units[j].level) {
-        const res = sim.merge({ col: units[i].col, row: units[i].row }, { col: units[j].col, row: units[j].row });
-        if (res.ok) return true;
+        if (sim.merge({ col: units[i].col, row: units[i].row }, { col: units[j].col, row: units[j].row }).ok) return true;
       }
     }
   }
   return false;
+}
+
+/** Buy a card that pairs with a lone level-1 unit (enables a merge), else the cheapest affordable. */
+function chooseCard(snapshot: CombatSnapshot): string | null {
+  const affordable = snapshot.hand.filter((c) => c.affordable);
+  if (affordable.length === 0) return null;
+  const lvl1 = new Map<string, number>();
+  for (const u of snapshot.units) if (u.level === 1) lvl1.set(u.unitId, (lvl1.get(u.unitId) ?? 0) + 1);
+  const pairable = affordable.filter((c) => (lvl1.get(c.unitId) ?? 0) % 2 === 1);
+  const pool = pairable.length > 0 ? pairable : affordable;
+  return pool.reduce((best, c) => (c.cost < best.cost ? c : best)).unitId;
 }
 
 interface RunResult {
@@ -62,22 +69,28 @@ interface RunResult {
   kills: number;
 }
 
-function runOnce(level: LevelDef, seed: number): RunResult {
-  const sim = new CombatSim({ economy: ECONOMY, level, deck: DEFAULT_DECK, unitDefs: UNITS, enemyDefs: ENEMIES }, seed);
+function runOnce(level: LevelDef, actIntervalSec: number): RunResult {
+  const sim = new CombatSim({ economy: ECONOMY, level, deck: DEFAULT_DECK, unitDefs: UNITS, enemyDefs: ENEMIES });
+  const grass = rankedGrassCells(level);
   let snapshot = sim.snapshot();
+  let nextActAt = 0;
 
   while (snapshot.outcome === 'ongoing' && snapshot.elapsedSec < MAX_SIM_SECONDS) {
     sim.step(DT);
     snapshot = sim.snapshot();
     if (snapshot.outcome !== 'ongoing') break;
+    if (snapshot.elapsedSec < nextActAt) continue;
+    nextActAt = snapshot.elapsedSec + actIntervalSec;
 
     tryGreedyMerge(sim, snapshot);
     snapshot = sim.snapshot();
 
-    if (snapshot.mana >= snapshot.nextSummonCost) {
-      const cell = chooseSummonCell(snapshot);
+    const unitId = chooseCard(snapshot);
+    if (unitId !== null && snapshot.mana >= (COST.get(unitId) ?? Infinity)) {
+      const occupied = new Set(snapshot.units.map((u) => `${u.col},${u.row}`));
+      const cell = grass.find((g) => !occupied.has(`${g.col},${g.row}`));
       if (cell) {
-        sim.summon(cell.col, cell.row);
+        sim.summon(unitId, cell.col, cell.row);
         snapshot = sim.snapshot();
       }
     }
@@ -95,27 +108,21 @@ function mean(xs: number[]): number {
 
 let anyUnwinnable = false;
 
-console.log(`WARDENS — balance simulation (${SEEDS_PER_LEVEL} seeds/level)\n`);
+console.log(`WARDENS — balance simulation (skill sweep of ${SKILL_SWEEP.length} samples/level)\n`);
 console.log('level                  win%   avg life (won)   avg elapsed(s)   avg kills');
 console.log('-----------------------------------------------------------------------');
 
 for (const level of LEVELS) {
-  const results: RunResult[] = [];
-  for (let s = 0; s < SEEDS_PER_LEVEL; s++) {
-    results.push(runOnce(level, s * 1000 + 7));
-  }
-
+  const results = SKILL_SWEEP.map((iv) => runOnce(level, iv));
   const wins = results.filter((r) => r.outcome === 'victory');
   const winRate = (wins.length / results.length) * 100;
-  const avgLifeOnWin = mean(wins.map((r) => r.life));
-  const avgElapsed = mean(results.map((r) => r.elapsedSec));
-  const avgKills = mean(results.map((r) => r.kills));
-  const timeouts = results.filter((r) => r.outcome === 'timeout').length;
 
   console.log(
-    `${level.name.padEnd(22)} ${winRate.toFixed(0).padStart(4)}%   ${avgLifeOnWin.toFixed(1).padStart(14)}   ${avgElapsed
+    `${level.name.padEnd(22)} ${winRate.toFixed(0).padStart(4)}%   ${mean(wins.map((r) => r.life))
       .toFixed(1)
-      .padStart(14)}   ${avgKills.toFixed(1).padStart(9)}${timeouts > 0 ? `   (${timeouts} timeout)` : ''}`,
+      .padStart(14)}   ${mean(results.map((r) => r.elapsedSec))
+      .toFixed(1)
+      .padStart(14)}   ${mean(results.map((r) => r.kills)).toFixed(1).padStart(9)}`,
   );
 
   if (wins.length === 0) anyUnwinnable = true;
@@ -123,8 +130,8 @@ for (const level of LEVELS) {
 
 console.log('');
 if (anyUnwinnable) {
-  console.error('FAIL: at least one level has a 0% win rate against the scripted policy player — unwinnable, needs tuning.');
+  console.error('FAIL: at least one level is unwinnable across the whole skill sweep — needs tuning.');
   process.exit(1);
 } else {
-  console.log('OK: every level is winnable at least once by the scripted policy player.');
+  console.log('OK: every level is winnable by at least the fastest scripted player.');
 }

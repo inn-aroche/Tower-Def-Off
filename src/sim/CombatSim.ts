@@ -1,14 +1,16 @@
-import { regenMana, summonCost } from './Economy';
+import { regenMana } from './Economy';
 import { gravitySlowFactor, resolveAttacks } from './Combat';
 import { Grid, isInBounds } from './Grid';
-import { Rng } from './Rng';
+import { isPathCell, pathEndProgress, pathPosition } from './Path';
 import type { ScheduledSpawn } from './Wave';
 import { buildSpawnSchedule } from './Wave';
 import type {
+  Cell,
   CombatOutcome,
   CombatSnapshot,
   EconomyConfig,
   EnemyDef,
+  HandCard,
   LevelDef,
   LiveEnemy,
   PlacedUnit,
@@ -25,7 +27,7 @@ export interface CombatSimConfig {
 
 export type SummonResult =
   | { ok: true; unitId: string }
-  | { ok: false; reason: 'not-ongoing' | 'cell-occupied' | 'out-of-bounds' | 'not-enough-mana' | 'empty-deck' };
+  | { ok: false; reason: 'not-ongoing' | 'cell-occupied' | 'out-of-bounds' | 'on-path' | 'not-enough-mana' | 'unknown-card' };
 
 export type MergeResult =
   | { ok: true; newLevel: number }
@@ -34,32 +36,31 @@ export type MergeResult =
 export class CombatSim {
   private readonly economy: EconomyConfig;
   private readonly level: LevelDef;
+  private readonly path: Cell[];
   private readonly deck: string[];
   private readonly unitDefs: Map<string, UnitDef>;
   private readonly enemyDefs: Map<string, EnemyDef>;
   private readonly schedule: ScheduledSpawn[];
-  private readonly rng: Rng;
 
   private elapsedSec = 0;
   private mana: number;
   private life: number;
   private units: PlacedUnit[] = [];
   private enemies: LiveEnemy[] = [];
-  private summonCount = 0;
   private kills = 0;
   private outcome: CombatOutcome = 'ongoing';
   private spawnCursor = 0;
   private nextInstanceId = 1;
   private lastSpawnedWaveIndex = 0;
 
-  constructor(config: CombatSimConfig, seed: number) {
+  constructor(config: CombatSimConfig, _seed = 0) {
     this.economy = config.economy;
     this.level = config.level;
+    this.path = config.level.path;
     this.deck = config.deck;
     this.unitDefs = new Map(config.unitDefs.map((u) => [u.id, u]));
     this.enemyDefs = new Map(config.enemyDefs.map((e) => [e.id, e]));
     this.schedule = buildSpawnSchedule(config.level);
-    this.rng = new Rng(seed);
     this.mana = config.economy.manaStartValue;
     this.life = config.level.playerStartLife;
   }
@@ -72,12 +73,13 @@ export class CombatSim {
 
     while (this.spawnCursor < this.schedule.length && this.schedule[this.spawnCursor].atSec <= this.elapsedSec) {
       const spawn = this.schedule[this.spawnCursor];
-      const col = this.rng.nextInt(this.economy.gridCols);
+      const start = pathPosition(this.path, 0);
       this.enemies.push({
         instanceId: this.nextInstanceId++,
         enemyId: spawn.enemyId,
-        col,
-        rowPos: 0,
+        pathProgress: 0,
+        x: start.x,
+        y: start.y,
         hp: this.enemyDefs.get(spawn.enemyId)?.hp ?? 1,
       });
       this.lastSpawnedWaveIndex = spawn.waveIndex;
@@ -85,21 +87,23 @@ export class CombatSim {
     }
 
     const deps = { unitDefs: this.unitDefs, enemyDefs: this.enemyDefs };
+    const endProgress = pathEndProgress(this.path);
 
     for (const enemy of this.enemies) {
       const factor = gravitySlowFactor(deps, enemy, this.units);
-      const def = this.enemyDefs.get(enemy.enemyId);
-      const speed = def?.speed ?? 0;
-      enemy.rowPos += speed * factor * dtSec;
+      const speed = this.enemyDefs.get(enemy.enemyId)?.speed ?? 0;
+      enemy.pathProgress += speed * factor * dtSec;
+      const pos = pathPosition(this.path, enemy.pathProgress);
+      enemy.x = pos.x;
+      enemy.y = pos.y;
     }
 
-    const breached = this.enemies.filter((e) => e.rowPos >= this.economy.gridRows);
+    const breached = this.enemies.filter((e) => e.pathProgress >= endProgress);
     if (breached.length > 0) {
       for (const enemy of breached) {
-        const def = this.enemyDefs.get(enemy.enemyId);
-        this.life -= def?.damageToBase ?? 1;
+        this.life -= this.enemyDefs.get(enemy.enemyId)?.damageToBase ?? 1;
       }
-      this.enemies = this.enemies.filter((e) => e.rowPos < this.economy.gridRows);
+      this.enemies = this.enemies.filter((e) => e.pathProgress < endProgress);
     }
 
     if (this.life <= 0) {
@@ -110,9 +114,11 @@ export class CombatSim {
 
     const { killedEnemyInstanceIds } = resolveAttacks(deps, this.units, this.enemies, dtSec);
     if (killedEnemyInstanceIds.length > 0) {
+      // Dedupe: two units can land the finishing blow on the same enemy in one tick, so the raw
+      // list may contain the same instanceId twice — count and remove each enemy once.
       const killedSet = new Set(killedEnemyInstanceIds);
       this.enemies = this.enemies.filter((e) => !killedSet.has(e.instanceId));
-      this.kills += killedEnemyInstanceIds.length;
+      this.kills += killedSet.size;
     }
 
     if (this.spawnCursor >= this.schedule.length && this.enemies.length === 0) {
@@ -120,20 +126,20 @@ export class CombatSim {
     }
   }
 
-  summon(col: number, row: number): SummonResult {
+  /** Places a specific unit from the deck (card-choice model) at a cell, paying its fixed cost. */
+  summon(unitId: string, col: number, row: number): SummonResult {
     if (this.outcome !== 'ongoing') return { ok: false, reason: 'not-ongoing' };
+    const def = this.unitDefs.get(unitId);
+    if (!def || !this.deck.includes(unitId)) return { ok: false, reason: 'unknown-card' };
     if (!isInBounds(col, row, this.economy.gridCols, this.economy.gridRows)) {
       return { ok: false, reason: 'out-of-bounds' };
     }
+    if (isPathCell(this.path, col, row)) return { ok: false, reason: 'on-path' };
     const grid = new Grid(this.economy.gridCols, this.economy.gridRows, this.units);
     if (!grid.isEmpty(col, row)) return { ok: false, reason: 'cell-occupied' };
-    if (this.deck.length === 0) return { ok: false, reason: 'empty-deck' };
-    const cost = summonCost(this.economy, this.summonCount);
-    if (this.mana < cost) return { ok: false, reason: 'not-enough-mana' };
+    if (this.mana < def.cost) return { ok: false, reason: 'not-enough-mana' };
 
-    this.mana -= cost;
-    this.summonCount++;
-    const unitId = this.rng.pick(this.deck);
+    this.mana -= def.cost;
     this.units.push({ unitId, level: 1, col, row, attackCooldownSec: 0 });
     return { ok: true, unitId };
   }
@@ -155,6 +161,13 @@ export class CombatSim {
     return { ok: true, newLevel };
   }
 
+  private hand(): HandCard[] {
+    return this.deck.map((unitId) => {
+      const def = this.unitDefs.get(unitId)!;
+      return { unitId, name: def.name, family: def.family, cost: def.cost, affordable: this.mana >= def.cost };
+    });
+  }
+
   snapshot(): CombatSnapshot {
     return {
       elapsedSec: this.elapsedSec,
@@ -163,8 +176,7 @@ export class CombatSim {
       outcome: this.outcome,
       units: this.units.map((u) => ({ ...u })),
       enemies: this.enemies.map((e) => ({ ...e })),
-      summonCount: this.summonCount,
-      nextSummonCost: summonCost(this.economy, this.summonCount),
+      hand: this.hand(),
       currentWaveIndex: this.lastSpawnedWaveIndex,
       totalWaves: this.level.waves.length,
       kills: this.kills,

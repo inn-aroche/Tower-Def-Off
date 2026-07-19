@@ -2,17 +2,21 @@
 
 export type UnitFamily = 'melee' | 'ranged' | 'gravity';
 
+export interface Cell {
+  col: number;
+  row: number;
+}
+
 /** Per-level stats for a unit. Index 0 = level 1. */
 export interface UnitLevelStats {
-  /** Damage per attack. Unused (0) for gravity-family units. */
+  /** Damage per attack. 0 for gravity-family units. */
   damage: number;
-  /** Seconds between attacks. Unused (0) for gravity-family units. */
+  /** Seconds between attacks. 0 for gravity-family units. */
   attackIntervalSec: number;
-  /** How many rows ahead (toward spawn) the unit can act, from its own row. */
-  rangeRows: number;
-  /** Gravity only: extra columns of influence to each side of the unit's column. */
-  influenceCols: number;
-  /** Gravity only: enemy speed multiplier while inside the influence field (e.g. 0.5 = -50%). */
+  /** Radius of effect in cells (Euclidean), measured cell-center to cell-center.
+   * Damage units attack enemies within it; gravity units slow enemies within it. */
+  range: number;
+  /** Enemy speed multiplier while inside a gravity field (e.g. 0.5 = -50%). 1 for damage units. */
   slowFactor: number;
 }
 
@@ -20,6 +24,8 @@ export interface UnitDef {
   id: string;
   name: string;
   family: UnitFamily;
+  /** Fixed mana cost to summon this unit (Clash-style economy, per the M2 card-choice model). */
+  cost: number;
   /** Stats for level 1..maxLevel, index 0 = level 1. */
   levels: UnitLevelStats[];
 }
@@ -28,9 +34,9 @@ export interface EnemyDef {
   id: string;
   name: string;
   hp: number;
-  /** Rows per second, before gravity slow effects. */
+  /** Cells per second travelled along the path, before gravity slow effects. */
   speed: number;
-  /** Life lost by the player base if this enemy reaches the bottom row. */
+  /** Life lost by the player base if this enemy reaches the end of the path. */
   damageToBase: number;
 }
 
@@ -54,6 +60,9 @@ export interface LevelDef {
   name: string;
   waves: WaveDef[];
   playerStartLife: number;
+  /** Ordered, 4-connected waypoints from spawn (index 0, top) to base (last index). Enemies
+   * follow it; units may only be placed on non-path cells. */
+  path: Cell[];
 }
 
 export interface EconomyConfig {
@@ -62,9 +71,6 @@ export interface EconomyConfig {
   manaMax: number;
   manaRegenPerSec: number;
   manaStartValue: number;
-  summonBaseCost: number;
-  summonCostGrowth: number;
-  summonCostMax: number;
 }
 
 export interface PlacedUnit {
@@ -78,18 +84,23 @@ export interface PlacedUnit {
 export interface LiveEnemy {
   instanceId: number;
   enemyId: string;
-  col: number;
-  /** Continuous row position: 0 = top spawn edge, gridRows = base breach. */
-  rowPos: number;
+  /** Position along the path, in waypoint units (0 = spawn, path.length-1 = base). */
+  pathProgress: number;
+  /** Cached cell-center coordinates derived from pathProgress each step (x = col+0.5, y = row+0.5). */
+  x: number;
+  y: number;
   hp: number;
 }
 
 export type CombatOutcome = 'ongoing' | 'victory' | 'defeat';
 
-export interface CombatEvent {
-  type: 'summon' | 'merge' | 'enemy-killed' | 'base-hit' | 'wave-cleared' | 'victory' | 'defeat';
-  atSec: number;
-  detail?: Record<string, unknown>;
+/** A card in the player's hand this combat — one per deck entry, in fixed order. */
+export interface HandCard {
+  unitId: string;
+  name: string;
+  family: UnitFamily;
+  cost: number;
+  affordable: boolean;
 }
 
 export interface CombatSnapshot {
@@ -99,8 +110,7 @@ export interface CombatSnapshot {
   outcome: CombatOutcome;
   units: PlacedUnit[];
   enemies: LiveEnemy[];
-  summonCount: number;
-  nextSummonCost: number;
+  hand: HandCard[];
   currentWaveIndex: number;
   totalWaves: number;
   kills: number;

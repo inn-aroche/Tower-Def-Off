@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CombatSim } from '../src/sim/CombatSim';
-import type { EconomyConfig, EnemyDef, LevelDef, UnitDef } from '../src/sim/types';
+import type { Cell, EconomyConfig, EnemyDef, LevelDef, UnitDef } from '../src/sim/types';
 
 const economy: EconomyConfig = {
   gridCols: 3,
@@ -8,39 +8,42 @@ const economy: EconomyConfig = {
   manaMax: 10,
   manaRegenPerSec: 5,
   manaStartValue: 10,
-  summonBaseCost: 2,
-  summonCostGrowth: 1,
-  summonCostMax: 8,
 };
+
+// Straight path down column 1; base at (1,3). Grass columns 0 and 2 are placeable.
+const PATH: Cell[] = [
+  { col: 1, row: 0 },
+  { col: 1, row: 1 },
+  { col: 1, row: 2 },
+  { col: 1, row: 3 },
+];
 
 const strongMelee: UnitDef = {
   id: 'strong',
   name: 'Strong',
   family: 'melee',
+  cost: 2,
   levels: [
-    { damage: 100, attackIntervalSec: 0.1, rangeRows: 4, influenceCols: 0, slowFactor: 1 },
-    { damage: 300, attackIntervalSec: 0.1, rangeRows: 4, influenceCols: 0, slowFactor: 1 },
+    { damage: 100, attackIntervalSec: 0.1, range: 5, slowFactor: 1 },
+    { damage: 300, attackIntervalSec: 0.1, range: 5, slowFactor: 1 },
   ],
 };
 
 const weakEnemy: EnemyDef = { id: 'weak', name: 'Weak', hp: 10, speed: 1, damageToBase: 1 };
 
-function easyLevel(): LevelDef {
+function level(overrides: Partial<LevelDef> = {}): LevelDef {
   return {
-    id: 'easy',
-    name: 'Easy',
+    id: 'test',
+    name: 'Test',
     playerStartLife: 5,
+    path: PATH,
     waves: [{ startDelaySec: 0, spawnGroups: [{ enemyId: 'weak', count: 1, intervalSec: 0, startDelaySec: 0 }] }],
+    ...overrides,
   };
 }
 
-function noDefenderLevel(): LevelDef {
-  return {
-    id: 'undefended',
-    name: 'Undefended',
-    playerStartLife: 1,
-    waves: [{ startDelaySec: 0, spawnGroups: [{ enemyId: 'weak', count: 1, intervalSec: 0, startDelaySec: 0 }] }],
-  };
+function makeSim(lvl: LevelDef = level(), eco: EconomyConfig = economy) {
+  return new CombatSim({ economy: eco, level: lvl, deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] });
 }
 
 function run(sim: CombatSim, seconds: number, dt = 1 / 30) {
@@ -48,105 +51,104 @@ function run(sim: CombatSim, seconds: number, dt = 1 / 30) {
   for (let i = 0; i < steps; i++) sim.step(dt);
 }
 
-describe('CombatSim', () => {
-  it('rejects summon on an out-of-bounds cell', () => {
-    const sim = new CombatSim({ economy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] }, 1);
-    const result = sim.summon(99, 0);
-    expect(result).toEqual({ ok: false, reason: 'out-of-bounds' });
+describe('CombatSim summon', () => {
+  it('rejects an unknown card', () => {
+    expect(makeSim().summon('nope', 0, 0)).toEqual({ ok: false, reason: 'unknown-card' });
   });
 
-  it('rejects summon without enough mana', () => {
-    const poorEconomy = { ...economy, manaStartValue: 0, manaRegenPerSec: 0 };
-    const sim = new CombatSim(
-      { economy: poorEconomy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] },
-      1,
-    );
-    const result = sim.summon(0, 0);
-    expect(result).toEqual({ ok: false, reason: 'not-enough-mana' });
+  it('rejects an out-of-bounds cell', () => {
+    expect(makeSim().summon('strong', 9, 0)).toEqual({ ok: false, reason: 'out-of-bounds' });
   });
 
-  it('rejects summon on an occupied cell', () => {
-    const sim = new CombatSim({ economy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] }, 1);
-    expect(sim.summon(0, 0).ok).toBe(true);
-    expect(sim.summon(0, 0)).toEqual({ ok: false, reason: 'cell-occupied' });
+  it('rejects placement on a path cell', () => {
+    expect(makeSim().summon('strong', 1, 0)).toEqual({ ok: false, reason: 'on-path' });
   });
 
-  it('summon cost grows and deducts mana', () => {
-    const sim = new CombatSim({ economy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] }, 1);
-    sim.summon(0, 0);
-    expect(sim.snapshot().mana).toBe(8); // 10 - baseCost(2)
-    expect(sim.snapshot().nextSummonCost).toBe(3); // baseCost(2) + growth(1)*1
+  it('rejects an occupied cell', () => {
+    const sim = makeSim();
+    expect(sim.summon('strong', 0, 0).ok).toBe(true);
+    expect(sim.summon('strong', 0, 0)).toEqual({ ok: false, reason: 'cell-occupied' });
   });
 
-  it('merges two identical same-level units into one higher-level unit', () => {
-    const sim = new CombatSim({ economy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] }, 1);
-    sim.summon(0, 0);
-    sim.summon(1, 0);
-    let units = sim.snapshot().units;
-    expect(units).toHaveLength(2);
-    expect(units.every((u) => u.level === 1)).toBe(true);
+  it('rejects when mana is insufficient and deducts the fixed cost otherwise', () => {
+    const poor = makeSim(level(), { ...economy, manaStartValue: 1, manaRegenPerSec: 0 });
+    expect(poor.summon('strong', 0, 0)).toEqual({ ok: false, reason: 'not-enough-mana' });
 
-    const result = sim.merge({ col: 0, row: 0 }, { col: 1, row: 0 });
-    expect(result).toEqual({ ok: true, newLevel: 2 });
-    units = sim.snapshot().units;
+    const sim = makeSim();
+    sim.summon('strong', 0, 0);
+    expect(sim.snapshot().mana).toBe(8); // 10 - cost(2)
+  });
+
+  it('exposes affordability per card in the hand', () => {
+    const sim = makeSim(level(), { ...economy, manaStartValue: 1, manaRegenPerSec: 0 });
+    expect(sim.snapshot().hand).toEqual([{ unitId: 'strong', name: 'Strong', family: 'melee', cost: 2, affordable: false }]);
+  });
+});
+
+describe('CombatSim merge', () => {
+  it('merges two identical same-level units into a higher-level one', () => {
+    const sim = makeSim();
+    sim.summon('strong', 0, 0);
+    sim.summon('strong', 0, 1);
+    expect(sim.snapshot().units).toHaveLength(2);
+
+    expect(sim.merge({ col: 0, row: 0 }, { col: 0, row: 1 })).toEqual({ ok: true, newLevel: 2 });
+    const units = sim.snapshot().units;
     expect(units).toHaveLength(1);
-    expect(units[0]).toMatchObject({ level: 2, col: 1, row: 0 });
+    expect(units[0]).toMatchObject({ level: 2, col: 0, row: 1 });
   });
 
-  it('refuses to merge units at max level', () => {
-    const cheapEconomy = { ...economy, manaStartValue: 100, manaRegenPerSec: 0, summonCostGrowth: 0, summonBaseCost: 1 };
-    const sim = new CombatSim(
-      { economy: cheapEconomy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] },
-      1,
-    );
-    sim.summon(0, 0);
-    sim.summon(1, 0);
-    sim.merge({ col: 0, row: 0 }, { col: 1, row: 0 }); // now level 2, the def's max (2 levels defined)
-    sim.summon(0, 0);
-    sim.summon(2, 0);
-    sim.merge({ col: 0, row: 0 }, { col: 2, row: 0 }); // another level 2
-    const result = sim.merge({ col: 1, row: 0 }, { col: 2, row: 0 });
-    expect(result).toEqual({ ok: false, reason: 'max-level' });
+  it('refuses to merge at max level', () => {
+    const sim = makeSim();
+    sim.summon('strong', 0, 0);
+    sim.summon('strong', 0, 1);
+    sim.merge({ col: 0, row: 0 }, { col: 0, row: 1 }); // -> level 2 (max defined)
+    sim.summon('strong', 2, 0);
+    sim.summon('strong', 2, 1);
+    sim.merge({ col: 2, row: 0 }, { col: 2, row: 1 }); // another level 2
+    expect(sim.merge({ col: 0, row: 1 }, { col: 2, row: 1 })).toEqual({ ok: false, reason: 'max-level' });
   });
+});
 
-  it('a defender in range kills the enemy before it reaches the base -> victory', () => {
-    const sim = new CombatSim({ economy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] }, 1);
-    sim.summon(0, 3); // last row, directly in the enemy's path
+describe('CombatSim outcomes', () => {
+  it('a defender in range kills the enemy before the base -> victory', () => {
+    const sim = makeSim();
+    sim.summon('strong', 0, 2); // grass beside the path, within range
     run(sim, 5);
     expect(sim.snapshot().outcome).toBe('victory');
     expect(sim.snapshot().life).toBe(5);
   });
 
   it('an undefended level ends in defeat once life reaches 0', () => {
-    const sim = new CombatSim(
-      { economy, level: noDefenderLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] },
-      1,
-    );
+    const sim = makeSim(level({ playerStartLife: 1 }));
     run(sim, 10);
     expect(sim.snapshot().outcome).toBe('defeat');
     expect(sim.snapshot().life).toBe(0);
   });
 
-  it('is deterministic: same seed produces the same outcome and summon unit ids', () => {
-    const config = { economy, level: easyLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] };
-    const simA = new CombatSim(config, 123);
-    const simB = new CombatSim(config, 123);
-    const resA = simA.summon(0, 0);
-    const resB = simB.summon(0, 0);
-    expect(resA).toEqual(resB);
-    run(simA, 3);
-    run(simB, 3);
-    expect(simA.snapshot()).toEqual(simB.snapshot());
+  it('counts an enemy once even when two units land the finishing blow in the same tick', () => {
+    const sim = makeSim();
+    sim.summon('strong', 0, 0); // both flank the spawn cell (1,0); both fire on the first tick
+    sim.summon('strong', 2, 0);
+    run(sim, 3);
+    expect(sim.snapshot().kills).toBe(1);
+  });
+
+  it('is deterministic: identical configs produce identical snapshots', () => {
+    const a = makeSim();
+    const b = makeSim();
+    a.summon('strong', 0, 2);
+    b.summon('strong', 0, 2);
+    run(a, 3);
+    run(b, 3);
+    expect(a.snapshot()).toEqual(b.snapshot());
   });
 
   it('stops advancing once an outcome is reached', () => {
-    const sim = new CombatSim(
-      { economy, level: noDefenderLevel(), deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [weakEnemy] },
-      1,
-    );
+    const sim = makeSim(level({ playerStartLife: 1 }));
     run(sim, 10);
-    const snapshotAtDefeat = sim.snapshot();
+    const atDefeat = sim.snapshot();
     run(sim, 5);
-    expect(sim.snapshot()).toEqual(snapshotAtDefeat);
+    expect(sim.snapshot()).toEqual(atDefeat);
   });
 });

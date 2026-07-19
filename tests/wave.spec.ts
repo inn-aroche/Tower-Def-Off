@@ -8,6 +8,7 @@ describe('buildSpawnSchedule', () => {
       id: 'test',
       name: 'Test',
       playerStartLife: 10,
+      path: [{ col: 0, row: 0 }],
       waves: [
         { startDelaySec: 2, spawnGroups: [{ enemyId: 'goblin', count: 3, intervalSec: 1, startDelaySec: 0 }] },
         { startDelaySec: 5, spawnGroups: [{ enemyId: 'runner', count: 2, intervalSec: 0.5, startDelaySec: 1 }] },
@@ -30,7 +31,7 @@ describe('buildSpawnSchedule', () => {
   });
 
   it('returns an empty schedule for a level with no waves', () => {
-    const level: LevelDef = { id: 'empty', name: 'Empty', playerStartLife: 10, waves: [] };
+    const level: LevelDef = { id: 'empty', name: 'Empty', playerStartLife: 10, path: [{ col: 0, row: 0 }], waves: [] };
     expect(buildSpawnSchedule(level)).toEqual([]);
   });
 });

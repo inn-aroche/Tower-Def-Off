@@ -13,30 +13,31 @@ function levelStats(deps: CombatDeps, unit: PlacedUnit) {
   return { def, stats };
 }
 
+/** Euclidean distance in cell units between a placed unit's centre and an enemy's cached centre. */
+function distance(unit: PlacedUnit, enemy: LiveEnemy): number {
+  const dx = unit.col + 0.5 - enemy.x;
+  const dy = unit.row + 0.5 - enemy.y;
+  return Math.hypot(dx, dy);
+}
+
 /** Effective speed multiplier for an enemy this tick, from all gravity fields touching it. Strongest slow wins (no stacking). */
 export function gravitySlowFactor(deps: CombatDeps, enemy: LiveEnemy, units: PlacedUnit[]): number {
   let factor = 1;
   for (const unit of units) {
     const { def, stats } = levelStats(deps, unit);
     if (def.family !== 'gravity') continue;
-    const colDist = Math.abs(enemy.col - unit.col);
-    if (colDist > stats.influenceCols) continue;
-    const rowDist = unit.row - enemy.rowPos;
-    if (rowDist < 0 || rowDist > stats.rangeRows) continue;
-    factor = Math.min(factor, stats.slowFactor);
+    if (distance(unit, enemy) <= stats.range) factor = Math.min(factor, stats.slowFactor);
   }
   return factor;
 }
 
-/** Picks the most advanced (largest rowPos) enemy in range for a damage-family unit, or undefined. */
+/** Picks the most advanced (largest pathProgress) enemy within range for a damage-family unit, or undefined. */
 function findTarget(deps: CombatDeps, unit: PlacedUnit, enemies: LiveEnemy[]): LiveEnemy | undefined {
   const { stats } = levelStats(deps, unit);
   let best: LiveEnemy | undefined;
   for (const enemy of enemies) {
-    if (enemy.col !== unit.col) continue;
-    const rowDist = unit.row - enemy.rowPos;
-    if (rowDist < 0 || rowDist > stats.rangeRows) continue;
-    if (!best || enemy.rowPos > best.rowPos) best = enemy;
+    if (distance(unit, enemy) > stats.range) continue;
+    if (!best || enemy.pathProgress > best.pathProgress) best = enemy;
   }
   return best;
 }

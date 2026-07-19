@@ -170,3 +170,85 @@ Reste à faire pour M2 (« Écran de combat conforme à la maquette + juice ») 
 - 5+ playtests externes avec signal « encore une » (verrou Phase 2 du skill) restent à mener
   hors de cette session — condition pour valider définitivement Phase 2, pas seulement la
   mission M1.
+
+---
+
+## M2 — Écran de combat conforme à la maquette + refonte du modèle de jeu
+
+**Contexte — retour de l'utilisateur sur l'aperçu M1.** Trois remarques : (1) « les ennemis
+passent au-dessus des unités » ; (2) « je ne peux pas les choisir » ; (3) « ça ne ressemble pas
+au wireframe ». Diagnostic : (1) était le modèle Rush Royale (unités = tireurs, pas des murs)
+mais rendu illisible par l'art plat ; (2) et (3) touchaient des choix verrouillés du brief.
+Deux décisions de design ont été tranchées **avec l'utilisateur** via question explicite — ce
+sont des **déviations assumées du brief**, actées ici :
+
+### Déviation 1 — invocation par choix de carte (remplace « unité aléatoire »)
+Le brief verrouillait « l'invocation pose une unité ALÉATOIRE du deck ». L'utilisateur a choisi
+**choisir la carte**. Corollaire cohérent (confirmé par les badges de coût 2/3/4/5 du wireframe) :
+passage du modèle « mana croissant global » à un modèle **coût fixe par carte + mana continue**
+façon Clash Royale. Conséquence design : le dilemme de fusion s'affaiblit (on peut forcer des
+paires) mais le contrôle joueur augmente — arbitrage assumé. `economy.ts` ne porte plus le coût
+d'invocation ; le coût vit sur chaque `UnitDef` (`cost`).
+
+### Déviation 2 — chemin défini (remplace « descente en colonnes »)
+Les ennemis suivent désormais un **tracé serpentant** 4-connecté (`src/sim/Path.ts`,
+`CAMPAIGN_PATH` dans `levels.ts`) ; les unités se posent sur les cases **herbe** hors-chemin.
+Le ciblage devient **spatial** (rayon euclidien en cases, `UnitLevelStats.range`) au lieu de
+« même colonne ». Supprime totalement la superposition ennemi/unité et colle au wireframe.
+
+**Implémentation.**
+- Sim : `Path.ts` (interpolation le long des waypoints, test de 4-connexité, appartenance).
+  `CombatSim` fait avancer les ennemis via `pathProgress`, applique la gravité en zone (rayon),
+  cible spatialement, pose hors-chemin, paie le coût fixe de la carte. `summon(unitId, col, row)`
+  (signature par carte). Rng conservé (utile M4 bots) mais la sim est désormais **déterministe**.
+- Data : `units.ts` (cost + range par niveau), `levels.ts` (chemin partagé + vagues), `enemies.ts`
+  (speed = cases/s le long du chemin), `economy.ts` (mana continue seule).
+- Rendu (`CombatRenderer.ts` + `HudLayout.ts`) : header sombre (niveau, vague, timer, vies),
+  plateau stylé avec ruban de chemin sableux + marqueurs spawn/base, unités avec pictogramme par
+  famille (cercle mêlée / triangle distance / **anneau gravité** — la forme dédiée que les tokens
+  réclamaient) et badge de niveau, ennemis dessinés en dernier **avec ombre portée** (lisibles
+  au-dessus du terrain), barre de mana violette, **main de cartes tappable** avec badges de coût,
+  état sélectionné et grisage si non abordable.
+- Input (`main.ts`) : deux modes — sélectionner une carte puis poser sur une case herbe libre ;
+  ou (sans carte) sélectionner une unité puis une seconde identique pour fusionner. `HudLayout`
+  partagé rendu/hit-test.
+
+**Tests & simulation.**
+- 40 tests unitaires verts (`npm test`), dont `path.spec.ts` (connexité, interpolation, clamp)
+  et la refonte de `combat.spec`/`combat-sim.spec` pour le ciblage spatial + invocation par carte.
+- **Bug attrapé par la simulation** : les kills étaient double-comptés quand deux unités achevaient
+  le même ennemi dans le même tick (58 kills sur un niveau qui n'en fait apparaître que 21). Corrigé
+  (`this.kills += killedSet.size`) + test de non-régression ajouté. Exactement ce que le harnais est
+  censé attraper.
+- `npm run simulate` : la sim étant déterministe, on balaie désormais un **paramètre de skill**
+  (intervalle d'action du joueur scripté, 8 échantillons de 0 à 2,8 s) et on reporte le win% sur ce
+  balayage :
+
+  | Niveau | Win% (balayage) | Vie moy. (victoire) | Durée moy. | Kills moy. |
+  |---|---|---|---|---|
+  | Premières Lueurs | 100% | 12.0 | 38.0s | 21.0 |
+  | Sentier des Coureurs | 100% | 12.0 | 36.5s | 20.0 |
+  | Marche des Brutes | 100% | 13.0 | 35.3s | 14.0 |
+  | Convergence | 100% | 14.5 | 37.5s | 24.5 |
+  | L'Ombre du Troll | 100% | 13.0 | 35.8s | 38.0 |
+
+  Lecture honnête : tous les niveaux sont gagnables même par le joueur scripté **lent** — campagne
+  actuellement **volontairement clémente** (approprié pour un début de saga sans dark pattern). Le
+  boss (L5) fait déjà perdre de la vie (13/15). Pousser plus la difficulté ne ferait que des
+  éponges à PV pour forcer un bot fort à perdre — hors sujet ici. **La vraie courbe de difficulté
+  (20 nœuds, chemins par niveau, pacing) est un chantier M3** ; ce balayage sert de garde-fou de
+  winnabilité, pas de calibrage final.
+- Vérification navigateur (Playwright sur le build) : chemin serpentant, ennemis en file avec
+  ombre au-dessus du terrain, sélection de carte, pose sur herbe, tir/dégâts (barres de PV rouges),
+  mana — tous confirmés visuellement sur `level-01` (aucune erreur console hors 404 favicon).
+
+**Décision — verrou Mission 2 : 🟡 partiel.** Le combat est jouable, lisible et fidèle à la
+structure du wireframe ; les trois remarques utilisateur sont traitées. **Reste avant de clore
+la Phase 3 (vertical slice) du skill :**
+- **Juice** encore absent : impacts, feedback de fusion satisfaisant, screenshake dosé, SFX,
+  haptics-ready (verrou Phase 3 « feedbacks juicy »).
+- **Perspective 3D** du plateau (le wireframe a un `rotateX`) non reprise — plateau top-down
+  stylé pour l'instant (hit-testing simple) ; à évaluer en polish.
+- **FTUE / onboarding** guidé toujours à construire (verrou Phase 3 « onboarding qui fait jouer »).
+- **Sprites** : toujours des formes géométriques placeholder, pas d'art final.
+- **Courbe de difficulté** de la campagne à calibrer en M3 (cf. simulation ci-dessus).
