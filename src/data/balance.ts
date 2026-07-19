@@ -1,27 +1,24 @@
-/** Global tunable economy/balance constants. Single source of truth for iteration during playtest. */
-export const BALANCE = {
-  startGoldDefault: 100,
-  /** Base HP pool — no purchasable extra HP in this build. */
-  baseLivesDefault: 100,
-  baseLivesBoss: 60,
-  waveBonusBase: 10,
-  waveBonusPerWaveIndex: 2,
-  earlyCallBonusPct: 0.25,
-  sellRefundPct: 0.7,
-  simHz: 30,
-  /** Passive points earned per second at multiplier x1 — ticks constantly during a run. */
-  scorePerSecondBase: 10,
-  /** Each kill raises the multiplier, so points-per-second escalates as the run heats up. */
-  scoreMultiplierPerKill: 0.1,
-  /** Soft cap so the multiplier can't run away to absurd numbers over a long Survie run. */
-  scoreMultiplierMax: 10,
-} as const;
+// Central tuning knobs. Keep every "magic number" here so design and the
+// economy simulation (scripts/economy-sim.mjs) stay in sync with the real game.
 
-export function waveCompletionBonus(waveIndex: number): number {
-  return BALANCE.waveBonusBase + waveIndex * BALANCE.waveBonusPerWaveIndex;
+export const GRID_COLS = 7;
+export const GRID_ROWS = 12;
+
+export const STARTING_GOLD = 150;
+export const KEEP_BASE_MAX_HP = 100;
+export const KEEP_REGEN_PER_WAVE_PCT = 0.05; // fraction of max HP healed between waves
+
+export const SELL_REFUND_PCT = 0.8;
+
+export const WAVE_CLEAR_GOLD_BASE = 20;
+export const WAVE_CLEAR_GOLD_PER_WAVE = 3;
+
+// Essence (persistent meta-currency) earned at the end of a run.
+export function essenceEarned(wavesSurvived: number, bossKills: number): number {
+  return Math.floor(wavesSurvived / 2) + bossKills * 2 + 1;
 }
 
-/** Bonus gold for calling the next wave early, scaled by the fraction of prep time remaining. */
-export function earlyCallBonus(nextWaveBaseBonus: number, remainingFraction: number): number {
-  return Math.round(nextWaveBaseBonus * BALANCE.earlyCallBonusPct * Math.max(0, Math.min(1, remainingFraction)));
-}
+export const BOSS_WAVE_INTERVAL = 5;
+
+export const SKILL_TIER_COSTS = [1, 2, 3, 5] as const; // essence cost for tiers 1..4 of a branch
+export const FULL_CLASS_TREE_COST = SKILL_TIER_COSTS.reduce((a, b) => a + b, 0) * 3; // 3 branches

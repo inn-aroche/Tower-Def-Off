@@ -1,45 +1,44 @@
-import { describe, it, expect } from 'vitest';
-import { EventBus } from '../src/core/EventBus';
-import { Economy } from '../src/sim/Economy';
-import { waveCompletionBonus, earlyCallBonus } from '../src/data/balance';
+import { describe, expect, it } from 'vitest';
+import { killGold, sellRefund, startingGold, towerCost, waveClearBonus } from '../src/sim/Economy';
+import { STARTING_GOLD, WAVE_CLEAR_GOLD_BASE, WAVE_CLEAR_GOLD_PER_WAVE, SELL_REFUND_PCT } from '../src/data/balance';
 
 describe('Economy', () => {
-  it('starts with configured gold and lives', () => {
-    const economy = new Economy(new EventBus(), 100, 20);
-    expect(economy.gold).toBe(100);
-    expect(economy.lives).toBe(20);
-    expect(economy.isDefeated).toBe(false);
+  it('starting gold is unaffected with no skill effects', () => {
+    expect(startingGold({})).toBe(STARTING_GOLD);
   });
 
-  it('cannot spend more gold than available', () => {
-    const economy = new Economy(new EventBus(), 50, 20);
-    expect(economy.spend(100)).toBe(false);
-    expect(economy.gold).toBe(50);
-    expect(economy.spend(50)).toBe(true);
-    expect(economy.gold).toBe(0);
+  it('starting gold bonus applies percentage from skill tree', () => {
+    expect(startingGold({ startingGoldPct: 0.15 })).toBe(Math.round(STARTING_GOLD * 1.15));
   });
 
-  it('is defeated once lives reach zero', () => {
-    const economy = new Economy(new EventBus(), 100, 5);
-    economy.loseLives(5);
-    expect(economy.isDefeated).toBe(true);
-    expect(economy.lives).toBe(0);
+  it('tower cost discount stacks additively and rounds', () => {
+    expect(towerCost(100, { towerCostPct: -0.2 })).toBe(80);
   });
 
-  it('never drops lives below zero', () => {
-    const economy = new Economy(new EventBus(), 100, 3);
-    economy.loseLives(10);
-    expect(economy.lives).toBe(0);
+  it('tower cost never drops to zero or below', () => {
+    expect(towerCost(1, { towerCostPct: -5 })).toBeGreaterThanOrEqual(1);
   });
 
-  it('wave completion bonus grows with wave index', () => {
-    expect(waveCompletionBonus(0)).toBe(10);
-    expect(waveCompletionBonus(5)).toBe(20);
+  it('sell refund is a fixed percentage of total invested, floored', () => {
+    expect(sellRefund(100)).toBe(Math.floor(100 * SELL_REFUND_PCT));
+    expect(sellRefund(53)).toBe(Math.floor(53 * SELL_REFUND_PCT));
   });
 
-  it('early call bonus scales with remaining time fraction', () => {
-    expect(earlyCallBonus(100, 1)).toBe(25);
-    expect(earlyCallBonus(100, 0.5)).toBe(13);
-    expect(earlyCallBonus(100, 0)).toBe(0);
+  it('wave clear bonus grows with wave number', () => {
+    const w1 = waveClearBonus(1, {});
+    const w5 = waveClearBonus(5, {});
+    expect(w1).toBe(WAVE_CLEAR_GOLD_BASE + WAVE_CLEAR_GOLD_PER_WAVE);
+    expect(w5).toBeGreaterThan(w1);
+  });
+
+  it('wave clear bonus skill node adds a percentage on top', () => {
+    const base = waveClearBonus(3, {});
+    const boosted = waveClearBonus(3, { waveClearGoldBonusPct: 0.5 });
+    expect(boosted).toBe(Math.round(base * 1.5));
+  });
+
+  it('kill gold adds the Ranger flat gold-per-kill bonus', () => {
+    expect(killGold(3, {})).toBe(3);
+    expect(killGold(3, { goldPerKillBonus: 1 })).toBe(4);
   });
 });

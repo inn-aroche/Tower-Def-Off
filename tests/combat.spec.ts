@@ -1,72 +1,113 @@
-import { describe, it, expect } from 'vitest';
-import { EventBus } from '../src/core/EventBus';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { resolveTowerFire, resolveFrostNova } from '../src/sim/Combat';
 import { Grid } from '../src/sim/Grid';
-import { FlowField } from '../src/sim/FlowField';
 import { Tower } from '../src/sim/Tower';
 import { Enemy } from '../src/sim/Enemy';
-import { EnemySpatialIndex, stepCombat } from '../src/sim/Combat';
-import { damageAfterArmor } from '../src/data/enemies';
+import { MAPS } from '../src/data/maps';
 
-function setup() {
-  const grid = new Grid({ cols: 6, rows: 1, spawns: [[0, 0]], exits: [[5, 0]] });
-  const flow = new FlowField(grid);
-  const bus = new EventBus();
-  const index = new EnemySpatialIndex();
-  return { grid, flow, bus, index };
+const map = MAPS[0]; // Sentier Sinueux: straight vertical run col=3, rows 0..3 at the start
+
+function makeGrid(): Grid {
+  const grid = new Grid(map);
+  grid.layout(700, 1200);
+  return grid;
 }
 
-describe('Armor mitigation formula', () => {
-  it('subtracts flat armor with a floor of 1 damage', () => {
-    expect(damageAfterArmor(20, 3, 0)).toBe(17);
-    expect(damageAfterArmor(2, 5, 0)).toBe(1); // floor, never zero/negative
-    expect(damageAfterArmor(20, 3, 999)).toBe(20); // armor pierce negates armor
+function enemyAt(distanceTiles: number, wave = 1): Enemy {
+  const e = new Enemy('grunt', wave);
+  e.distanceTiles = distanceTiles;
+  return e;
+}
+
+describe('Combat: targeting', () => {
+  beforeEach(() => vi.spyOn(Math, 'random').mockReturnValue(0.99)); // never crit unless forced
+
+  it('targets the enemy furthest along the path within range', () => {
+    const grid = makeGrid();
+    const tower = new Tower('arrow', 3, 1, 50); // sits on col3,row1 — inside the early vertical path segment
+    const near = enemyAt(0.2);
+    const far = enemyAt(1.8);
+    const result = resolveTowerFire(tower, grid, [near, far], {});
+    expect(result).not.toBeNull();
+    expect(result!.hitEnemies[0]).toBe(far);
+  });
+
+  it('returns null when nothing is in range', () => {
+    const grid = makeGrid();
+    const tower = new Tower('arrow', 3, 1, 50);
+    const distant = enemyAt(9); // far down the path, outside the arrow's 3-tile range
+    expect(resolveTowerFire(tower, grid, [distant], {})).toBeNull();
+  });
+
+  it('applies elemental damage bonus to Frost and Arcane but not Arrow/Cannon', () => {
+    const grid = makeGrid();
+    const arrow = new Tower('arrow', 3, 1, 50);
+    const target1 = enemyAt(0.5);
+    resolveTowerFire(arrow, grid, [target1], { elementalDmgPct: 0.5 });
+    expect(target1.hp).toBe(target1.maxHp - 8); // base arrow tier-1 dmg, unaffected
+
+    const frost = new Tower('frost', 3, 1, 70);
+    const target2 = enemyAt(0.5);
+    resolveTowerFire(frost, grid, [target2], { elementalDmgPct: 0.5 });
+    expect(target2.hp).toBe(target2.maxHp - 5 * 1.5);
   });
 });
 
-describe('Combat RPS: Laser out-DPS vs Tesla/Mortar against armored Golem', () => {
-  it('Laser deals more effective damage per shot than Tesla at tier 1 due to flat armor subtraction', () => {
-    const { grid, flow, bus, index } = setup();
-    const laser = new Tower('laser', 1, 0);
-    const tesla = new Tower('tesla', 1, 0);
-    const golem = new Enemy('golem', [3, 0]);
+describe('Combat: area and multi-hit effects', () => {
+  beforeEach(() => vi.spyOn(Math, 'random').mockReturnValue(0.99));
 
-    stepCombat([laser], [golem], flow, index, 1, bus);
-    const hpAfterLaser = golem.hp;
-
-    const golem2 = new Enemy('golem', [3, 0]);
-    stepCombat([tesla], [golem2], flow, index, 1, bus);
-    const hpAfterTesla = golem2.hp;
-
-    expect(golem.maxHp - hpAfterLaser).toBeGreaterThan(golem2.maxHp - hpAfterTesla);
-    void grid;
+  it('cannon splash damages nearby enemies too', () => {
+    const grid = makeGrid();
+    const cannon = new Tower('cannon', 3, 1, 90);
+    // Targeting picks whichever is furthest along as primary; the other falls within splash radius either way.
+    const a = enemyAt(0.5);
+    const b = enemyAt(0.6);
+    resolveTowerFire(cannon, grid, [a, b], {});
+    expect(a.hp).toBeLessThan(a.maxHp);
+    expect(b.hp).toBeLessThan(b.maxHp);
   });
 
-  it('kills a soldier and awards bounty via events', () => {
-    const { grid, flow, bus, index } = setup();
-    const laser = new Tower('laser', 1, 0);
-    laser.tier = 3; // 22 damage, one-shots a 30hp soldier over a couple hits
-    const soldier = new Enemy('soldier', [1, 0]);
-    let killedBounty = 0;
-    bus.on('enemyKilled', (e) => (killedBounty = e.bounty));
-
-    stepCombat([laser], [soldier], flow, index, 1, bus);
-    stepCombat([laser], [soldier], flow, index, 1, bus);
-
-    expect(soldier.alive).toBe(false);
-    expect(killedBounty).toBe(3);
-    void grid;
+  it('frost applies a slow that reduces effective speed', () => {
+    const grid = makeGrid();
+    const frost = new Tower('frost', 3, 1, 70);
+    const target = enemyAt(0.5);
+    resolveTowerFire(frost, grid, [target], {});
+    expect(target.slowFactor).toBeCloseTo(0.7, 5);
+    expect(target.slowTimer).toBeGreaterThan(0);
   });
 
-  it('kamikaze disables the nearest tower on death', () => {
-    const { flow, bus, index } = setup();
-    const tower = new Tower('laser', 2, 0);
-    tower.tier = 3;
-    const kamikaze = new Enemy('kamikaze', [2, 0]);
-    kamikaze.hp = 1;
+  it('arcane chains to additional nearby targets with falloff damage', () => {
+    const grid = makeGrid();
+    const arcane = new Tower('arcane', 3, 1, 100);
+    // Targeting always picks the furthest-along enemy as primary (full dmg); the chain jump
+    // then reaches the other one at reduced (falloff) damage.
+    const chainTarget = enemyAt(0.5);
+    const primaryTarget = enemyAt(0.55);
+    resolveTowerFire(arcane, grid, [chainTarget, primaryTarget], {});
+    expect(chainTarget.hp).toBeLessThan(chainTarget.maxHp);
+    const chainDmg = chainTarget.maxHp - chainTarget.hp;
+    const primaryDmg = primaryTarget.maxHp - primaryTarget.hp;
+    expect(chainDmg).toBeLessThan(primaryDmg);
+  });
 
-    stepCombat([tower], [kamikaze], flow, index, 1, bus);
+  it('tier-3 Frost nova hits everyone in radius around the tower regardless of fire cooldown', () => {
+    const grid = makeGrid();
+    const frost = new Tower('frost', 3, 1, 70);
+    frost.tier = 3;
+    const target = enemyAt(0.3);
+    const result = resolveFrostNova(frost, grid, [target], {});
+    expect(result.hitEnemies).toContain(target);
+  });
+});
 
-    expect(kamikaze.alive).toBe(false);
-    expect(tower.isDisabled).toBe(true);
+describe('Combat: critical hits', () => {
+  it('Ranger crit chance can roughly double damage on a forced crit', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // always crit
+    const grid = makeGrid();
+    const arrow = new Tower('arrow', 3, 1, 50);
+    const target = enemyAt(0.5);
+    resolveTowerFire(arrow, grid, [target], { critChanceBonus: 1, critMultiplierBonus: 1 });
+    expect(target.maxHp - target.hp).toBe(8 * 2);
+    vi.restoreAllMocks();
   });
 });

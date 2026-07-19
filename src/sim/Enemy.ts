@@ -1,136 +1,58 @@
-import type { EnemyDef, EnemyType } from '../data/enemies';
-import { ENEMIES } from '../data/enemies';
-import type { Grid } from './Grid';
-import type { FlowField } from './FlowField';
+import type { EnemyKind } from '../data/enemies';
+import { ENEMIES, enemyGoldAtWave, enemyHpAtWave } from '../data/enemies';
 
-let nextEnemyId = 1;
-
-export interface StatusEffect {
-  slowPct: number;
-  slowRemaining: number;
-  dotPerSecond: number;
-  dotRemaining: number;
-  frozenRemaining: number;
-  disabledFromTowersRemaining: number; // reserved for future symmetry, unused on enemies today
-}
+let nextId = 1;
 
 export class Enemy {
-  readonly id: string;
-  type: EnemyType;
-  def: EnemyDef;
+  readonly id: number;
+  readonly kind: EnemyKind;
+  readonly maxHp: number;
   hp: number;
-  maxHp: number;
-  x: number; // grid-space float column
-  y: number; // grid-space float row
-  /** Position at the start of the current sim tick — lets the render layer interpolate between ticks. */
-  prevX: number;
-  prevY: number;
+  readonly baseSpeed: number;
+  readonly dmgToKeep: number;
+  readonly goldReward: number;
+  distanceTiles = 0;
+  slowFactor = 1; // 1 = normal speed, 0.5 = half speed
+  slowTimer = 0;
   alive = true;
-  leaked = false;
-  status: StatusEffect = { slowPct: 0, slowRemaining: 0, dotPerSecond: 0, dotRemaining: 0, frozenRemaining: 0, disabledFromTowersRemaining: 0 };
-  private flyTarget: [number, number] | null = null;
+  reachedKeep = false;
 
-  constructor(type: EnemyType, spawn: [number, number]) {
-    this.id = `e${nextEnemyId++}`;
-    this.type = type;
-    this.def = ENEMIES[type];
-    this.hp = this.def.hp;
-    this.maxHp = this.def.hp;
-    this.x = spawn[0] + 0.5;
-    this.y = spawn[1] + 0.5;
-    this.prevX = this.x;
-    this.prevY = this.y;
+  constructor(kind: EnemyKind, wave: number) {
+    this.id = nextId++;
+    this.kind = kind;
+    this.maxHp = enemyHpAtWave(kind, wave);
+    this.hp = this.maxHp;
+    this.baseSpeed = ENEMIES[kind].speed;
+    this.dmgToKeep = ENEMIES[kind].dmgToKeep;
+    this.goldReward = enemyGoldAtWave(kind, wave);
   }
 
-  reset(type: EnemyType, spawn: [number, number]): void {
-    this.type = type;
-    this.def = ENEMIES[type];
-    this.hp = this.def.hp;
-    this.maxHp = this.def.hp;
-    this.x = spawn[0] + 0.5;
-    this.y = spawn[1] + 0.5;
-    this.prevX = this.x;
-    this.prevY = this.y;
-    this.alive = true;
-    this.leaked = false;
-    this.flyTarget = null;
-    this.status = { slowPct: 0, slowRemaining: 0, dotPerSecond: 0, dotRemaining: 0, frozenRemaining: 0, disabledFromTowersRemaining: 0 };
-  }
-
-  applySlow(pct: number, duration: number): void {
-    if (pct >= this.status.slowPct || this.status.slowRemaining <= 0) {
-      this.status.slowPct = pct;
+  applySlow(factor: number, durationS: number): void {
+    // Strongest active slow wins; refresh its duration.
+    if (factor < this.slowFactor || this.slowTimer <= 0) {
+      this.slowFactor = factor;
+      this.slowTimer = durationS;
+    } else {
+      this.slowTimer = Math.max(this.slowTimer, durationS);
     }
-    this.status.slowRemaining = Math.max(this.status.slowRemaining, duration);
   }
 
-  applyDot(perSecond: number, duration: number): void {
-    this.status.dotPerSecond = Math.max(this.status.dotPerSecond, perSecond);
-    this.status.dotRemaining = Math.max(this.status.dotRemaining, duration);
+  takeDamage(amount: number): void {
+    this.hp -= amount;
+    if (this.hp <= 0) this.alive = false;
   }
 
-  applyFreeze(duration: number): void {
-    this.status.frozenRemaining = Math.max(this.status.frozenRemaining, duration);
-  }
-
-  currentSpeedMultiplier(): number {
-    if (this.status.frozenRemaining > 0) return 0;
-    if (this.status.slowRemaining > 0) return 1 - this.status.slowPct;
-    return 1;
-  }
-
-  /** Advances position by dt seconds. Ground enemies follow the flow field; flyers go straight spawn->exit. */
-  step(dt: number, grid: Grid, flowField: FlowField, exit: [number, number]): void {
-    if (!this.alive) return;
-    this.prevX = this.x;
-    this.prevY = this.y;
-
-    if (this.status.frozenRemaining > 0) this.status.frozenRemaining -= dt;
-    if (this.status.slowRemaining > 0) {
-      this.status.slowRemaining -= dt;
-      if (this.status.slowRemaining <= 0) this.status.slowPct = 0;
+  tick(dt: number, pathLengthTiles: number): void {
+    if (!this.alive || this.reachedKeep) return;
+    if (this.slowTimer > 0) {
+      this.slowTimer -= dt;
+      if (this.slowTimer <= 0) this.slowFactor = 1;
     }
-    if (this.status.dotRemaining > 0) {
-      this.hp -= this.status.dotPerSecond * dt;
-      this.status.dotRemaining -= dt;
-      if (this.hp <= 0) {
-        this.alive = false;
-        return;
-      }
+    const speed = this.baseSpeed * this.slowFactor;
+    this.distanceTiles += speed * dt;
+    if (this.distanceTiles >= pathLengthTiles) {
+      this.distanceTiles = pathLengthTiles;
+      this.reachedKeep = true;
     }
-
-    const speed = this.def.speed * this.currentSpeedMultiplier();
-    if (speed <= 0) return;
-
-    if (this.def.movement === 'flying') {
-      if (!this.flyTarget) this.flyTarget = [exit[0] + 0.5, exit[1] + 0.5];
-      const dx = this.flyTarget[0] - this.x;
-      const dy = this.flyTarget[1] - this.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < 0.05) {
-        this.leaked = true;
-        this.alive = false;
-        return;
-      }
-      const move = Math.min(speed * dt, dist);
-      this.x += (dx / dist) * move;
-      this.y += (dy / dist) * move;
-      return;
-    }
-
-    const col = Math.floor(this.x);
-    const row = Math.floor(this.y);
-    const dir = flowField.directionAt(col, row);
-    if (!dir) {
-      // At exit cell or unreachable (shouldn't happen if placement validation holds).
-      if (grid.kindAt(col, row) === 'exit') {
-        this.leaked = true;
-        this.alive = false;
-      }
-      return;
-    }
-    const move = speed * dt;
-    this.x += dir[0] * move;
-    this.y += dir[1] * move;
   }
 }

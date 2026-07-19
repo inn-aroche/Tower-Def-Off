@@ -1,46 +1,80 @@
-export type EnemyType = 'soldier' | 'swarm' | 'golem' | 'drone' | 'kamikaze' | 'boss';
-export type MovementKind = 'ground' | 'flying';
+export type EnemyKind = 'grunt' | 'speedster' | 'brute' | 'boss';
 
 export interface EnemyDef {
-  type: EnemyType;
-  name: string;
-  hp: number;
-  speed: number; // cells/sec
-  bounty: number;
-  movement: MovementKind;
-  /** Flat damage reduction applied per hit before mitigation floor (Golem). */
-  armor: number;
-  /** On death, disables the nearest tower within radius for `disableDuration` seconds (Kamikaze). */
-  disablesNearestTower?: { radius: number; duration: number };
-  /** Damage dealt to base lives if this enemy leaks. */
-  leakDamage: number;
-  radius: number; // for rendering/collision, in cells
+  kind: EnemyKind;
+  label: string;
+  icon: string;
+  color: string;
+  baseHp: number;
+  hpGrowthPerWave: number; // fractional growth applied per wave number
+  speed: number; // tiles per second
+  dmgToKeep: number;
+  baseGold: number;
+  goldPerWave: number; // extra gold per wave index, floor(wave / this)
+  minWave: number; // first wave this enemy can appear on
 }
 
-export const ENEMIES: Record<EnemyType, EnemyDef> = {
-  soldier: { type: 'soldier', name: 'Soldat', hp: 30, speed: 1.0, bounty: 3, movement: 'ground', armor: 0, leakDamage: 20, radius: 0.3 },
-  swarm: { type: 'swarm', name: 'Nuée', hp: 8, speed: 1.6, bounty: 1, movement: 'ground', armor: 0, leakDamage: 20, radius: 0.2 },
-  golem: { type: 'golem', name: 'Golem', hp: 200, speed: 0.5, bounty: 12, movement: 'ground', armor: 3, leakDamage: 40, radius: 0.45 },
-  drone: { type: 'drone', name: 'Drone', hp: 40, speed: 1.4, bounty: 5, movement: 'flying', armor: 0, leakDamage: 20, radius: 0.3 },
-  kamikaze: {
-    type: 'kamikaze',
-    name: 'Kamikaze',
-    hp: 25,
-    speed: 1.2,
-    bounty: 4,
-    movement: 'ground',
-    armor: 0,
-    disablesNearestTower: { radius: 1.5, duration: 4 },
-    leakDamage: 20,
-    radius: 0.3,
+export const ENEMIES: Record<EnemyKind, EnemyDef> = {
+  grunt: {
+    kind: 'grunt',
+    label: 'Maraudeur',
+    icon: '👹',
+    color: '#8fd694',
+    baseHp: 20,
+    hpGrowthPerWave: 0.15,
+    speed: 1,
+    dmgToKeep: 5,
+    baseGold: 3,
+    goldPerWave: 5,
+    minWave: 1,
   },
-  boss: { type: 'boss', name: 'Boss', hp: 1500, speed: 0.4, bounty: 60, movement: 'ground', armor: 5, leakDamage: 200, radius: 0.7 },
+  speedster: {
+    kind: 'speedster',
+    label: 'Furtif',
+    icon: '🦇',
+    color: '#f5e26b',
+    baseHp: 12,
+    hpGrowthPerWave: 0.15,
+    speed: 1.8,
+    dmgToKeep: 4,
+    baseGold: 2,
+    goldPerWave: 5,
+    minWave: 2,
+  },
+  brute: {
+    kind: 'brute',
+    label: 'Colosse',
+    icon: '🗿',
+    color: '#d97a7a',
+    baseHp: 55,
+    hpGrowthPerWave: 0.15,
+    speed: 0.6,
+    dmgToKeep: 10,
+    baseGold: 6,
+    goldPerWave: 5,
+    minWave: 4,
+  },
+  boss: {
+    kind: 'boss',
+    label: 'Seigneur de Guerre',
+    icon: '👑',
+    color: '#ff5d7a',
+    baseHp: 300,
+    hpGrowthPerWave: 0.2,
+    speed: 0.5,
+    dmgToKeep: 25,
+    baseGold: 40,
+    goldPerWave: 1,
+    minWave: 5,
+  },
 };
 
-/** Mitigation floor: even fully-armored hits deal at least this much damage. */
-export const MIN_DAMAGE_AFTER_ARMOR = 1;
+export function enemyHpAtWave(kind: EnemyKind, wave: number): number {
+  const def = ENEMIES[kind];
+  return Math.round(def.baseHp * (1 + def.hpGrowthPerWave * (wave - 1)));
+}
 
-export function damageAfterArmor(rawDamage: number, armor: number, armorPierce: number): number {
-  const effectiveArmor = Math.max(0, armor - armorPierce);
-  return Math.max(MIN_DAMAGE_AFTER_ARMOR, rawDamage - effectiveArmor);
+export function enemyGoldAtWave(kind: EnemyKind, wave: number): number {
+  const def = ENEMIES[kind];
+  return def.baseGold + Math.floor(wave / def.goldPerWave);
 }

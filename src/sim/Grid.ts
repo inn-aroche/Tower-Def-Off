@@ -1,73 +1,92 @@
-export type CellKind = 'empty' | 'blocked' | 'spawn' | 'exit' | 'occupied';
+import type { MapDef, Waypoint } from '../data/maps';
 
-export interface GridConfig {
-  cols: number;
-  rows: number;
-  blocked?: Array<[number, number]>;
-  spawns: Array<[number, number]>;
-  exits: Array<[number, number]>;
+export interface PixelPoint {
+  x: number;
+  y: number;
 }
 
-/** 4-directional neighbor offsets (no diagonals — required for clean flow-field pathing). */
-export const NEIGHBOR_OFFSETS: ReadonlyArray<[number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
+/** Expands sparse straight-segment waypoints into every unit cell the path occupies, in order. */
+export function expandPath(waypoints: Waypoint[]): Waypoint[] {
+  const cells: Waypoint[] = [waypoints[0]];
+  for (let i = 1; i < waypoints.length; i++) {
+    const from = waypoints[i - 1];
+    const to = waypoints[i];
+    const dCol = Math.sign(to.col - from.col);
+    const dRow = Math.sign(to.row - from.row);
+    let cur = { ...from };
+    while (cur.col !== to.col || cur.row !== to.row) {
+      cur = { col: cur.col + dCol, row: cur.row + dRow };
+      cells.push(cur);
+    }
+  }
+  return cells;
+}
 
 export class Grid {
   readonly cols: number;
   readonly rows: number;
-  readonly spawns: ReadonlyArray<[number, number]>;
-  readonly exits: ReadonlyArray<[number, number]>;
-  private kinds: CellKind[];
+  readonly pathCells: Set<string>;
+  readonly pathPolyline: Waypoint[];
+  readonly keepCell: Waypoint;
+  readonly spawnCell: Waypoint;
+  tileSize = 1;
+  originX = 0;
+  originY = 0;
 
-  constructor(config: GridConfig) {
-    this.cols = config.cols;
-    this.rows = config.rows;
-    this.spawns = config.spawns.map((p) => [...p] as [number, number]);
-    this.exits = config.exits.map((p) => [...p] as [number, number]);
-    this.kinds = new Array(this.cols * this.rows).fill('empty');
-
-    for (const [c, r] of config.blocked ?? []) this.setKind(c, r, 'blocked');
-    for (const [c, r] of this.spawns) this.setKind(c, r, 'spawn');
-    for (const [c, r] of this.exits) this.setKind(c, r, 'exit');
+  constructor(map: MapDef) {
+    this.cols = map.cols;
+    this.rows = map.rows;
+    this.pathPolyline = expandPath(map.waypoints);
+    this.pathCells = new Set(this.pathPolyline.map((c) => key(c.col, c.row)));
+    this.spawnCell = map.waypoints[0];
+    this.keepCell = map.waypoints[map.waypoints.length - 1];
   }
 
-  inBounds(col: number, row: number): boolean {
-    return col >= 0 && col < this.cols && row >= 0 && row < this.rows;
+  layout(canvasWidth: number, canvasHeight: number): void {
+    this.tileSize = Math.floor(Math.min(canvasWidth / this.cols, canvasHeight / this.rows));
+    this.originX = (canvasWidth - this.tileSize * this.cols) / 2;
+    this.originY = (canvasHeight - this.tileSize * this.rows) / 2;
   }
 
-  index(col: number, row: number): number {
-    return row * this.cols + col;
-  }
-
-  kindAt(col: number, row: number): CellKind {
-    if (!this.inBounds(col, row)) return 'blocked';
-    return this.kinds[this.index(col, row)];
-  }
-
-  setKind(col: number, row: number, kind: CellKind): void {
-    if (!this.inBounds(col, row)) return;
-    this.kinds[this.index(col, row)] = kind;
-  }
-
-  /** Traversable = anything the flow field / enemies can walk through (not blocked, not occupied by a tower). */
-  isTraversable(col: number, row: number): boolean {
-    const k = this.kindAt(col, row);
-    return k !== 'blocked' && k !== 'occupied';
+  isPath(col: number, row: number): boolean {
+    return this.pathCells.has(key(col, row));
   }
 
   isBuildable(col: number, row: number): boolean {
-    return this.kindAt(col, row) === 'empty';
+    return col >= 0 && col < this.cols && row >= 0 && row < this.rows && !this.isPath(col, row);
   }
 
-  *neighbors(col: number, row: number): Generator<[number, number]> {
-    for (const [dc, dr] of NEIGHBOR_OFFSETS) {
-      const nc = col + dc;
-      const nr = row + dr;
-      if (this.inBounds(nc, nr)) yield [nc, nr];
-    }
+  cellCenter(col: number, row: number): PixelPoint {
+    return {
+      x: this.originX + (col + 0.5) * this.tileSize,
+      y: this.originY + (row + 0.5) * this.tileSize,
+    };
   }
+
+  pixelToCell(x: number, y: number): Waypoint {
+    return {
+      col: Math.floor((x - this.originX) / this.tileSize),
+      row: Math.floor((y - this.originY) / this.tileSize),
+    };
+  }
+
+  /** Distance-along-path (in tiles) -> pixel position, for enemy movement. */
+  pointAtDistance(distanceTiles: number): PixelPoint {
+    const clamped = Math.max(0, Math.min(distanceTiles, this.pathPolyline.length - 1));
+    const i = Math.floor(clamped);
+    const frac = clamped - i;
+    const a = this.pathPolyline[i];
+    const b = this.pathPolyline[Math.min(i + 1, this.pathPolyline.length - 1)];
+    const col = a.col + (b.col - a.col) * frac;
+    const row = a.row + (b.row - a.row) * frac;
+    return { x: this.originX + (col + 0.5) * this.tileSize, y: this.originY + (row + 0.5) * this.tileSize };
+  }
+
+  get pathLengthTiles(): number {
+    return this.pathPolyline.length - 1;
+  }
+}
+
+function key(col: number, row: number): string {
+  return `${col},${row}`;
 }

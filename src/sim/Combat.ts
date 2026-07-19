@@ -1,159 +1,159 @@
-import type { Tower } from './Tower';
+import type { SkillEffects } from '../data/classes';
+import { CHAIN_FALLOFF, TOWERS } from '../data/towers';
+import { hasFlag } from '../meta/SkillTree';
 import type { Enemy } from './Enemy';
-import type { FlowField } from './FlowField';
-import { damageAfterArmor } from '../data/enemies';
-import type { EventBus } from '../core/EventBus';
+import type { Grid } from './Grid';
+import type { Tower } from './Tower';
 
-/** Coarse spatial hash of enemies by grid cell — avoids O(towers*enemies) range scans blowing up at ~150 enemies. */
-export class EnemySpatialIndex {
-  private buckets = new Map<string, Enemy[]>();
-  private bucketSize = 2; // cells per bucket
-
-  private key(col: number, row: number): string {
-    return `${Math.floor(col / this.bucketSize)},${Math.floor(row / this.bucketSize)}`;
-  }
-
-  rebuild(enemies: Iterable<Enemy>): void {
-    this.buckets.clear();
-    for (const e of enemies) {
-      if (!e.alive) continue;
-      const k = this.key(e.x, e.y);
-      let list = this.buckets.get(k);
-      if (!list) {
-        list = [];
-        this.buckets.set(k, list);
-      }
-      list.push(e);
-    }
-  }
-
-  /** All enemies whose bucket could plausibly be within `range` of (col,row). Caller still range-checks precisely. */
-  queryNear(col: number, row: number, range: number): Enemy[] {
-    const result: Enemy[] = [];
-    const bucketRange = Math.ceil(range / this.bucketSize) + 1;
-    const bc = Math.floor(col / this.bucketSize);
-    const br = Math.floor(row / this.bucketSize);
-    for (let dc = -bucketRange; dc <= bucketRange; dc++) {
-      for (let dr = -bucketRange; dr <= bucketRange; dr++) {
-        const list = this.buckets.get(`${bc + dc},${br + dr}`);
-        if (list) result.push(...list);
-      }
-    }
-    return result;
-  }
+export interface FxEvent {
+  kind: 'shot' | 'impact' | 'splash';
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  color: string;
+  crit: boolean;
 }
 
-function findTarget(tower: Tower, candidates: Enemy[], flowField: FlowField): Enemy | null {
-  const stats = tower.effectiveStats;
-  const towerCx = tower.col + 0.5;
-  const towerCy = tower.row + 0.5;
+export interface FireResult {
+  hitEnemies: Enemy[];
+  fx: FxEvent[];
+}
+
+function enemyPixel(grid: Grid, e: Enemy): { x: number; y: number } {
+  return grid.pointAtDistance(e.distanceTiles);
+}
+
+function inRange(grid: Grid, tower: Tower, e: Enemy, rangeTiles: number): boolean {
+  const center = grid.cellCenter(tower.col, tower.row);
+  const p = enemyPixel(grid, e);
+  const dx = (p.x - center.x) / grid.tileSize;
+  const dy = (p.y - center.y) / grid.tileSize;
+  return Math.hypot(dx, dy) <= rangeTiles;
+}
+
+/** Targets the enemy furthest along the path (closest to the Keep) within range. */
+function findPrimaryTarget(grid: Grid, tower: Tower, enemies: Enemy[], rangeTiles: number): Enemy | null {
   let best: Enemy | null = null;
-  let bestPriority = -Infinity;
-
-  const branch = tower.activeBranchDef;
-  const preferAir = branch?.airPriority === true;
-
-  for (const enemy of candidates) {
-    if (!enemy.alive) continue;
-    const isAir = enemy.def.movement === 'flying';
-    if (isAir && !stats.targetsAir) continue;
-    if (!isAir && !stats.targetsGround) continue;
-    const dist = Math.hypot(enemy.x - towerCx, enemy.y - towerCy);
-    if (dist > stats.range) continue;
-
-    // Priority: furthest along the path (closest to exit) wins; flying enemies use negative distance-to-tower as proxy.
-    const progress = isAir ? -dist : -flowField.distanceAt(Math.floor(enemy.x), Math.floor(enemy.y));
-    const priority = progress + (preferAir && isAir ? 1000 : 0);
-    if (priority > bestPriority) {
-      bestPriority = priority;
-      best = enemy;
-    }
+  for (const e of enemies) {
+    if (!e.alive || e.reachedKeep) continue;
+    if (!inRange(grid, tower, e, rangeTiles)) continue;
+    if (!best || e.distanceTiles > best.distanceTiles) best = e;
   }
   return best;
 }
 
-export interface CombatResult {
-  killedBounty: number;
-}
+export function resolveTowerFire(tower: Tower, grid: Grid, enemies: Enemy[], effects: SkillEffects): FireResult | null {
+  const def = tower.def;
+  const kind = tower.kind;
+  const primary = findPrimaryTarget(grid, tower, enemies, def.range);
+  if (!primary) return null;
 
-/**
- * Resolves one simulation tick of combat: cooldowns, targeting, instant-hit damage resolution,
- * splash/chain/status application, and kamikaze death effects. Damage is hitscan (applied on fire)
- * to keep the simulation deterministic; the render layer plays a travel-time projectile visual.
- */
-export function stepCombat(
-  towers: Tower[],
-  enemies: Enemy[],
-  flowField: FlowField,
-  spatialIndex: EnemySpatialIndex,
-  dt: number,
-  bus: EventBus,
-): CombatResult {
-  spatialIndex.rebuild(enemies);
-  let killedBounty = 0;
+  const isElemental = kind === 'frost' || kind === 'arcane';
+  const dmgMultiplier = 1 + (isElemental ? effects.elementalDmgPct ?? 0 : 0);
 
-  for (const tower of towers) {
-    tower.tick(dt);
-    if (!tower.canFire()) continue;
+  const towerCenter = grid.cellCenter(tower.col, tower.row);
+  const fx: FxEvent[] = [];
+  const hitEnemies: Enemy[] = [];
+  const color = TOWERS[kind].color;
 
-    const stats = tower.effectiveStats;
-    const candidates = spatialIndex.queryNear(tower.col + 0.5, tower.row + 0.5, stats.range);
-    const target = findTarget(tower, candidates, flowField);
-    if (!target) continue;
+  const applyHit = (target: Enemy, dmg: number, isPrimary: boolean) => {
+    const canCrit = kind === 'arrow' || kind === 'cannon';
+    const critChance = canCrit ? effects.critChanceBonus ?? 0 : 0;
+    const isBoss = target.kind === 'boss';
+    const critMult = 1 + (effects.critMultiplierBonus ?? 0) + (isBoss && hasFlag(effects, 'tirFatal') ? 0.5 : 0);
+    const crit = canCrit && Math.random() < critChance;
+    const finalDmg = dmg * (crit ? critMult : 1);
+    target.takeDamage(finalDmg);
+    hitEnemies.push(target);
+    const p = enemyPixel(grid, target);
+    fx.push({ kind: isPrimary ? 'shot' : 'impact', fromX: towerCenter.x, fromY: towerCenter.y, toX: p.x, toY: p.y, color, crit });
+  };
 
-    tower.resetCooldown();
-    bus.emit('projectileFired', { towerId: tower.id, targetId: target.id });
+  applyHit(primary, def.dmg * dmgMultiplier, true);
 
-    const hitTargets: Enemy[] = [target];
-    if (stats.splashRadius > 0) {
-      for (const other of candidates) {
-        if (other === target || !other.alive) continue;
-        if (Math.hypot(other.x - target.x, other.y - target.y) <= stats.splashRadius) hitTargets.push(other);
+  if (def.slow) {
+    const durMult = 1 + (kind === 'frost' ? effects.frostSlowDurationPct ?? 0 : 0);
+    primary.applySlow(1 - def.slow, (def.slowDur ?? 1) * durMult);
+  }
+
+  if (def.splash) {
+    const p = enemyPixel(grid, primary);
+    for (const e of enemies) {
+      if (e === primary || !e.alive || e.reachedKeep) continue;
+      const ep = enemyPixel(grid, e);
+      const dist = Math.hypot((ep.x - p.x) / grid.tileSize, (ep.y - p.y) / grid.tileSize);
+      if (dist <= def.splash) {
+        e.takeDamage(def.dmg * dmgMultiplier);
+        hitEnemies.push(e);
+        fx.push({ kind: 'splash', fromX: p.x, fromY: p.y, toX: ep.x, toY: ep.y, color, crit: false });
       }
-    } else if (stats.chainTargets > 1) {
-      const chainPool = candidates.filter((e) => e !== target && e.alive);
-      chainPool.sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y));
-      hitTargets.push(...chainPool.slice(0, stats.chainTargets - 1));
     }
+  }
 
-    const branch = tower.activeBranchDef;
-    for (const hit of hitTargets) {
-      const raw = stats.damage;
-      const dmg = damageAfterArmor(raw, hit.def.armor, stats.armorPierce);
-      hit.hp -= dmg;
-      bus.emit('damageDealt', { enemyId: hit.id, amount: dmg, x: hit.x, y: hit.y });
-      if (stats.slowPct > 0) hit.applySlow(stats.slowPct, 1.5);
-      if (stats.dotPerSecond > 0) hit.applyDot(stats.dotPerSecond, 3);
-      if (branch?.freezePulse && hit.type !== 'boss') hit.applyFreeze(branch.freezePulse.duration);
-
-      if (hit.hp <= 0 && hit.alive) {
-        hit.alive = false;
-        killedBounty += hit.def.bounty;
-        bus.emit('enemyKilled', { enemyId: hit.id, bounty: hit.def.bounty, col: Math.floor(hit.x), row: Math.floor(hit.y) });
-        if (hit.def.disablesNearestTower) {
-          applyKamikazeEffect(hit, towers, bus);
+  if (def.chain) {
+    const chainBonus = kind === 'arcane' ? effects.arcaneChainBonus ?? 0 : 0;
+    const totalTargets = def.chain + chainBonus;
+    let lastPos = enemyPixel(grid, primary);
+    let dmg = def.dmg * dmgMultiplier;
+    const used = new Set<number>([primary.id]);
+    for (let i = 1; i < totalTargets; i++) {
+      dmg *= CHAIN_FALLOFF;
+      let next: Enemy | null = null;
+      let bestDist = Infinity;
+      for (const e of enemies) {
+        if (used.has(e.id) || !e.alive || e.reachedKeep) continue;
+        const ep = enemyPixel(grid, e);
+        const d = Math.hypot((ep.x - lastPos.x) / grid.tileSize, (ep.y - lastPos.y) / grid.tileSize);
+        if (d <= 2.5 && d < bestDist) {
+          bestDist = d;
+          next = e;
         }
       }
+      if (!next) break;
+      used.add(next.id);
+      const p = enemyPixel(grid, next);
+      next.takeDamage(dmg);
+      hitEnemies.push(next);
+      fx.push({ kind: 'impact', fromX: lastPos.x, fromY: lastPos.y, toX: p.x, toY: p.y, color, crit: false });
+      lastPos = p;
     }
   }
 
-  return { killedBounty };
+  if (def.pierce) {
+    let count = 0;
+    for (const e of enemies) {
+      if (count >= def.pierce) break;
+      if (e === primary || !e.alive || e.reachedKeep) continue;
+      if (!inRange(grid, tower, e, def.range)) continue;
+      e.takeDamage(def.dmg * dmgMultiplier);
+      hitEnemies.push(e);
+      count++;
+    }
+  }
+
+  return { hitEnemies, fx };
 }
 
-function applyKamikazeEffect(enemy: Enemy, towers: Tower[], bus: EventBus): void {
-  const cfg = enemy.def.disablesNearestTower;
-  if (!cfg) return;
-  let nearest: Tower | null = null;
-  let nearestDist = Infinity;
-  for (const tower of towers) {
-    const dist = Math.hypot(tower.col + 0.5 - enemy.x, tower.row + 0.5 - enemy.y);
-    if (dist <= cfg.radius && dist < nearestDist) {
-      nearestDist = dist;
-      nearest = tower;
-    }
+export const FROST_NOVA_INTERVAL = 3; // seconds between tier-3 Frost pulses
+const FROST_NOVA_RADIUS = 1.5; // tiles
+
+/** Tier-3 Frost unique: a periodic pulse independent of the normal fire cycle, damages + slows everyone nearby. */
+export function resolveFrostNova(tower: Tower, grid: Grid, enemies: Enemy[], effects: SkillEffects): FireResult {
+  const def = tower.def;
+  const center = grid.cellCenter(tower.col, tower.row);
+  const dmgMultiplier = 1 + (effects.elementalDmgPct ?? 0);
+  const durMult = 1 + (effects.frostSlowDurationPct ?? 0);
+  const hitEnemies: Enemy[] = [];
+  const fx: FxEvent[] = [];
+  for (const e of enemies) {
+    if (!e.alive || e.reachedKeep) continue;
+    if (!inRange(grid, tower, e, FROST_NOVA_RADIUS)) continue;
+    e.takeDamage(def.dmg * dmgMultiplier);
+    e.applySlow(1 - (def.slow ?? 0.6), (def.slowDur ?? 1.5) * durMult);
+    hitEnemies.push(e);
+    const p = enemyPixel(grid, e);
+    fx.push({ kind: 'splash', fromX: center.x, fromY: center.y, toX: p.x, toY: p.y, color: TOWERS.frost.color, crit: false });
   }
-  if (nearest) {
-    nearest.disable(cfg.duration);
-    bus.emit('towerDisabled', { towerId: nearest.id, duration: cfg.duration });
-  }
+  return { hitEnemies, fx };
 }

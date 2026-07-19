@@ -1,221 +1,242 @@
-import { Grid } from './Grid';
-import { FlowField } from './FlowField';
-import { Economy } from './Economy';
-import { WaveScheduler } from './WaveScheduler';
-import { Tower } from './Tower';
-import { Enemy } from './Enemy';
-import { ObjectPool } from './ObjectPool';
-import { EnemySpatialIndex, stepCombat } from './Combat';
-import { ScoreTracker } from './Score';
-import type { EventBus } from '../core/EventBus';
-import type { LevelConfig } from '../data/LevelConfig';
-import type { TowerId, T3Branch } from '../data/towers';
+import type { ClassId, SkillEffects } from '../data/classes';
+import { CLASSES } from '../data/classes';
+import { KEEP_BASE_MAX_HP, KEEP_REGEN_PER_WAVE_PCT } from '../data/balance';
+import type { MapDef } from '../data/maps';
+import type { TowerKind } from '../data/towers';
 import { TOWERS } from '../data/towers';
-import type { EnemyType } from '../data/enemies';
+import { generateWave } from '../data/waveGenerator';
+import { analytics } from '../tracking/Analytics';
+import { hasFlag } from '../meta/SkillTree';
+import { resolveFrostNova, resolveTowerFire, FROST_NOVA_INTERVAL, type FxEvent } from './Combat';
+import { killGold, sellRefund, startingGold, towerCost, waveClearBonus } from './Economy';
+import { Enemy } from './Enemy';
+import { Grid } from './Grid';
+import { Tower } from './Tower';
 
-export type LevelOutcome = 'playing' | 'won' | 'lost';
+export type RunStatus = 'ready' | 'wave-active' | 'defeat';
 
-export interface PlacementResult {
-  ok: boolean;
-  reason?: 'unaffordable' | 'not-buildable' | 'not-allowed' | 'would-block-path';
+interface PendingSpawn {
+  kind: import('../data/enemies').EnemyKind;
+  timeRemaining: number;
 }
 
-/**
- * Owns the entire deterministic simulation for one level: grid/flow field, economy, towers,
- * enemies, wave scheduling, and combat resolution. No Three.js or DOM imports allowed here.
- */
 export class GameState {
-  grid!: Grid;
-  flowField!: FlowField;
-  economy!: Economy;
-  waveScheduler!: WaveScheduler;
+  readonly grid: Grid;
+  readonly classId: ClassId;
+  readonly effects: SkillEffects;
+
+  gold: number;
+  keepMaxHp: number;
+  keepHp: number;
+  wave = 0;
+  wavesCleared = 0;
+  kills = 0;
+  bossKills = 0;
+  status: RunStatus = 'ready';
+  startedAt = Date.now();
+
   towers: Tower[] = [];
   enemies: Enemy[] = [];
-  outcome: LevelOutcome = 'playing';
-  level!: LevelConfig;
-  goldSpentTotal = 0;
-  towersBuiltCount = 0;
-  readonly scoreTracker = new ScoreTracker();
-  private leakedThisLevel = false;
-  private enemyPool = new ObjectPool<Enemy>(
-    () => new Enemy('soldier', [0, 0]),
-    (e) => {
-      e.alive = false;
-    },
-    32,
-  );
-  private spatialIndex = new EnemySpatialIndex();
+  private pendingSpawns: PendingSpawn[] = [];
+  private novaCooldowns = new Map<number, number>(); // towerId -> seconds until next Frost T3 pulse
 
-  constructor(private readonly bus: EventBus) {
-    this.bus.on('enemyKilled', () => this.scoreTracker.registerKill());
+  ultimateCooldown = 0;
+  shieldTimer = 0; // Bastion: keep takes 0 damage while > 0
+  private echoTimer: number | null = null;
+  private echoAction: (() => void) | null = null;
+
+  fxQueue: FxEvent[] = [];
+  events: { text: string }[] = [];
+
+  constructor(map: MapDef, classId: ClassId, effects: SkillEffects) {
+    this.grid = new Grid(map);
+    this.classId = classId;
+    this.effects = effects;
+    this.gold = startingGold(effects);
+    this.keepMaxHp = Math.round(KEEP_BASE_MAX_HP * (1 + (effects.keepMaxHpPct ?? 0)) + (effects.keepMaxHpFlat ?? 0));
+    this.keepHp = this.keepMaxHp;
   }
 
-  loadLevel(level: LevelConfig): void {
-    this.level = level;
-    this.grid = new Grid(level.grid);
-    this.flowField = new FlowField(this.grid);
-    this.economy = new Economy(this.bus, level.startGold, level.baseHp);
-    this.waveScheduler = new WaveScheduler(level.waves);
-    // The base defends itself, weakly — a free, non-buildable, non-upgradable, non-sellable
-    // 'base' Tower sitting on the exit cell, going through none of tryPlaceTower's gold/placement
-    // machinery. It doesn't occupy the cell (kind stays 'exit'), so it never affects pathing.
-    this.towers = this.grid.exits.map(([col, row]) => new Tower('base', col, row));
-    this.enemyPool.releaseAll();
-    this.enemies = [];
-    this.outcome = 'playing';
-    this.goldSpentTotal = 0;
-    this.towersBuiltCount = 0;
-    this.leakedThisLevel = false;
-    this.scoreTracker.reset();
+  get ultimateReady(): boolean {
+    return this.ultimateCooldown <= 0 && this.status === 'wave-active';
   }
 
-  isTowerAllowed(towerId: TowerId): boolean {
-    return this.level.allowedTowers.includes(towerId);
+  startNextWave(): void {
+    if (this.status === 'defeat') return;
+    this.wave += 1;
+    const plan = generateWave(this.wave);
+    this.pendingSpawns = plan.spawns.map((s) => ({ kind: s.kind, timeRemaining: s.delay }));
+    this.status = 'wave-active';
+    analytics.track({ name: 'wave_start', props: { wave: this.wave, is_boss_wave: plan.isBossWave } });
   }
 
-  tryPlaceTower(towerId: TowerId, col: number, row: number): PlacementResult {
-    if (!this.isTowerAllowed(towerId)) {
-      this.bus.emit('towerPlacementRefused', { col, row, reason: 'not-allowed' });
-      return { ok: false, reason: 'not-allowed' };
-    }
-    if (!this.grid.isBuildable(col, row)) {
-      this.bus.emit('towerPlacementRefused', { col, row, reason: 'not-buildable' });
-      return { ok: false, reason: 'not-buildable' };
-    }
-    const cost = TOWERS[towerId].tiers[0].cost;
-    if (!this.economy.canAfford(cost)) {
-      this.bus.emit('towerPlacementRefused', { col, row, reason: 'unaffordable' });
-      return { ok: false, reason: 'unaffordable' };
-    }
-
-    // Tentatively occupy the cell and verify every spawn can still reach an exit.
-    this.grid.setKind(col, row, 'occupied');
-    this.flowField.recompute();
-    if (!this.flowField.allSpawnsReachable()) {
-      this.grid.setKind(col, row, 'empty');
-      this.flowField.recompute();
-      this.bus.emit('towerPlacementRefused', { col, row, reason: 'would-block-path' });
-      return { ok: false, reason: 'would-block-path' };
-    }
-
-    this.economy.spend(cost);
-    this.goldSpentTotal += cost;
-    this.towersBuiltCount++;
-    const tower = new Tower(towerId, col, row);
-    this.towers.push(tower);
-    this.bus.emit('towerPlaced', { towerId: tower.id, col, row });
-    this.bus.emit('flowFieldRecomputed', {});
-    return { ok: true };
-  }
-
-  upgradeTower(towerId: string, branch?: T3Branch): boolean {
-    const tower = this.towers.find((t) => t.id === towerId);
-    if (!tower || !tower.canUpgrade()) return false;
-    const cost = tower.costForNextTier();
-    if (cost === null || !this.economy.canAfford(cost)) return false;
-    this.economy.spend(cost);
-    this.goldSpentTotal += cost;
-    tower.upgrade(branch);
-    this.bus.emit('towerUpgraded', { towerId: tower.id, tier: tower.tier });
+  placeTower(kind: TowerKind, col: number, row: number): boolean {
+    if (this.status === 'defeat') return false;
+    if (!this.grid.isBuildable(col, row)) return false;
+    if (this.towers.some((t) => t.col === col && t.row === row)) return false;
+    const baseCost = TOWERS[kind].tiers[0].cost;
+    const cost = towerCost(baseCost, this.effects);
+    if (this.gold < cost) return false;
+    this.gold -= cost;
+    this.towers.push(new Tower(kind, col, row, cost));
+    analytics.track({ name: 'tower_placed', props: { tower_kind: kind, cost, wave: this.wave } });
     return true;
   }
 
-  sellTower(towerId: string): boolean {
+  upgradeTower(towerId: number): boolean {
+    const tower = this.towers.find((t) => t.id === towerId);
+    if (!tower || !tower.canUpgrade()) return false;
+    const baseCost = TOWERS[tower.kind].tiers[tower.tier as 1 | 2].cost;
+    const cost = towerCost(baseCost, this.effects);
+    if (this.gold < cost) return false;
+    this.gold -= cost;
+    tower.applyUpgrade(cost);
+    analytics.track({ name: 'tower_upgraded', props: { tower_kind: tower.kind, tier: tower.tier, cost, wave: this.wave } });
+    return true;
+  }
+
+  sellTower(towerId: number): boolean {
     const idx = this.towers.findIndex((t) => t.id === towerId);
     if (idx === -1) return false;
     const tower = this.towers[idx];
-    if (tower.towerId === 'base') return false;
-    const refund = tower.refundValue();
-    this.grid.setKind(tower.col, tower.row, 'empty');
+    const refund = sellRefund(tower.totalInvested);
+    this.gold += refund;
     this.towers.splice(idx, 1);
-    this.flowField.recompute();
-    this.economy.earn(refund);
-    this.bus.emit('towerSold', { towerId, refund });
-    this.bus.emit('flowFieldRecomputed', {});
+    this.novaCooldowns.delete(towerId);
+    analytics.track({ name: 'tower_sold', props: { tower_kind: tower.kind, tier: tower.tier, refund, wave: this.wave } });
     return true;
   }
 
-  callWaveEarly(): number {
-    if (this.waveScheduler.phase !== 'build') return 0;
-    const remainingFraction = this.waveScheduler.callEarly();
-    const bonus = this.economy.grantEarlyCallBonus(this.waveScheduler.waveIndex, remainingFraction);
-    this.bus.emit('waveCalledEarly', { waveIndex: this.waveScheduler.waveIndex, bonusPct: remainingFraction });
-    return bonus;
-  }
+  activateUltimate(): boolean {
+    if (!this.ultimateReady) return false;
+    const def = CLASSES[this.classId].ultimate;
+    const cdMult = 1 + (this.effects.ultimateCooldownPct ?? 0);
+    this.ultimateCooldown = Math.max(5, def.baseCooldown * cdMult);
+    analytics.track({ name: 'ultimate_used', props: { class_id: this.classId, wave: this.wave } });
 
-  private spawnEnemy(type: EnemyType, spawnIndex: number): void {
-    const spawn = this.grid.spawns[spawnIndex % this.grid.spawns.length];
-    const enemy = this.enemyPool.acquire();
-    enemy.reset(type, spawn);
-    this.enemies.push(enemy);
-    this.bus.emit('enemySpawned', { enemyId: enemy.id, type });
-  }
-
-  step(dt: number): void {
-    if (this.outcome !== 'playing') return;
-
-    this.scoreTracker.tick(dt);
-
-    const wasSpawning = this.waveScheduler.phase === 'spawning';
-    this.waveScheduler.update(dt, this.grid.spawns.length, (type, spawnIndex) => this.spawnEnemy(type, spawnIndex));
-    if (wasSpawning && this.waveScheduler.phase !== 'spawning' && this.enemies.length === 0) {
-      this.checkWaveClear();
+    if (this.classId === 'warrior') {
+      this.shieldTimer = 6 + (this.effects.ultimateDurationBonus ?? 0);
+      if (hasFlag(this.effects, 'bastionHeal')) this.keepHp = Math.min(this.keepMaxHp, this.keepHp + this.keepMaxHp * 0.1);
+    } else if (this.classId === 'mage') {
+      this.pulseNova(2 + (this.effects.ultimateDurationBonus ?? 0));
+      if (hasFlag(this.effects, 'singularity')) this.scheduleEcho(1, () => this.pulseNova(2 + (this.effects.ultimateDurationBonus ?? 0)));
+    } else if (this.classId === 'ranger') {
+      this.volley();
+      if (hasFlag(this.effects, 'rafale')) this.scheduleEcho(2, () => this.volley());
     }
+    return true;
+  }
 
-    for (const enemy of this.enemies) {
-      if (!enemy.alive) continue;
-      const exit = this.grid.exits[0];
-      enemy.step(dt, this.grid, this.flowField, exit);
-      if (enemy.leaked) {
-        this.leakedThisLevel = true;
-        this.economy.loseLives(enemy.def.leakDamage);
-        this.bus.emit('enemyLeaked', { enemyId: enemy.id, damage: enemy.def.leakDamage });
+  private pulseNova(freezeDuration: number): void {
+    for (const e of this.enemies) {
+      if (!e.alive || e.reachedKeep) continue;
+      e.takeDamage(30 * (1 + (this.effects.elementalDmgPct ?? 0)));
+      e.applySlow(0, freezeDuration);
+    }
+    this.reapDeadEnemies();
+  }
+
+  private volley(): void {
+    const mult = 1.5 + (this.effects.ultimateDamageBonusPct ?? 0);
+    for (const tower of this.towers) {
+      const result = resolveTowerFire(tower, this.grid, this.enemies, { ...this.effects });
+      if (!result) continue;
+      for (const e of result.hitEnemies) {
+        // Volley damage was already applied at normal power inside resolveTowerFire; top up to reach `mult`.
+        e.takeDamage(tower.def.dmg * (mult - 1));
+      }
+      this.fxQueue.push(...result.fx);
+    }
+    this.reapDeadEnemies();
+  }
+
+  private scheduleEcho(delay: number, action: () => void): void {
+    this.echoTimer = delay;
+    this.echoAction = action;
+  }
+
+  update(dt: number): void {
+    if (this.status !== 'wave-active') return;
+
+    if (this.shieldTimer > 0) this.shieldTimer = Math.max(0, this.shieldTimer - dt);
+    if (this.ultimateCooldown > 0) this.ultimateCooldown = Math.max(0, this.ultimateCooldown - dt);
+    if (this.echoTimer !== null) {
+      this.echoTimer -= dt;
+      if (this.echoTimer <= 0) {
+        const action = this.echoAction;
+        this.echoTimer = null;
+        this.echoAction = null;
+        action?.();
       }
     }
 
-    const combatResult = stepCombat(this.towers, this.enemies, this.flowField, this.spatialIndex, dt, this.bus);
-    if (combatResult.killedBounty > 0) this.economy.earn(combatResult.killedBounty);
+    for (const spawn of this.pendingSpawns) spawn.timeRemaining -= dt;
+    const ready = this.pendingSpawns.filter((s) => s.timeRemaining <= 0);
+    if (ready.length > 0) {
+      this.pendingSpawns = this.pendingSpawns.filter((s) => s.timeRemaining > 0);
+      for (const s of ready) this.enemies.push(new Enemy(s.kind, this.wave));
+    }
 
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
-      const enemy = this.enemies[i];
-      if (!enemy.alive) {
-        this.enemyPool.release(enemy);
-        this.enemies.splice(i, 1);
+    for (const e of this.enemies) {
+      e.tick(dt, this.grid.pathLengthTiles);
+      if (e.reachedKeep) {
+        if (this.shieldTimer <= 0) this.keepHp = Math.max(0, this.keepHp - e.dmgToKeep);
+        e.alive = false;
       }
     }
 
-    if (this.economy.isDefeated) {
-      this.outcome = 'lost';
-      this.bus.emit('levelLost', {});
+    for (const tower of this.towers) {
+      tower.cooldown -= dt;
+      if (tower.cooldown <= 0) {
+        const result = resolveTowerFire(tower, this.grid, this.enemies, this.effects);
+        tower.cooldown = 1 / tower.def.rate;
+        if (result) this.fxQueue.push(...result.fx);
+      }
+      if (tower.kind === 'frost' && tower.tier === 3) {
+        const remaining = (this.novaCooldowns.get(tower.id) ?? FROST_NOVA_INTERVAL) - dt;
+        if (remaining <= 0) {
+          const result = resolveFrostNova(tower, this.grid, this.enemies, this.effects);
+          this.fxQueue.push(...result.fx);
+          this.novaCooldowns.set(tower.id, FROST_NOVA_INTERVAL);
+        } else {
+          this.novaCooldowns.set(tower.id, remaining);
+        }
+      }
+    }
+
+    this.reapDeadEnemies();
+
+    if (this.keepHp <= 0) {
+      this.status = 'defeat';
       return;
     }
 
-    if (this.waveScheduler.phase === 'awaiting-clear' && this.enemies.length === 0) {
-      this.checkWaveClear();
+    if (this.pendingSpawns.length === 0 && this.enemies.length === 0) {
+      const bonus = waveClearBonus(this.wave, this.effects);
+      this.gold += bonus;
+      this.wavesCleared += 1;
+      this.keepHp = Math.min(this.keepMaxHp, this.keepHp + this.keepMaxHp * (KEEP_REGEN_PER_WAVE_PCT + (this.effects.keepRegenPctBonus ?? 0)));
+      this.status = 'ready';
+      analytics.track({ name: 'wave_cleared', props: { wave: this.wave, gold: this.gold, keep_hp_pct: this.keepHp / this.keepMaxHp } });
     }
   }
 
-  private checkWaveClear(): void {
-    const waveIndex = this.waveScheduler.waveIndex;
-    const bonus = this.economy.grantWaveCompletionBonus(waveIndex);
-    this.bus.emit('waveCompleted', { waveIndex, bonus });
-
-    if (this.waveScheduler.isLastWave) {
-      this.outcome = 'won';
-      const stars = this.computeStars();
-      this.bus.emit('levelWon', { starsEarned: stars });
-      return;
+  private reapDeadEnemies(): void {
+    const survivors: Enemy[] = [];
+    for (const e of this.enemies) {
+      if (e.alive) {
+        survivors.push(e);
+        continue;
+      }
+      if (e.reachedKeep) continue; // already resolved above, no gold
+      this.kills += 1;
+      if (e.kind === 'boss') this.bossKills += 1;
+      this.gold += killGold(e.goldReward, this.effects);
     }
-    this.waveScheduler.advanceToNextWave();
+    this.enemies = survivors;
   }
 
-  computeStars(): number {
-    // Star 1: finish the level. Star 2: no leak + under the tower cap. Star 3: also under the gold budget.
-    const goals = this.level.starGoals;
-    const star2Met = (!goals.noLeak || !this.leakedThisLevel) && (goals.maxTowers === undefined || this.towersBuiltCount <= goals.maxTowers);
-    const star3Met = star2Met && (goals.maxGoldSpent === undefined || this.goldSpentTotal <= goals.maxGoldSpent);
-    if (star3Met) return 3;
-    if (star2Met) return 2;
-    return 1;
+  durationSeconds(): number {
+    return (Date.now() - this.startedAt) / 1000;
   }
 }

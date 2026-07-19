@@ -1,43 +1,57 @@
-import type { WaveConfig } from '../sim/Wave';
+import { BOSS_WAVE_INTERVAL } from './balance';
+import type { EnemyKind } from './enemies';
+import { ENEMIES } from './enemies';
 
-/**
- * Pure function of an absolute wave index — deterministic and reproducible without needing
- * seeded RNG. Shared by Survival (which slices a long run of these) and the procedural campaign
- * levels 11+ (which each take a short slice at an offset tuned to their position in the
- * campaign), so both use the same tested difficulty curve instead of two divergent formulas.
- */
-export function generateWave(index: number): WaveConfig {
-  const n = index + 1; // 1-based wave number, easier to reason about in the formulas below
-  const spawns: WaveConfig['spawns'] = [];
-
-  const soldierCount = 4 + Math.floor(n * 0.8);
-  spawns.push({ type: 'soldier', count: soldierCount, interval: Math.max(0.35, 0.9 - n * 0.01) });
-
-  if (n % 3 === 0) {
-    spawns.push({ type: 'swarm', count: 6 + Math.floor(n * 1.1), interval: Math.max(0.12, 0.3 - n * 0.002) });
-  }
-  if (n >= 4 && n % 4 === 0) {
-    spawns.push({ type: 'golem', count: 1 + Math.floor(n / 8), interval: Math.max(1.2, 2.5 - n * 0.01) });
-  }
-  if (n >= 5 && n % 5 === 0) {
-    spawns.push({ type: 'drone', count: 1 + Math.floor(n / 9), interval: Math.max(0.5, 1.3 - n * 0.008) });
-  }
-  if (n >= 7 && n % 6 === 0) {
-    spawns.push({ type: 'kamikaze', count: 1 + Math.floor(n / 10), interval: Math.max(0.6, 1.2 - n * 0.006) });
-  }
-  if (n >= 15 && n % 15 === 0) {
-    spawns.push({ type: 'boss', count: 1 + Math.floor(n / 30), interval: 2 });
-  }
-
-  const delay = Math.max(3, 8 - n * 0.04);
-  return { delay, spawns };
+export interface SpawnEntry {
+  kind: EnemyKind;
+  delay: number; // seconds after wave start
 }
 
-let cachedWaves: WaveConfig[] | null = null;
-/** Pre-generates and caches a long run of the curve — cheap since generateWave is pure arithmetic. */
-export function waveCurve(length: number): WaveConfig[] {
-  if (!cachedWaves || cachedWaves.length < length) {
-    cachedWaves = Array.from({ length }, (_, i) => generateWave(i));
+export interface WavePlan {
+  wave: number;
+  isBossWave: boolean;
+  spawns: SpawnEntry[];
+}
+
+const SPAWN_INTERVAL = 0.55; // seconds between individual spawns
+
+export function generateWave(wave: number): WavePlan {
+  const isBossWave = wave % BOSS_WAVE_INTERVAL === 0;
+  const totalMinions = Math.round((6 + wave * 1.2) * (isBossWave ? 0.5 : 1));
+
+  const unlocked: EnemyKind[] = (['grunt', 'speedster', 'brute'] as EnemyKind[]).filter(
+    (k) => wave >= ENEMIES[k].minWave,
+  );
+  const weights: Record<string, number> = { grunt: 0.5, speedster: 0.3, brute: 0.2 };
+  const totalWeight = unlocked.reduce((s, k) => s + weights[k], 0);
+
+  const counts: Partial<Record<EnemyKind, number>> = {};
+  let assigned = 0;
+  for (const k of unlocked) {
+    const c = Math.round((weights[k] / totalWeight) * totalMinions);
+    counts[k] = c;
+    assigned += c;
   }
-  return cachedWaves.slice(0, length);
+  // Reconcile rounding drift onto the first unlocked kind (always 'grunt').
+  const drift = totalMinions - assigned;
+  if (unlocked.length > 0) counts[unlocked[0]] = (counts[unlocked[0]] ?? 0) + drift;
+
+  // Interleave kinds round-robin so the wave reads as a mixed group, not clumped blocks.
+  const queue: EnemyKind[] = [];
+  const remaining = { ...counts };
+  while (unlocked.some((k) => (remaining[k] ?? 0) > 0)) {
+    for (const k of unlocked) {
+      if ((remaining[k] ?? 0) > 0) {
+        queue.push(k);
+        remaining[k] = (remaining[k] ?? 0) - 1;
+      }
+    }
+  }
+
+  const spawns: SpawnEntry[] = queue.map((kind, i) => ({ kind, delay: i * SPAWN_INTERVAL }));
+  if (isBossWave) {
+    spawns.push({ kind: 'boss', delay: spawns.length * SPAWN_INTERVAL + 1 });
+  }
+
+  return { wave, isBossWave, spawns };
 }

@@ -1,55 +1,23 @@
-import { BALANCE, waveCompletionBonus, earlyCallBonus } from '../data/balance';
-import type { EventBus } from '../core/EventBus';
+import { SELL_REFUND_PCT, STARTING_GOLD, WAVE_CLEAR_GOLD_BASE, WAVE_CLEAR_GOLD_PER_WAVE } from '../data/balance';
+import type { SkillEffects } from '../data/classes';
 
-export class Economy {
-  gold: number;
-  lives: number;
-  private readonly maxLives: number;
+export function startingGold(effects: SkillEffects): number {
+  return Math.round(STARTING_GOLD * (1 + (effects.startingGoldPct ?? 0)));
+}
 
-  constructor(private readonly bus: EventBus, startGold: number = BALANCE.startGoldDefault, startLives: number = BALANCE.baseLivesDefault) {
-    this.gold = startGold;
-    this.lives = startLives;
-    this.maxLives = startLives;
-  }
+export function towerCost(baseCost: number, effects: SkillEffects): number {
+  return Math.max(1, Math.round(baseCost * (1 + (effects.towerCostPct ?? 0))));
+}
 
-  canAfford(cost: number): boolean {
-    return this.gold >= cost;
-  }
+export function sellRefund(totalInvested: number): number {
+  return Math.floor(totalInvested * SELL_REFUND_PCT);
+}
 
-  spend(cost: number): boolean {
-    if (!this.canAfford(cost)) return false;
-    this.gold -= cost;
-    this.bus.emit('goldChanged', { gold: this.gold });
-    return true;
-  }
+export function waveClearBonus(wave: number, effects: SkillEffects): number {
+  const base = WAVE_CLEAR_GOLD_BASE + wave * WAVE_CLEAR_GOLD_PER_WAVE;
+  return Math.round(base * (1 + (effects.waveClearGoldBonusPct ?? 0)));
+}
 
-  earn(amount: number): void {
-    this.gold += amount;
-    this.bus.emit('goldChanged', { gold: this.gold });
-  }
-
-  loseLives(amount: number): void {
-    this.lives = Math.max(0, this.lives - amount);
-    this.bus.emit('livesChanged', { lives: this.lives });
-  }
-
-  get isDefeated(): boolean {
-    return this.lives <= 0;
-  }
-
-  get livesRatio(): number {
-    return this.lives / this.maxLives;
-  }
-
-  grantWaveCompletionBonus(waveIndex: number): number {
-    const bonus = waveCompletionBonus(waveIndex);
-    this.earn(bonus);
-    return bonus;
-  }
-
-  grantEarlyCallBonus(nextWaveIndex: number, remainingFraction: number): number {
-    const bonus = earlyCallBonus(waveCompletionBonus(nextWaveIndex), remainingFraction);
-    this.earn(bonus);
-    return bonus;
-  }
+export function killGold(baseGold: number, effects: SkillEffects): number {
+  return baseGold + (effects.goldPerKillBonus ?? 0);
 }

@@ -1,172 +1,78 @@
-export type TowerId = 'wall' | 'laser' | 'mortar' | 'tesla' | 'cryo' | 'base';
-export type T3Branch = 'A' | 'B' | null;
+export type TowerKind = 'arrow' | 'cannon' | 'frost' | 'arcane';
 
-export interface TowerTierStats {
-  /** Cost to reach this tier from the previous one (T1 cost is from empty). */
-  cost: number;
-  damage: number;
-  /** Splash radius in grid cells; 0 for single-target towers. */
-  splashRadius: number;
-  /** Slow multiplier applied to enemy speed (0 = no slow, 0.4 = -40% speed). */
-  slowPct: number;
-  /** Damage-over-time per second, applied on hit (cryo/mortar branches). */
-  dotPerSecond: number;
-  fireRatePerSec: number;
-  range: number;
-  chainTargets: number;
-  targetsAir: boolean;
-  targetsGround: boolean;
-  /** Flat armor penetration — ignores this much of the target's armor (Laser T3-A). */
-  armorPierce: number;
-}
-
-export interface T3BranchDef {
-  id: Exclude<T3Branch, null>;
-  name: string;
-  description: string;
-  /** Multiplicative/additive modifiers layered on top of the T3 base stats. */
-  damageMul?: number;
-  fireRateMul?: number;
-  rangeAdd?: number;
-  splashRadiusAdd?: number;
-  slowPctAdd?: number;
-  dotPerSecondAdd?: number;
-  armorPierceOverride?: number;
-  freezePulse?: { duration: number; interval: number };
-  airPriority?: boolean;
+export interface TowerTier {
+  cost: number; // cost to reach THIS tier from the previous one (tier 1 = cost to build)
+  dmg: number;
+  rate: number; // shots per second
+  range: number; // in tiles
+  splash?: number; // AoE radius in tiles
+  pierce?: number; // extra targets hit in a line
+  chain?: number; // extra targets hit via chain lightning-style jump
+  slow?: number; // fractional speed reduction applied to target
+  slowDur?: number; // seconds
+  nova?: boolean; // tier-3 Frost unique: periodic AoE pulse
 }
 
 export interface TowerDef {
-  id: TowerId;
-  name: string;
+  kind: TowerKind;
+  label: string;
+  icon: string;
+  color: string;
   description: string;
-  tiers: [TowerTierStats, TowerTierStats, TowerTierStats];
-  t3Branches: [T3BranchDef, T3BranchDef];
-  sellRefundPct: number;
-  /** False for pure structural pieces (the Wall) — hides the upgrade path entirely. Defaults to true. */
-  upgradable?: boolean;
+  tiers: [TowerTier, TowerTier, TowerTier];
 }
 
-const SELL_REFUND_PCT = 0.7;
-
-/** A single inert tier reused for the Wall's 3 slots — upgradable:false means tier 2/3 are unreachable anyway. */
-const WALL_TIER: TowerTierStats = {
-  cost: 5,
-  damage: 0,
-  splashRadius: 0,
-  slowPct: 0,
-  dotPerSecond: 0,
-  fireRatePerSec: 0.1,
-  range: 0,
-  chainTargets: 1,
-  targetsAir: false,
-  targetsGround: false, // both false — it never qualifies as a valid target for any enemy, so it never fires
-  armorPierce: 0,
-};
-
-/** The base's own built-in defense — weak on purpose ("peut se défendre, mais de manière plus
- * limitée"): roughly half a T1 Laser's damage, well under half its fire rate and range. Never
- * placed via tryPlaceTower (no cost/sell/upgrade path), so cost/sellRefundPct are unused in
- * practice — kept only because TowerTierStats/TowerDef require them. */
-const BASE_TIER: TowerTierStats = {
-  cost: 0,
-  damage: 4,
-  splashRadius: 0,
-  slowPct: 0,
-  dotPerSecond: 0,
-  fireRatePerSec: 0.6,
-  range: 1.8,
-  chainTargets: 1,
-  targetsAir: true,
-  targetsGround: true,
-  armorPierce: 0,
-};
-
-export const TOWERS: Record<TowerId, TowerDef> = {
-  base: {
-    id: 'base',
-    name: 'Base',
-    description: "Défense intégrée de la base — faible, ne remplace pas de vraies tours.",
-    sellRefundPct: 0,
-    upgradable: false,
-    tiers: [BASE_TIER, BASE_TIER, BASE_TIER],
-    t3Branches: [
-      { id: 'A', name: '—', description: '—' },
-      { id: 'B', name: '—', description: '—' },
-    ],
-  },
-  wall: {
-    id: 'wall',
-    name: 'Mur',
-    description: "Bloc inerte, sans attaque — le moyen le moins cher de sculpter le chemin.",
-    sellRefundPct: SELL_REFUND_PCT,
-    upgradable: false,
-    tiers: [WALL_TIER, WALL_TIER, WALL_TIER],
-    t3Branches: [
-      { id: 'A', name: '—', description: '—' },
-      { id: 'B', name: '—', description: '—' },
-    ],
-  },
-  laser: {
-    id: 'laser',
-    name: 'Laser',
-    description: 'Mono-cible, gros dégâts uniques — le contre du Golem blindé.',
-    sellRefundPct: SELL_REFUND_PCT,
+export const TOWERS: Record<TowerKind, TowerDef> = {
+  arrow: {
+    kind: 'arrow',
+    label: 'Flèche',
+    icon: '🏹',
+    color: '#5bc8f5',
+    description: 'Cadence rapide, cible unique. Le pilier fiable de toute défense.',
     tiers: [
-      { cost: 15, damage: 8, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.0, range: 2.5, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 100, damage: 14, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.2, range: 2.8, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 200, damage: 22, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 2.5, range: 3.0, chainTargets: 1, targetsAir: true, targetsGround: true, armorPierce: 0 },
-    ],
-    t3Branches: [
-      { id: 'A', name: 'Perce-armure', description: "Ignore l'armure des Golems.", armorPierceOverride: 999 },
-      { id: 'B', name: 'Rafale', description: '+50% cadence, -20% dégâts.', fireRateMul: 1.5, damageMul: 0.8 },
+      { cost: 50, dmg: 8, rate: 1.2, range: 3 },
+      { cost: 80, dmg: 14, rate: 1.2, range: 3 },
+      { cost: 150, dmg: 24, rate: 1.2, range: 3, pierce: 1 },
     ],
   },
-  mortar: {
-    id: 'mortar',
-    name: 'Mortier',
-    description: 'Dégâts de zone au sol — le contre des Nuées. Ne touche pas les volants.',
-    sellRefundPct: SELL_REFUND_PCT,
+  cannon: {
+    kind: 'cannon',
+    label: 'Canon',
+    icon: '💣',
+    color: '#ff8a3d',
+    description: 'Dégâts de zone lourds, cadence lente. Idéal contre les groupes.',
     tiers: [
-      { cost: 75, damage: 20, splashRadius: 1.2, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.5, range: 3.0, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 100, damage: 30, splashRadius: 1.4, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.6, range: 3.2, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 200, damage: 42, splashRadius: 1.6, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 0.7, range: 3.4, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-    ],
-    t3Branches: [
-      { id: 'A', name: 'Nappe', description: '+rayon, applique une brûlure (DoT léger).', splashRadiusAdd: 0.4, dotPerSecondAdd: 3 },
-      { id: 'B', name: 'Frappe lourde', description: '+80% dégâts, cadence -30%.', damageMul: 1.8, fireRateMul: 0.7 },
+      { cost: 90, dmg: 20, rate: 0.6, range: 2.5, splash: 1 },
+      { cost: 120, dmg: 35, rate: 0.6, range: 2.5, splash: 1 },
+      { cost: 200, dmg: 55, rate: 0.6, range: 2.5, splash: 1.5 },
     ],
   },
-  tesla: {
-    id: 'tesla',
-    name: 'Tesla',
-    description: 'Multi-cible en chaîne — seule tour anti-air native.',
-    sellRefundPct: SELL_REFUND_PCT,
+  frost: {
+    kind: 'frost',
+    label: 'Givre',
+    icon: '❄️',
+    color: '#7fe7e0',
+    description: 'Ralentit les ennemis. Ne tue pas vite, mais gagne du temps.',
     tiers: [
-      { cost: 50, damage: 6, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.5, range: 3.0, chainTargets: 3, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 100, damage: 9, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.6, range: 3.2, chainTargets: 4, targetsAir: true, targetsGround: true, armorPierce: 0 },
-      { cost: 200, damage: 13, splashRadius: 0, slowPct: 0, dotPerSecond: 0, fireRatePerSec: 1.8, range: 3.5, chainTargets: 5, targetsAir: true, targetsGround: true, armorPierce: 0 },
-    ],
-    t3Branches: [
-      { id: 'A', name: 'Foudre', description: '+dégâts, priorité volants.', damageMul: 1.3, airPriority: true },
-      { id: 'B', name: 'Surcharge', description: 'Applique un slow court à chaque touche.', slowPctAdd: 0.25 },
+      { cost: 70, dmg: 5, rate: 1.0, range: 2.5, slow: 0.3, slowDur: 1.5 },
+      { cost: 100, dmg: 5, rate: 1.0, range: 2.5, slow: 0.45, slowDur: 1.5 },
+      { cost: 160, dmg: 5, rate: 1.0, range: 2.5, slow: 0.6, slowDur: 1.5, nova: true },
     ],
   },
-  cryo: {
-    id: 'cryo',
-    name: 'Générateur Cryo',
-    description: "Utilitaire de ralentissement — multiplie la valeur des autres tours, ne tue pas seul.",
-    sellRefundPct: SELL_REFUND_PCT,
+  arcane: {
+    kind: 'arcane',
+    label: 'Arcane',
+    icon: '🔮',
+    color: '#c58cff',
+    description: 'Foudre en chaîne qui rebondit entre plusieurs cibles.',
     tiers: [
-      { cost: 25, damage: 0, splashRadius: 1.5, slowPct: 0.4, dotPerSecond: 0, fireRatePerSec: 1.0, range: 1.5, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 100, damage: 1, splashRadius: 1.8, slowPct: 0.5, dotPerSecond: 0, fireRatePerSec: 1.0, range: 1.8, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-      { cost: 200, damage: 2, splashRadius: 2.1, slowPct: 0.6, dotPerSecond: 0, fireRatePerSec: 1.0, range: 2.1, chainTargets: 1, targetsAir: false, targetsGround: true, armorPierce: 0 },
-    ],
-    t3Branches: [
-      { id: 'A', name: 'Gel', description: 'Fige 0.5s les ennemis normaux périodiquement.', freezePulse: { duration: 0.5, interval: 4 } },
-      { id: 'B', name: 'Champ étendu', description: '+rayon, +slow, aucun dégât.', splashRadiusAdd: 0.6, slowPctAdd: 0.15, damageMul: 0 },
+      { cost: 100, dmg: 12, rate: 0.8, range: 3, chain: 2 },
+      { cost: 140, dmg: 12, rate: 0.8, range: 3, chain: 3 },
+      { cost: 220, dmg: 15.6, rate: 0.8, range: 3, chain: 4 },
     ],
   },
 };
 
-export const TOWER_LIST: TowerDef[] = Object.values(TOWERS);
+export const TOWER_ORDER: TowerKind[] = ['arrow', 'cannon', 'frost', 'arcane'];
+
+export const CHAIN_FALLOFF = 0.5; // each chain jump deals 50% of the previous hit's damage

@@ -1,184 +1,212 @@
-import * as THREE from 'three';
-import { CameraRig } from './CameraRig';
-import { GridView } from './views/GridView';
-import { TowerView } from './views/TowerView';
-import { EnemyView } from './views/EnemyView';
-import { BaseView } from './views/BaseView';
-import { ProjectileView } from './views/ProjectileView';
-import { Particles } from './fx/Particles';
-import { DamageNumbers } from './fx/DamageNumbers';
+import { TOWERS } from '../data/towers';
+import { ENEMIES } from '../data/enemies';
 import type { GameState } from '../sim/GameState';
-import type { EventBus } from '../core/EventBus';
-import type { TowerId } from '../data/towers';
+import type { FxEvent } from '../sim/Combat';
+import { hpColor, THEME } from './theme';
 
-/** Bright vertical sky gradient backdrop — replaces the old flat near-black background with the
- * saturated, "outdoor toy diorama" look of mobile tower-defense games (Raid Rush and kin), instead
- * of a plain dark void behind the board. */
-function createSkyTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, '#3f8fe8');
-  gradient.addColorStop(0.6, '#79c3f2');
-  gradient.addColorStop(1, '#cdeaff');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+interface ActiveFx extends FxEvent {
+  age: number;
+  duration: number;
 }
 
-const TOWER_TRACER_COLORS: Record<TowerId, number> = {
-  wall: 0x6b7280, // unused in practice — the Wall never targets anything, so 'projectileFired' never fires for it
-  base: 0xffd166,
-  laser: 0xff4757,
-  mortar: 0xffa502,
-  tesla: 0x70a1ff,
-  cryo: 0x7bed9f,
-};
-
-/** Reads GameState every frame and drives Three.js — never mutates simulation state. */
 export class Renderer {
-  readonly scene = new THREE.Scene();
-  readonly renderer: THREE.WebGLRenderer;
-  readonly cameraRig: CameraRig;
-  private gridView = new GridView();
-  private towerView = new TowerView();
-  private enemyView = new EnemyView();
-  private baseView = new BaseView();
-  private projectileView = new ProjectileView();
-  private particles = new Particles();
-  private damageNumbers = new DamageNumbers();
-  private unsubscribers: Array<() => void> = [];
-  private reducedEffects = false;
+  private activeFx: ActiveFx[] = [];
 
-  constructor(private readonly container: HTMLElement, private readonly gameState: GameState, private readonly bus: EventBus) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(this.renderer.domElement);
+  constructor(private readonly ctx: CanvasRenderingContext2D) {}
 
-    this.cameraRig = new CameraRig(container.clientWidth / container.clientHeight);
-    this.scene.background = createSkyTexture();
+  render(state: GameState, dt: number, hoverCell: { col: number; row: number } | null, placementValid: boolean | null): void {
+    const { grid } = state;
+    const ctx = this.ctx;
+    const w = ctx.canvas.width / (window.devicePixelRatio || 1);
+    const h = ctx.canvas.height / (window.devicePixelRatio || 1);
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x3a4256, 1.3);
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-    sun.position.set(6, 10, 4);
-    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-    this.scene.add(hemi, sun, ambient);
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, THEME.skyTop);
+    sky.addColorStop(1, THEME.skyBottom);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
 
-    this.scene.add(this.gridView.group);
-    this.scene.add(this.towerView.group);
-    this.scene.add(this.baseView.group);
-    this.scene.add(this.enemyView.group);
-    this.scene.add(this.projectileView.group);
-    this.scene.add(this.particles.group);
-    this.scene.add(this.damageNumbers.group);
-
-    this.bindEvents();
-    this.resize();
-  }
-
-  private bindEvents(): void {
-    this.unsubscribers.push(
-      this.bus.on('towerPlaced', ({ towerId }) => {
-        const tower = this.gameState.towers.find((t) => t.id === towerId);
-        if (tower) this.towerView.add(tower);
-      }),
-      this.bus.on('towerSold', ({ towerId }) => this.towerView.remove(towerId)),
-      this.bus.on('towerUpgraded', ({ towerId }) => {
-        const tower = this.gameState.towers.find((t) => t.id === towerId);
-        if (tower) this.towerView.updateTier(tower);
-      }),
-      this.bus.on('flowFieldRecomputed', () => this.gridView.rebuild(this.gameState.grid)),
-      this.bus.on('enemyKilled', ({ col, row }) => {
-        this.particles.burst(col + 0.5, 0.3, row + 0.5, 0xffd700, this.reducedEffects ? 3 : 10);
-      }),
-      this.bus.on('enemyLeaked', () => {
-        if (!this.reducedEffects) this.cameraRig.shake(0.06, 0.15);
-      }),
-      this.bus.on('damageDealt', ({ enemyId, amount, x, y }) => {
-        const target = this.gameState.enemies.find((e) => e.id === enemyId);
-        const height = target?.def.movement === 'flying' ? 1.7 : 0.6;
-        this.damageNumbers.spawn(x, height, y, amount);
-      }),
-      this.bus.on('projectileFired', ({ towerId, targetId }) => {
-        const tower = this.gameState.towers.find((t) => t.id === towerId);
-        const target = this.gameState.enemies.find((e) => e.id === targetId);
-        if (!tower || !target) return;
-        const stats = tower.effectiveStats;
-        if (!this.reducedEffects && stats.splashRadius > 0 && stats.fireRatePerSec < 1) {
-          this.cameraRig.shake(0.1, 0.12); // punchy feedback for slow, heavy-hitting mortar shots
+    for (let row = 0; row < grid.rows; row++) {
+      for (let col = 0; col < grid.cols; col++) {
+        const isPath = grid.isPath(col, row);
+        const checker = (col + row) % 2 === 0;
+        ctx.fillStyle = isPath ? (checker ? THEME.pathA : THEME.pathB) : checker ? THEME.grassA : THEME.grassB;
+        const x = grid.originX + col * grid.tileSize;
+        const y = grid.originY + row * grid.tileSize;
+        ctx.fillRect(x, y, grid.tileSize, grid.tileSize);
+        if (isPath) {
+          ctx.strokeStyle = THEME.pathOutline;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 0.5, y + 0.5, grid.tileSize - 1, grid.tileSize - 1);
         }
-        const from = new THREE.Vector3(tower.col + 0.5, 0.6, tower.row + 0.5);
-        const height = target.def.movement === 'flying' ? 1.4 : 0.25;
-        const to = new THREE.Vector3(target.x, height, target.y);
-        this.projectileView.fire(from, to, TOWER_TRACER_COLORS[tower.towerId]);
-      }),
-    );
+      }
+    }
+
+    if (hoverCell && placementValid !== null) {
+      const { x, y } = grid.cellCenter(hoverCell.col, hoverCell.row);
+      ctx.fillStyle = placementValid ? THEME.buildHighlight : THEME.blockedHighlight;
+      ctx.fillRect(x - grid.tileSize / 2, y - grid.tileSize / 2, grid.tileSize, grid.tileSize);
+    }
+
+    this.drawSpawn(state);
+    this.drawKeep(state);
+
+    for (const tower of state.towers) this.drawTower(state, tower);
+    for (const enemy of state.enemies) this.drawEnemy(state, enemy);
+
+    this.activeFx.push(...state.fxQueue.map((fx) => ({ ...fx, age: 0, duration: fx.kind === 'splash' ? 0.35 : 0.18 })));
+    state.fxQueue.length = 0;
+    this.activeFx = this.activeFx.filter((fx) => {
+      fx.age += dt;
+      this.drawFx(fx);
+      return fx.age < fx.duration;
+    });
   }
 
-  loadLevelVisuals(): void {
-    this.towerView.clear();
-    this.cameraRig.frameGrid(this.gameState.grid.cols, this.gameState.grid.rows);
-    this.gridView.rebuild(this.gameState.grid);
-    this.baseView.placeAt(this.gameState.grid);
+  private drawSpawn(state: GameState): void {
+    const { grid } = state;
+    const { x, y } = grid.cellCenter(grid.spawnCell.col, grid.spawnCell.row);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = THEME.spawnPurple;
+    ctx.strokeStyle = THEME.outlineDark;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, grid.tileSize * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
-  setTowerSkin(skinId: string): void {
-    this.towerView.setSkin(skinId);
+  private drawKeep(state: GameState): void {
+    const { grid } = state;
+    const { x, y } = grid.cellCenter(grid.keepCell.col, grid.keepCell.row);
+    const ctx = this.ctx;
+    const size = grid.tileSize * 0.8;
+    ctx.save();
+    ctx.fillStyle = state.shieldTimer > 0 ? '#8fd6ff' : THEME.keepGold;
+    ctx.strokeStyle = THEME.outlineDark;
+    ctx.lineWidth = 3;
+    roundRect(ctx, x - size / 2, y - size / 2, size, size, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = `${Math.round(size * 0.55)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👑', x, y + 1);
+
+    // HP bar above the keep
+    const barW = grid.tileSize * 1.4;
+    const barH = 6;
+    const barX = x - barW / 2;
+    const barY = y - size / 2 - 14;
+    const frac = Math.max(0, state.keepHp / state.keepMaxHp);
+    ctx.fillStyle = THEME.hpTrack;
+    roundRect(ctx, barX, barY, barW, barH, 3);
+    ctx.fill();
+    ctx.fillStyle = hpColor(frac);
+    roundRect(ctx, barX, barY, barW * frac, barH, 3);
+    ctx.fill();
+    ctx.restore();
   }
 
-  setReducedEffects(value: boolean): void {
-    this.reducedEffects = value;
-    this.damageNumbers.enabled = !value;
+  private drawTower(state: GameState, tower: import('../sim/Tower').Tower): void {
+    const { grid } = state;
+    const { x, y } = grid.cellCenter(tower.col, tower.row);
+    const def = TOWERS[tower.kind];
+    const ctx = this.ctx;
+    const size = grid.tileSize * 0.72;
+    ctx.save();
+    ctx.fillStyle = def.color;
+    ctx.strokeStyle = THEME.outlineDark;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = `${Math.round(size * 0.55)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.icon, x, y + 1);
+
+    // Tier pips
+    for (let i = 0; i < tower.tier; i++) {
+      ctx.fillStyle = THEME.keepGold;
+      ctx.strokeStyle = THEME.outlineDark;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x - size * 0.35 + i * 7, y + size / 2 + 6, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
-  showPlacementGhost(col: number, row: number, valid: boolean): void {
-    this.gridView.showGhost(col, row, valid);
+  private drawEnemy(state: GameState, enemy: import('../sim/Enemy').Enemy): void {
+    const { grid } = state;
+    const p = grid.pointAtDistance(enemy.distanceTiles);
+    const def = ENEMIES[enemy.kind];
+    const ctx = this.ctx;
+    const isBoss = enemy.kind === 'boss';
+    const size = grid.tileSize * (isBoss ? 0.85 : 0.55);
+    ctx.save();
+    ctx.fillStyle = def.color;
+    ctx.strokeStyle = THEME.outlineDark;
+    ctx.lineWidth = isBoss ? 3.5 : 2.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = `${Math.round(size * 0.6)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.icon, p.x, p.y + 1);
+
+    const barW = size * 1.1;
+    const barH = 4;
+    const barX = p.x - barW / 2;
+    const barY = p.y - size / 2 - 8;
+    const frac = Math.max(0, enemy.hp / enemy.maxHp);
+    ctx.fillStyle = THEME.hpTrack;
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = hpColor(frac);
+    ctx.fillRect(barX, barY, barW * frac, barH);
+    ctx.restore();
   }
 
-  hidePlacementGhost(): void {
-    this.gridView.hideGhost();
+  private drawFx(fx: ActiveFx): void {
+    const ctx = this.ctx;
+    const t = fx.age / fx.duration;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - t);
+    if (fx.kind === 'splash') {
+      ctx.strokeStyle = fx.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(fx.toX, fx.toY, 6 + t * 22, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = fx.crit ? '#ff8a3d' : fx.color;
+      ctx.lineWidth = fx.crit ? 3 : 2;
+      ctx.beginPath();
+      ctx.moveTo(fx.fromX, fx.fromY);
+      ctx.lineTo(fx.toX, fx.toY);
+      ctx.stroke();
+      ctx.fillStyle = fx.crit ? '#ff8a3d' : fx.color;
+      ctx.beginPath();
+      ctx.arc(fx.toX, fx.toY, fx.crit ? 5 : 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
+}
 
-  update(dt: number, alpha: number): void {
-    this.enemyView.sync(this.gameState.enemies, alpha, this.cameraRig.billboardQuaternion);
-    this.towerView.syncDisabled(this.gameState.towers, this.cameraRig.billboardQuaternion);
-    // gameState.economy only exists once a level has actually been loaded — this runs every frame
-    // starting at the main menu, before that's true.
-    if (this.gameState.economy) this.baseView.sync(this.gameState.economy, this.cameraRig.billboardQuaternion);
-    this.projectileView.update(dt);
-    this.particles.update(dt);
-    this.damageNumbers.update(dt);
-    this.cameraRig.update(dt);
-  }
-
-  render(): void {
-    this.renderer.render(this.scene, this.cameraRig.camera);
-  }
-
-  resize(): void {
-    const { clientWidth, clientHeight } = this.container;
-    this.renderer.setSize(clientWidth, clientHeight);
-    this.cameraRig.setAspect(clientWidth / clientHeight);
-  }
-
-  screenToGridCell(clientX: number, clientY: number): [number, number] | null {
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.cameraRig.camera);
-    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const hit = new THREE.Vector3();
-    if (!raycaster.ray.intersectPlane(groundPlane, hit)) return null;
-    return [Math.floor(hit.x), Math.floor(hit.z)];
-  }
-
-  dispose(): void {
-    for (const unsub of this.unsubscribers) unsub();
-    this.renderer.dispose();
-  }
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }

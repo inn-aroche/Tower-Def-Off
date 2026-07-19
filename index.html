@@ -3,24 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>PolyMaze TD</title>
-    <style>
-      html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; background: #12151c; }
-      #app { position: relative; width: 100vw; height: 100vh; }
-      canvas { display: block; touch-action: none; }
-    </style>
+    <meta name="description" content="Runeforge Defense — tower defense mobile : choisis ta classe, bâtis ton arbre de compétences, défends ton Donjon." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+    <title>Runeforge Defense</title>
     <!--
-      Platform SDK scripts — add exactly ONE of these before shipping to that platform.
-      Left out of the dev build on purpose: src/platform/NullProvider.ts is used locally,
-      and src/main.ts auto-detects PokiSDK/CrazyGames.SDK on window to pick the real adapter.
-      Signatures re-verified July 2026 against sdk.poki.com / docs.crazygames.com — re-check
-      before shipping, both SDKs evolve.
-
-      Poki:
-        <script src="//game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>
-
-      CrazyGames v3:
-        <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+      P-1 (solo, local-first) : aucune dépendance réseau, aucun SDK plateforme.
+      Publicité/IAP et intégration Poki/CrazyGames sont hors scope de ce palier —
+      voir docs/DECISIONS.md pour la feuille de route P0/P+1.
     -->
   </head>
   <body>

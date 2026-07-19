@@ -1,77 +1,41 @@
-export interface SaveDataV1 {
-  schemaVersion: 1;
-  stars: Record<number, number>; // levelId -> stars (0-3)
-  survivalBestWave: number;
-  unlockedSkins: string[];
+import type { ClassId } from '../data/classes';
+
+export interface SaveData {
+  version: 1;
+  activeClass: ClassId | null;
+  essence: number;
+  unlockedNodes: Record<ClassId, string[]>;
+  settings: { sound: boolean };
+  stats: { totalRuns: number; bestWave: number };
 }
 
-export interface SurvivalRun {
-  tier: string;
-  score: number;
-  waveReached: number;
-}
+const STORAGE_KEY = 'runeforge-defense-save-v1';
 
-export interface SaveDataV2 {
-  schemaVersion: 2;
-  stars: Record<number, number>;
-  survivalBestWave: number;
-  survivalRuns: SurvivalRun[]; // top runs, sorted desc by score, capped
-  unlockedSkins: string[];
-  selectedSkin: string | null;
-  reduceEffects: boolean;
-  audioMuted?: boolean; // added post-v2, optional so existing saves parse without a migration bump
-}
-
-const STORAGE_KEY = 'polymaze-td-save';
-const MAX_LEADERBOARD_ENTRIES = 10;
-
-function defaultSave(): SaveDataV2 {
+function defaultSave(): SaveData {
   return {
-    schemaVersion: 2,
-    stars: {},
-    survivalBestWave: 0,
-    survivalRuns: [],
-    unlockedSkins: ['default'],
-    selectedSkin: 'default',
-    reduceEffects: false,
+    version: 1,
+    activeClass: null,
+    essence: 0,
+    unlockedNodes: { warrior: [], mage: [], ranger: [] },
+    settings: { sound: true },
+    stats: { totalRuns: 0, bestWave: 0 },
   };
 }
 
-function migrate(raw: unknown): SaveDataV2 {
-  if (!raw || typeof raw !== 'object') return defaultSave();
-  const data = raw as { schemaVersion?: number } & Record<string, unknown>;
-
-  if (data.schemaVersion === 2) return raw as SaveDataV2;
-
-  if (data.schemaVersion === 1) {
-    const v1 = raw as SaveDataV1;
-    return {
-      schemaVersion: 2,
-      stars: v1.stars ?? {},
-      survivalBestWave: v1.survivalBestWave ?? 0,
-      survivalRuns: [],
-      unlockedSkins: v1.unlockedSkins?.length ? v1.unlockedSkins : ['default'],
-      selectedSkin: 'default',
-      reduceEffects: false,
-    };
-  }
-
-  return defaultSave();
-}
-
-/** localStorage-backed save with a schema version so future shapes can migrate cleanly. */
 export class SaveManager {
-  private data: SaveDataV2;
+  private data: SaveData;
 
   constructor() {
     this.data = this.load();
   }
 
-  private load(): SaveDataV2 {
+  private load(): SaveData {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return defaultSave();
-      return migrate(JSON.parse(raw));
+      const parsed = JSON.parse(raw) as SaveData;
+      if (parsed.version !== 1) return defaultSave();
+      return { ...defaultSave(), ...parsed };
     } catch {
       return defaultSave();
     }
@@ -81,75 +45,52 @@ export class SaveManager {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
     } catch {
-      // localStorage unavailable (private mode / quota) — progression just won't persist this session.
+      // Storage unavailable (private browsing quota, etc). Progress just won't survive reload.
     }
   }
 
-  getStars(levelId: number): number {
-    return this.data.stars[levelId] ?? 0;
+  get(): Readonly<SaveData> {
+    return this.data;
   }
 
-  setStars(levelId: number, stars: number): void {
-    this.data.stars[levelId] = Math.max(this.data.stars[levelId] ?? 0, stars);
+  setActiveClass(id: ClassId): void {
+    this.data.activeClass = id;
     this.persist();
   }
 
-  get survivalBestWave(): number {
-    return this.data.survivalBestWave;
-  }
-
-  get survivalLeaderboard(): ReadonlyArray<SurvivalRun> {
-    return this.data.survivalRuns;
-  }
-
-  reportSurvivalRun(tier: string, score: number, waveReached: number): void {
-    this.data.survivalBestWave = Math.max(this.data.survivalBestWave, waveReached);
-    this.data.survivalRuns.push({ tier, score, waveReached });
-    this.data.survivalRuns.sort((a, b) => b.score - a.score);
-    this.data.survivalRuns.length = Math.min(this.data.survivalRuns.length, MAX_LEADERBOARD_ENTRIES);
+  addEssence(amount: number): void {
+    this.data.essence += amount;
     this.persist();
   }
 
-  isSkinUnlocked(skinId: string): boolean {
-    return this.data.unlockedSkins.includes(skinId);
+  unlockedNodesFor(classId: ClassId): Set<string> {
+    return new Set(this.data.unlockedNodes[classId] ?? []);
   }
 
-  unlockSkin(skinId: string): void {
-    if (!this.isSkinUnlocked(skinId)) {
-      this.data.unlockedSkins.push(skinId);
-      this.persist();
-    }
+  unlockNode(classId: ClassId, nodeId: string, cost: number): boolean {
+    if (this.data.essence < cost) return false;
+    const set = this.unlockedNodesFor(classId);
+    if (set.has(nodeId)) return false;
+    set.add(nodeId);
+    this.data.unlockedNodes[classId] = [...set];
+    this.data.essence -= cost;
+    this.persist();
+    return true;
   }
 
-  get unlockedSkins(): ReadonlyArray<string> {
-    return this.data.unlockedSkins;
-  }
-
-  get selectedSkin(): string {
-    return this.data.selectedSkin ?? 'default';
-  }
-
-  selectSkin(skinId: string): void {
-    if (!this.isSkinUnlocked(skinId)) return;
-    this.data.selectedSkin = skinId;
+  recordRun(wavesSurvived: number): void {
+    this.data.stats.totalRuns += 1;
+    this.data.stats.bestWave = Math.max(this.data.stats.bestWave, wavesSurvived);
     this.persist();
   }
 
-  get reduceEffects(): boolean {
-    return this.data.reduceEffects;
-  }
-
-  setReduceEffects(value: boolean): void {
-    this.data.reduceEffects = value;
+  setSound(enabled: boolean): void {
+    this.data.settings.sound = enabled;
     this.persist();
   }
 
-  get audioMuted(): boolean {
-    return this.data.audioMuted ?? false;
-  }
-
-  setAudioMuted(value: boolean): void {
-    this.data.audioMuted = value;
+  resetAll(): void {
+    this.data = defaultSave();
     this.persist();
   }
 }
