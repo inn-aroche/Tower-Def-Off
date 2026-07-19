@@ -1,45 +1,30 @@
-import { describe, it, expect } from 'vitest';
-import { EventBus } from '../src/core/EventBus';
-import { Economy } from '../src/sim/Economy';
-import { waveCompletionBonus, earlyCallBonus } from '../src/data/balance';
+import { describe, expect, it } from 'vitest';
+import { regenMana, summonCost } from '../src/sim/Economy';
+import type { EconomyConfig } from '../src/sim/types';
+
+const ECONOMY: EconomyConfig = {
+  gridCols: 6,
+  gridRows: 8,
+  manaMax: 10,
+  manaRegenPerSec: 1,
+  manaStartValue: 5,
+  summonBaseCost: 3,
+  summonCostGrowth: 1,
+  summonCostMax: 9,
+};
 
 describe('Economy', () => {
-  it('starts with configured gold and lives', () => {
-    const economy = new Economy(new EventBus(), 100, 20);
-    expect(economy.gold).toBe(100);
-    expect(economy.lives).toBe(20);
-    expect(economy.isDefeated).toBe(false);
+  it('summon cost grows with each summon and caps at summonCostMax', () => {
+    expect(summonCost(ECONOMY, 0)).toBe(3);
+    expect(summonCost(ECONOMY, 1)).toBe(4);
+    expect(summonCost(ECONOMY, 5)).toBe(8);
+    expect(summonCost(ECONOMY, 6)).toBe(9);
+    expect(summonCost(ECONOMY, 100)).toBe(9);
   });
 
-  it('cannot spend more gold than available', () => {
-    const economy = new Economy(new EventBus(), 50, 20);
-    expect(economy.spend(100)).toBe(false);
-    expect(economy.gold).toBe(50);
-    expect(economy.spend(50)).toBe(true);
-    expect(economy.gold).toBe(0);
-  });
-
-  it('is defeated once lives reach zero', () => {
-    const economy = new Economy(new EventBus(), 100, 5);
-    economy.loseLives(5);
-    expect(economy.isDefeated).toBe(true);
-    expect(economy.lives).toBe(0);
-  });
-
-  it('never drops lives below zero', () => {
-    const economy = new Economy(new EventBus(), 100, 3);
-    economy.loseLives(10);
-    expect(economy.lives).toBe(0);
-  });
-
-  it('wave completion bonus grows with wave index', () => {
-    expect(waveCompletionBonus(0)).toBe(10);
-    expect(waveCompletionBonus(5)).toBe(20);
-  });
-
-  it('early call bonus scales with remaining time fraction', () => {
-    expect(earlyCallBonus(100, 1)).toBe(25);
-    expect(earlyCallBonus(100, 0.5)).toBe(13);
-    expect(earlyCallBonus(100, 0)).toBe(0);
+  it('regenMana adds mana over time and clamps at manaMax', () => {
+    expect(regenMana(5, ECONOMY, 2)).toBe(7);
+    expect(regenMana(9, ECONOMY, 5)).toBe(10);
+    expect(regenMana(10, ECONOMY, 1)).toBe(10);
   });
 });

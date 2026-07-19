@@ -1,18 +1,27 @@
-import type { EnemyType } from '../data/enemies';
+import type { LevelDef } from './types';
 
-export interface WaveSpawnGroup {
-  type: EnemyType;
-  count: number;
-  /** Seconds between individual spawns within this group. */
-  interval: number;
+export interface ScheduledSpawn {
+  atSec: number;
+  enemyId: string;
+  waveIndex: number;
 }
 
-export interface WaveConfig {
-  /** Seconds of build-phase before this wave auto-starts (used for early-call bonus timing). */
-  delay: number;
-  spawns: WaveSpawnGroup[];
-}
-
-export function waveTotalEnemyCount(wave: WaveConfig): number {
-  return wave.spawns.reduce((sum, g) => sum + g.count, 0);
+/** Flattens a level's wave definitions into an absolute-time spawn schedule, sorted ascending. */
+export function buildSpawnSchedule(level: LevelDef): ScheduledSpawn[] {
+  const schedule: ScheduledSpawn[] = [];
+  let waveStart = 0;
+  level.waves.forEach((wave, waveIndex) => {
+    waveStart += wave.startDelaySec;
+    for (const group of wave.spawnGroups) {
+      for (let i = 0; i < group.count; i++) {
+        schedule.push({
+          atSec: waveStart + group.startDelaySec + i * group.intervalSec,
+          enemyId: group.enemyId,
+          waveIndex,
+        });
+      }
+    }
+  });
+  schedule.sort((a, b) => a.atSec - b.atSec);
+  return schedule;
 }

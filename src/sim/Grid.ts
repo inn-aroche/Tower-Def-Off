@@ -1,73 +1,34 @@
-export type CellKind = 'empty' | 'blocked' | 'spawn' | 'exit' | 'occupied';
+import type { PlacedUnit } from './types';
 
-export interface GridConfig {
-  cols: number;
-  rows: number;
-  blocked?: Array<[number, number]>;
-  spawns: Array<[number, number]>;
-  exits: Array<[number, number]>;
+export function cellKey(col: number, row: number): string {
+  return `${col},${row}`;
 }
 
-/** 4-directional neighbor offsets (no diagonals — required for clean flow-field pathing). */
-export const NEIGHBOR_OFFSETS: ReadonlyArray<[number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
+export function isInBounds(col: number, row: number, cols: number, rows: number): boolean {
+  return col >= 0 && col < cols && row >= 0 && row < rows;
+}
 
+/** Occupancy lookup over the placed units, keyed by cell. Rebuilt cheaply each query site needs it. */
 export class Grid {
   readonly cols: number;
   readonly rows: number;
-  readonly spawns: ReadonlyArray<[number, number]>;
-  readonly exits: ReadonlyArray<[number, number]>;
-  private kinds: CellKind[];
+  private byCell = new Map<string, PlacedUnit>();
 
-  constructor(config: GridConfig) {
-    this.cols = config.cols;
-    this.rows = config.rows;
-    this.spawns = config.spawns.map((p) => [...p] as [number, number]);
-    this.exits = config.exits.map((p) => [...p] as [number, number]);
-    this.kinds = new Array(this.cols * this.rows).fill('empty');
-
-    for (const [c, r] of config.blocked ?? []) this.setKind(c, r, 'blocked');
-    for (const [c, r] of this.spawns) this.setKind(c, r, 'spawn');
-    for (const [c, r] of this.exits) this.setKind(c, r, 'exit');
+  constructor(cols: number, rows: number, units: PlacedUnit[] = []) {
+    this.cols = cols;
+    this.rows = rows;
+    for (const u of units) this.byCell.set(cellKey(u.col, u.row), u);
   }
 
-  inBounds(col: number, row: number): boolean {
-    return col >= 0 && col < this.cols && row >= 0 && row < this.rows;
+  at(col: number, row: number): PlacedUnit | undefined {
+    return this.byCell.get(cellKey(col, row));
   }
 
-  index(col: number, row: number): number {
-    return row * this.cols + col;
+  isEmpty(col: number, row: number): boolean {
+    return isInBounds(col, row, this.cols, this.rows) && !this.byCell.has(cellKey(col, row));
   }
 
-  kindAt(col: number, row: number): CellKind {
-    if (!this.inBounds(col, row)) return 'blocked';
-    return this.kinds[this.index(col, row)];
-  }
-
-  setKind(col: number, row: number, kind: CellKind): void {
-    if (!this.inBounds(col, row)) return;
-    this.kinds[this.index(col, row)] = kind;
-  }
-
-  /** Traversable = anything the flow field / enemies can walk through (not blocked, not occupied by a tower). */
-  isTraversable(col: number, row: number): boolean {
-    const k = this.kindAt(col, row);
-    return k !== 'blocked' && k !== 'occupied';
-  }
-
-  isBuildable(col: number, row: number): boolean {
-    return this.kindAt(col, row) === 'empty';
-  }
-
-  *neighbors(col: number, row: number): Generator<[number, number]> {
-    for (const [dc, dr] of NEIGHBOR_OFFSETS) {
-      const nc = col + dc;
-      const nr = row + dr;
-      if (this.inBounds(nc, nr)) yield [nc, nr];
-    }
+  isOccupied(col: number, row: number): boolean {
+    return this.byCell.has(cellKey(col, row));
   }
 }

@@ -1,273 +1,164 @@
-import { EventBus } from './core/EventBus';
-import { GameLoop, SIM_DT } from './core/GameLoop';
-import { GameState } from './sim/GameState';
-import { Renderer } from './render/Renderer';
-import { HUD } from './ui/HUD';
-import { MainMenu } from './ui/MainMenu';
-import { Tutorial } from './ui/Tutorial';
-import { AudioManager } from './audio/AudioManager';
-import { SaveManager } from './meta/SaveManager';
-import { Progression } from './meta/Progression';
-import type { AdProvider } from './platform/AdProvider';
-import { NullProvider } from './platform/NullProvider';
-import { PokiProvider } from './platform/PokiProvider';
-import { CrazyGamesProvider } from './platform/CrazyGamesProvider';
-import { TOWERS, type TowerId } from './data/towers';
-import { buildSurvivalLevelConfig, survivalScore, SURVIVAL_TIERS, type SurvivalTier } from './data/survival';
-import { buildCampaignLevels } from './data/campaign';
-import type { LevelConfig } from './data/LevelConfig';
+import { CombatSim } from './sim/CombatSim';
+import type { CombatSnapshot } from './sim/types';
+import { ECONOMY } from './data/economy';
+import { UNITS, DEFAULT_DECK } from './data/units';
+import { ENEMIES } from './data/enemies';
+import { LEVELS } from './data/levels';
+import { computeBoardLayout, pixelToCell } from './render/BoardLayout';
+import { drawCombatFrame, TOP_INSET, BOTTOM_INSET, type RenderContext } from './render/CombatRenderer';
+import { LocalStorageSaveProvider } from './platform/LocalStorageSave';
+import { NullAdProvider, NullAnalyticsProvider, NullIapProvider } from './platform/NullProviders';
+import { createDefaultSaveData, migrateSaveData, SAVE_KEY, SAVE_SCHEMA_VERSION, type SaveData } from './meta/SaveData';
 
-const LEVELS = buildCampaignLevels();
+const TICK_SEC = 1 / 30;
+const MAX_TICKS_PER_FRAME = 5;
 
-function detectProvider(): AdProvider {
-  if (typeof window.PokiSDK !== 'undefined') return new PokiProvider();
-  if (typeof window.CrazyGames !== 'undefined') return new CrazyGamesProvider();
-  return new NullProvider();
+const analytics = new NullAnalyticsProvider();
+const ads = new NullAdProvider();
+const iap = new NullIapProvider();
+void ads;
+void iap; // wired for M5 monetization hooks; unused until then
+
+const saveProvider = new LocalStorageSaveProvider<SaveData>(SAVE_KEY, SAVE_SCHEMA_VERSION, migrateSaveData);
+let save: SaveData = saveProvider.load() ?? createDefaultSaveData();
+
+const unitDefs = new Map(UNITS.map((u) => [u.id, u]));
+const enemyDefs = new Map(ENEMIES.map((e) => [e.id, e]));
+const renderContext: RenderContext = { unitDefs, enemyDefs, levelName: '' };
+
+const app = document.getElementById('app')!;
+const canvas = document.createElement('canvas');
+app.appendChild(canvas);
+const ctx = canvas.getContext('2d')!;
+
+let sim: CombatSim;
+let selectedCell: { col: number; row: number } | null = null;
+let outcomeHandled = false;
+let lastWaveIndexSeen = 0;
+
+function startLevel(index: number): void {
+  const levelIndex = Math.max(0, Math.min(LEVELS.length - 1, index));
+  const level = LEVELS[levelIndex];
+  renderContext.levelName = level.name;
+  const seed = Date.now() ^ (levelIndex * 7919);
+  sim = new CombatSim({ economy: ECONOMY, level, deck: DEFAULT_DECK, unitDefs: UNITS, enemyDefs: ENEMIES }, seed);
+  selectedCell = null;
+  outcomeHandled = false;
+  lastWaveIndexSeen = 0;
+  analytics.track('combat_start', { levelId: level.id, levelIndex, seed });
 }
 
-type Mode = { kind: 'menu' } | { kind: 'level'; levelId: number } | { kind: 'survival'; tier: SurvivalTier };
+startLevel(save.campaign.currentLevelIndex);
 
-async function main(): Promise<void> {
-  const container = document.getElementById('app');
-  if (!container) throw new Error('#app root missing');
+function resizeCanvas(): void {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(window.innerWidth * dpr);
+  canvas.height = Math.floor(window.innerHeight * dpr);
+  canvas.style.width = `${window.innerWidth}px`;
+  canvas.style.height = `${window.innerHeight}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
-  const bus = new EventBus();
-  const gameState = new GameState(bus);
-  const renderer = new Renderer(container, gameState, bus);
-  const audio = new AudioManager();
-  const save = new SaveManager();
-  const progression = new Progression(save);
-  const provider = detectProvider();
-  await provider.init();
+function currentLayout() {
+  return computeBoardLayout(window.innerWidth, window.innerHeight, ECONOMY.gridCols, ECONOMY.gridRows, TOP_INSET, BOTTOM_INSET);
+}
 
-  renderer.setTowerSkin(save.selectedSkin);
-  renderer.setReducedEffects(save.reduceEffects);
-  audio.setMuted(save.audioMuted);
+function handleTap(clientX: number, clientY: number): void {
+  const snapshot = sim.snapshot();
 
-  let mode: Mode = { kind: 'menu' };
-  let placementTowerId: TowerId | null = null;
-  let selectedTowerId: string | null = null;
-  let gameplayStarted = false;
-
-  const tutorial = new Tutorial(container, bus, gameState);
-
-  const menu = new MainMenu(container, LEVELS, progression, save, {
-    onSelectLevel: (levelId) => enterLevel(levelId),
-    onSelectSurvival: (tier) => enterSurvival(tier),
-    onSelectSkin: (skinId) => {
-      save.selectSkin(skinId);
-      renderer.setTowerSkin(skinId);
-    },
-    onToggleReduceEffects: (value) => {
-      save.setReduceEffects(value);
-      renderer.setReducedEffects(value);
-    },
-    onToggleAudioMuted: (value) => {
-      save.setAudioMuted(value);
-      audio.setMuted(value);
-    },
-  });
-
-  const hud = new HUD(container, gameState, bus, {
-    onSelectTowerToPlace: (towerId) => {
-      placementTowerId = towerId;
-      selectedTowerId = null;
-      hud.hideSelectedTower();
-    },
-    onUpgradeSelected: (branch) => {
-      if (!selectedTowerId) return;
-      gameState.upgradeTower(selectedTowerId, branch ?? null);
-      audio.play('towerUpgrade');
-      const tower = gameState.towers.find((t) => t.id === selectedTowerId);
-      if (tower) hud.showSelectedTower(tower);
-    },
-    onSellSelected: () => {
-      if (!selectedTowerId) return;
-      gameState.sellTower(selectedTowerId);
-      selectedTowerId = null;
-      hud.hideSelectedTower();
-    },
-    onCallWaveEarly: () => gameState.callWaveEarly(),
-    onRestart: () => {
-      void (async () => {
-        provider.gameplayStop();
-        audio.setMuted(true); // muted for the ad break per SDK requirements (§15)
-        await provider.interstitial();
-        audio.setMuted(false);
-        if (mode.kind === 'level') {
-          if (gameState.outcome === 'won') {
-            const nextId = mode.levelId + 1;
-            if (nextId <= LEVELS.length) enterLevel(nextId);
-            else openMenu();
-          } else {
-            enterLevel(mode.levelId); // retry same level on defeat
-          }
-        } else if (mode.kind === 'survival') {
-          enterSurvival(mode.tier); // fresh run at the same tier
-        }
-        provider.gameplayStart();
-      })();
-    },
-    onOpenMenu: () => openMenu(),
-  });
-
-  function openMenu(): void {
-    const returnScreen = mode.kind === 'survival' ? 'survival' : mode.kind === 'level' ? 'adventure' : 'title';
-    mode = { kind: 'menu' };
-    hud.hide();
-    tutorial.stop();
-    menu.show(returnScreen);
-    provider.gameplayStop();
+  if (snapshot.outcome !== 'ongoing') {
+    if (!outcomeHandled) return; // outcome just happened this frame — ignore the triggering tap
+    const nextIndex =
+      snapshot.outcome === 'victory'
+        ? Math.min(LEVELS.length - 1, save.campaign.currentLevelIndex + 1)
+        : save.campaign.currentLevelIndex;
+    startLevel(nextIndex);
+    return;
   }
 
-  function enterLevel(levelId: number): void {
-    const level = LEVELS.find((l) => l.id === levelId);
-    if (!level || !progression.isLevelUnlocked(levelId)) return;
-    mode = { kind: 'level', levelId };
-    hud.setWaveDisplayMode(0, false);
-    startRun(level);
-  }
+  const layout = currentLayout();
+  const cell = pixelToCell(layout, clientX, clientY);
+  if (!cell) return;
 
-  function enterSurvival(tier: SurvivalTier): void {
-    if (!progression.isSurvivalUnlocked()) return;
-    mode = { kind: 'survival', tier };
-    hud.setWaveDisplayMode(SURVIVAL_TIERS[tier].startWaveIndex, true);
-    startRun(buildSurvivalLevelConfig(tier));
-  }
+  const grid = new Map(snapshot.units.map((u) => [`${u.col},${u.row}`, u]));
+  const occupant = grid.get(`${cell.col},${cell.row}`);
 
-  function startRun(level: LevelConfig): void {
-    menu.hide();
-    hud.show();
-    gameState.loadLevel(level);
-    renderer.loadLevelVisuals();
-    hud.buildTowerBar(level.allowedTowers);
-    hud.refresh();
-    placementTowerId = null;
-    selectedTowerId = null;
-    hud.hideSelectedTower();
-    if (level.tutorial) tutorial.start();
-    else tutorial.stop();
-  }
-
-  bus.on('towerPlaced', () => audio.play('towerPlace'));
-  bus.on('towerPlacementRefused', () => audio.play('refuse'));
-  bus.on('enemyLeaked', () => audio.play('enemyLeak'));
-  bus.on('waveCompleted', () => audio.play('waveComplete'));
-  bus.on('levelWon', ({ starsEarned }) => {
-    provider.happyTime();
-    provider.gameplayStop();
-    if (mode.kind === 'level') {
-      const unlockedSkins = progression.recordLevelResult(mode.levelId, starsEarned);
-      menu.refresh();
-      hud.showEndOverlay(true, {
-        stars: starsEarned,
-        message: unlockedSkins.length ? `Nouveau skin débloqué : ${unlockedSkins.join(', ')} !` : undefined,
-        primaryLabel: mode.levelId < LEVELS.length ? 'Niveau suivant' : 'Retour au menu',
-      });
-    } else if (mode.kind === 'survival') {
-      const absoluteWave = survivalAbsoluteWaveIndex();
-      const score = survivalScore(mode.tier, absoluteWave);
-      save.reportSurvivalRun(mode.tier, score, absoluteWave);
-      hud.showEndOverlay(true, { message: `Survie terminée — score ${score}`, primaryLabel: 'Rejouer' });
+  if (!occupant) {
+    selectedCell = null;
+    const result = sim.summon(cell.col, cell.row);
+    if (result.ok) {
+      const def = unitDefs.get(result.unitId);
+      analytics.track('unit_summoned', { unitId: result.unitId, family: def?.family });
+      if (def?.family === 'gravity') analytics.track('gravity_unit_played', { unitId: result.unitId });
     }
-  });
-  bus.on('levelLost', () => {
-    provider.gameplayStop();
-    if (mode.kind === 'survival') {
-      const absoluteWave = survivalAbsoluteWaveIndex();
-      const score = survivalScore(mode.tier, absoluteWave);
-      save.reportSurvivalRun(mode.tier, score, absoluteWave);
-      hud.showEndOverlay(false, { message: `Score final : ${score} (vague ${absoluteWave + 1})`, primaryLabel: 'Rejouer' });
-    } else {
-      hud.showEndOverlay(false, {});
-    }
-  });
-
-  function survivalAbsoluteWaveIndex(): number {
-    if (mode.kind !== 'survival') return 0;
-    const level = buildSurvivalLevelConfig(mode.tier);
-    const startIndex = level.id - 1000; // survival ids are 1000 + startWaveIndex, see data/survival.ts
-    return startIndex + gameState.waveScheduler.waveIndex;
+    return;
   }
 
-  const canvas = renderer.renderer.domElement;
-
-  function ensureGameplayStarted(): void {
-    if (gameplayStarted) return;
-    gameplayStarted = true;
-    audio.init();
-    audio.startAmbient();
-    provider.gameplayStart();
+  if (!selectedCell) {
+    selectedCell = { col: cell.col, row: cell.row };
+    return;
+  }
+  if (selectedCell.col === cell.col && selectedCell.row === cell.row) {
+    selectedCell = null;
+    return;
   }
 
-  canvas.addEventListener('pointermove', (ev) => {
-    if (mode.kind === 'menu') return;
-    const hoveredCell = renderer.screenToGridCell(ev.clientX, ev.clientY);
-    if (placementTowerId && hoveredCell) {
-      const [col, row] = hoveredCell;
-      const cost = TOWERS[placementTowerId].tiers[0].cost;
-      const valid = gameState.grid.isBuildable(col, row) && gameState.economy.canAfford(cost) && gameState.isTowerAllowed(placementTowerId);
-      renderer.showPlacementGhost(col, row, valid);
-    } else {
-      renderer.hidePlacementGhost();
-    }
-  });
-
-  canvas.addEventListener('pointerdown', (ev) => {
-    if (mode.kind === 'menu') return;
-    ensureGameplayStarted();
-    const cell = renderer.screenToGridCell(ev.clientX, ev.clientY);
-    if (!cell) return;
-    const [col, row] = cell;
-
-    // An existing tower always takes priority over placement mode — otherwise, once a shop
-    // tower type stays armed (see the persistent-selection note below), clicking a placed tower
-    // to upgrade/sell it would be permanently unreachable, since a cell already holding a tower
-    // can never be a valid placement target anyway. The 'base' turret is excluded — it's the
-    // map's own built-in defense, not something the player can select, upgrade, or sell.
-    const tower = gameState.towers.find((t) => t.col === col && t.row === row && t.towerId !== 'base');
-    if (tower) {
-      selectedTowerId = tower.id;
-      hud.showSelectedTower(tower);
-      return;
-    }
-
-    if (placementTowerId) {
-      // Deliberately keep placementTowerId set after a placement (success or failure) so the
-      // player can drop several of the same tower in a row without re-clicking the shop button.
-      gameState.tryPlaceTower(placementTowerId, col, row);
-      return;
-    }
-
-    selectedTowerId = null;
-    hud.hideSelectedTower();
-  });
-
-  window.addEventListener('resize', () => renderer.resize());
-  // 'resize' alone can lag or be skipped on an orientation flip on some mobile browsers.
-  window.addEventListener('orientationchange', () => renderer.resize());
-
-  const loop = new GameLoop(
-    (dt) => {
-      if (mode.kind !== 'menu') gameState.step(dt);
-    },
-    (alpha) => {
-      renderer.update(SIM_DT, alpha);
-      renderer.render();
-      if (mode.kind !== 'menu') hud.refresh(); // score ticks every frame, not just on discrete events
-    },
-  );
-
-  hud.hide();
-  menu.show();
-  provider.loadingFinished();
-  loop.start();
-
-  function frame(now: number): void {
-    loop.tick(now);
-    requestAnimationFrame(frame);
+  const result = sim.merge(selectedCell, { col: cell.col, row: cell.row });
+  if (result.ok) {
+    analytics.track('unit_merged', { unitId: occupant.unitId, newLevel: result.newLevel });
+    selectedCell = null;
+  } else if (result.reason === 'mismatch') {
+    selectedCell = { col: cell.col, row: cell.row };
+  } else {
+    selectedCell = null;
   }
+}
+
+canvas.addEventListener('pointerdown', (e) => handleTap(e.clientX, e.clientY));
+
+function trackOutcomeOnce(snapshot: CombatSnapshot): void {
+  if (snapshot.currentWaveIndex !== lastWaveIndexSeen) {
+    lastWaveIndexSeen = snapshot.currentWaveIndex;
+  }
+  if (snapshot.outcome !== 'ongoing' && !outcomeHandled) {
+    outcomeHandled = true;
+    analytics.track('combat_end', {
+      outcome: snapshot.outcome,
+      elapsedSec: snapshot.elapsedSec,
+      kills: snapshot.kills,
+      life: snapshot.life,
+    });
+    if (snapshot.outcome === 'victory') {
+      save.campaign.currentLevelIndex = Math.min(LEVELS.length - 1, save.campaign.currentLevelIndex + 1);
+      saveProvider.save(save);
+    }
+  }
+}
+
+let lastFrameMs: number | null = null;
+let accumulatorSec = 0;
+
+function frame(nowMs: number): void {
+  if (lastFrameMs === null) lastFrameMs = nowMs;
+  const frameDtSec = Math.min(0.25, (nowMs - lastFrameMs) / 1000);
+  lastFrameMs = nowMs;
+  accumulatorSec += frameDtSec;
+
+  let ticks = 0;
+  while (accumulatorSec >= TICK_SEC && ticks < MAX_TICKS_PER_FRAME) {
+    sim.step(TICK_SEC);
+    accumulatorSec -= TICK_SEC;
+    ticks++;
+  }
+
+  const snapshot = sim.snapshot();
+  trackOutcomeOnce(snapshot);
+
+  const layout = currentLayout();
+  drawCombatFrame(ctx, window.innerWidth, window.innerHeight, layout, snapshot, selectedCell, renderContext);
+
   requestAnimationFrame(frame);
 }
-
-void main();
+requestAnimationFrame(frame);
