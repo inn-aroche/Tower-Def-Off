@@ -5,7 +5,7 @@ import type { EconomyConfig } from '../sim/types';
  * growing global summon cost. Per-card costs live on each UnitDef in units.ts. */
 export const ECONOMY: EconomyConfig = {
   gridCols: 6,
-  gridRows: 8,
+  gridRows: 10,
   manaMax: 10,
   manaRegenPerSec: 1.1,
   manaStartValue: 6,

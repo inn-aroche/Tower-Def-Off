@@ -1,9 +1,9 @@
 import type { Cell, LevelDef } from '../sim/types';
 
 /**
- * Shared serpentine path for the 6x8 board (enemies enter top-centre, wind down to the base at
- * the bottom). 4-connected. Leaves ~33 grass cells for unit placement. Per-level distinct paths
- * arrive with the 20-node hub in M3; M2 reuses one well-shaped route across the first 5 levels.
+ * Shared serpentine path for the 6x10 board (enemies enter top-centre, wind down to the base at
+ * the bottom row). 4-connected. Leaves ~43 grass cells for unit placement. Per-level distinct
+ * paths arrive with the 20-node hub in M3; M2 reuses one well-shaped route across the 5 levels.
  */
 export const CAMPAIGN_PATH: Cell[] = [
   { col: 2, row: 0 },
@@ -13,14 +13,16 @@ export const CAMPAIGN_PATH: Cell[] = [
   { col: 4, row: 2 },
   { col: 4, row: 3 },
   { col: 4, row: 4 },
-  { col: 3, row: 4 },
-  { col: 2, row: 4 },
-  { col: 1, row: 4 },
+  { col: 4, row: 5 },
+  { col: 3, row: 5 },
+  { col: 2, row: 5 },
   { col: 1, row: 5 },
   { col: 1, row: 6 },
-  { col: 2, row: 6 },
-  { col: 3, row: 6 },
+  { col: 1, row: 7 },
+  { col: 2, row: 7 },
   { col: 3, row: 7 },
+  { col: 3, row: 8 },
+  { col: 3, row: 9 },
 ];
 
 /**
