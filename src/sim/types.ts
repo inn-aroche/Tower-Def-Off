@@ -2,6 +2,8 @@
 
 export type UnitFamily = 'melee' | 'ranged' | 'gravity';
 
+export type Rarity = 'common' | 'rare' | 'epic';
+
 export interface Cell {
   col: number;
   row: number;
@@ -24,9 +26,10 @@ export interface UnitDef {
   id: string;
   name: string;
   family: UnitFamily;
+  rarity: Rarity;
   /** Fixed mana cost to summon this unit (Clash-style economy, per the M2 card-choice model). */
   cost: number;
-  /** Stats for level 1..maxLevel, index 0 = level 1. */
+  /** Board-merge tiers 1..maxLevel (index 0 = tier 1). Scaled by the unit's meta-level at combat start. */
   levels: UnitLevelStats[];
 }
 

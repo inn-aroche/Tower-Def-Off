@@ -16,7 +16,7 @@ import { isPathCell } from '../src/sim/Path';
 import { ECONOMY } from '../src/data/economy';
 import { UNITS, DEFAULT_DECK } from '../src/data/units';
 import { ENEMIES } from '../src/data/enemies';
-import { LEVELS } from '../src/data/levels';
+import { CAMPAIGN, scaleEnemyDef, type CampaignNode } from '../src/data/campaign';
 import type { CombatSnapshot, LevelDef } from '../src/sim/types';
 
 const DT = 1 / 30;
@@ -69,8 +69,10 @@ interface RunResult {
   kills: number;
 }
 
-function runOnce(level: LevelDef, actIntervalSec: number): RunResult {
-  const sim = new CombatSim({ economy: ECONOMY, level, deck: DEFAULT_DECK, unitDefs: UNITS, enemyDefs: ENEMIES });
+function runOnce(node: CampaignNode, actIntervalSec: number): RunResult {
+  const level = node.level;
+  const enemyDefs = ENEMIES.map((e) => scaleEnemyDef(e, node.enemyHpMult));
+  const sim = new CombatSim({ economy: ECONOMY, level, deck: DEFAULT_DECK, unitDefs: UNITS, enemyDefs });
   const grass = rankedGrassCells(level);
   let snapshot = sim.snapshot();
   let nextActAt = 0;
@@ -108,21 +110,21 @@ function mean(xs: number[]): number {
 
 let anyUnwinnable = false;
 
-console.log(`WARDENS — balance simulation (skill sweep of ${SKILL_SWEEP.length} samples/level)\n`);
-console.log('level                  win%   avg life (won)   avg elapsed(s)   avg kills');
-console.log('-----------------------------------------------------------------------');
+console.log(`WARDENS — balance simulation (20 nodes × skill sweep of ${SKILL_SWEEP.length} samples)\n`);
+console.log('node                      win%   avg life (won)   avg elapsed(s)   hpMult');
+console.log('--------------------------------------------------------------------------');
 
-for (const level of LEVELS) {
-  const results = SKILL_SWEEP.map((iv) => runOnce(level, iv));
+for (const node of CAMPAIGN) {
+  const results = SKILL_SWEEP.map((iv) => runOnce(node, iv));
   const wins = results.filter((r) => r.outcome === 'victory');
   const winRate = (wins.length / results.length) * 100;
 
   console.log(
-    `${level.name.padEnd(22)} ${winRate.toFixed(0).padStart(4)}%   ${mean(wins.map((r) => r.life))
+    `${node.name.padEnd(24)} ${winRate.toFixed(0).padStart(4)}%   ${mean(wins.map((r) => r.life))
       .toFixed(1)
-      .padStart(14)}   ${mean(results.map((r) => r.elapsedSec))
-      .toFixed(1)
-      .padStart(14)}   ${mean(results.map((r) => r.kills)).toFixed(1).padStart(9)}`,
+      .padStart(14)}   ${mean(results.map((r) => r.elapsedSec)).toFixed(1).padStart(14)}   ${node.enemyHpMult
+      .toFixed(2)
+      .padStart(6)}`,
   );
 
   if (wins.length === 0) anyUnwinnable = true;
@@ -130,8 +132,8 @@ for (const level of LEVELS) {
 
 console.log('');
 if (anyUnwinnable) {
-  console.error('FAIL: at least one level is unwinnable across the whole skill sweep — needs tuning.');
+  console.error('FAIL: at least one node is unwinnable across the whole skill sweep — needs tuning.');
   process.exit(1);
 } else {
-  console.log('OK: every level is winnable by at least the fastest scripted player.');
+  console.log('OK: every node is winnable by at least the fastest scripted player.');
 }

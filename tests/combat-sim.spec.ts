@@ -22,6 +22,7 @@ const strongMelee: UnitDef = {
   id: 'strong',
   name: 'Strong',
   family: 'melee',
+  rarity: 'common',
   cost: 2,
   levels: [
     { damage: 100, attackIntervalSec: 0.1, range: 5, slowFactor: 1 },

@@ -6,6 +6,7 @@ const meleeDef: UnitDef = {
   id: 'm',
   name: 'Melee',
   family: 'melee',
+  rarity: 'common',
   cost: 2,
   levels: [{ damage: 10, attackIntervalSec: 1, range: 1.6, slowFactor: 1 }],
 };
@@ -14,6 +15,7 @@ const gravityDef: UnitDef = {
   id: 'g',
   name: 'Gravity',
   family: 'gravity',
+  rarity: 'common',
   cost: 4,
   levels: [{ damage: 0, attackIntervalSec: 0, range: 2.2, slowFactor: 0.5 }],
 };

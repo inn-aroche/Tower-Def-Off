@@ -252,3 +252,82 @@ la Phase 3 (vertical slice) du skill :**
 - **FTUE / onboarding** guidé toujours à construire (verrou Phase 3 « onboarding qui fait jouer »).
 - **Sprites** : toujours des formes géométriques placeholder, pas d'art final.
 - **Courbe de difficulté** de la campagne à calibrer en M3 (cf. simulation ci-dessus).
+
+---
+
+## Tweak — Plateau allongé en 6×10
+
+Sur retour utilisateur (« longueur de 10 »), le plateau passe de 6×8 à **6×10** (rangées 8→10,
+léger écart assumé au « ~6×8 » du brief). Le chemin serpentant partagé est rallongé jusqu'à la
+base sur la nouvelle rangée du bas. Re-simulé, tests/typecheck/build verts.
+
+---
+
+## M3 — Méta minimale (Fondation + Hub + Collection + Amélioration + Deck)
+
+Choix utilisateur : commencer par « Fondation + M3 méta ». Livré : un shell de navigation, une
+sauvegarde étendue et les 4 écrans méta clés, avec le combat intégré à la boucle.
+
+### Décision d'architecture — écrans méta en DOM+CSS, combat en Canvas
+Conforme au brief (« Canvas ou DOM+CSS pour les écrans méta, Canvas pour le plateau »). Un
+`Router` (`src/app/Router.ts`) monte un écran à la fois dans `#app` ; les écrans méta construisent
+du DOM stylé par des tokens CSS (`src/ui/theme.ts`, dérivés de `docs/design/design-tokens.md`),
+le combat crée son canvas. Avantages : boutons/scroll/grilles natifs, fidélité aux maquettes,
+combat inchangé. `main.ts` ne démarre plus sur le combat mais sur le Hub.
+
+### Fondation
+- **Sauvegarde v2 versionnée** (`meta/SaveData.ts`) : monnaies (or/gemmes), collection possédée
+  (niveau méta + doublons par unité), deck actif, progression saga (nœud débloqué + étoiles),
+  ligue (trophées, stub M4). **Migration v1→v2** testée (garde `soundOn`, mappe
+  `currentLevelIndex`→`unlockedNode`, sème le starter).
+- **AppState** (`app/AppState.ts`) : source de vérité unique, mutateurs qui persistent
+  (addGold, upgrade, toggleDeck, recordVictory…). Les écrans lisent/écrivent via lui.
+
+### Contenu (data)
+- **12 unités** (`data/units.ts`) sur 3 familles (mêlée/distance/gravité) et 3 raretés
+  (commune/rare/épique), dont **3 gravité** (Puits de gravité, Répulseur, Singularité).
+- **Deux axes de puissance distincts** : le **merge en combat** (tiers Lv1→Lv3 temporaires, sur
+  le plateau) et le **niveau méta permanent** (écran Amélioration, via doublons + or) qui **scale
+  les stats de base** au démarrage du combat (`meta.ts` `scaleUnitDef` : +15 %/niv dégâts,
+  +4 %/niv portée). Économie d'amélioration : courbe doublons+or par rareté, cap niveau 6.
+- **Campagne 20 nœuds** (`data/campaign.ts`) : 5 templates cyclés avec un **multiplicateur de PV
+  ennemis croissant** (1.0 → 3.1). Récompenses de victoire **déterministes** (or/gemmes/doublons).
+
+### Écrans
+- **Hub saga** : barre monnaies, bannière événement, **carte à 20 nœuds** (débloqués/verrouillés,
+  étoiles), bouton Deck, nav basse Collection/Jouer/Boutique(toast « arrive en M5 »).
+- **Collection** : grille des 12, filtres de rareté, possédées vs verrouillées, compteur X/12.
+- **Amélioration d'unité** : tuile héros, pips de niveau, stats avant→après, progression doublons
+  + coût or, bouton Améliorer, ajout/retrait du deck.
+- **Deck builder** : slots 4-5, grille des unités possédées, coûts, contrainte min 4/max 5.
+- **Résultats** : victoire/défaite, étoiles, récompenses, Continuer/Rejouer.
+- **Combat** intègre désormais le **deck actif scalé** + la difficulté du nœud, et à l'issue :
+  calcule étoiles/récompenses, crédite, débloque le nœud suivant, sauvegarde, route vers Résultats.
+
+### Tests & simulation
+- **50 tests** verts (`npm test`), dont `meta.spec.ts` : migration de save, courbe d'upgrade,
+  `metaScale`, bornes du deck (min 4/max 5/possession), `recordVictory` (gains + unlock +
+  meilleures étoiles conservées), étoiles par vie restante.
+- `npm run simulate` désormais sur les **20 nœuds** avec le multiplicateur de PV : vraie courbe —
+  nœuds de début à 100 % vie haute, **nœuds boss 10/15/20 à 88 %/63 %/63 %** avec vie mince
+  (nœud 20 gagné à ~3 PV). Tous gagnables par le joueur scripté rapide.
+- Vérif navigateur (Playwright) des 5 écrans + lancement combat depuis un nœud + upgrade
+  end-to-end (correction au passage : la pastille de monnaie du bandeau ne se rafraîchissait pas
+  après un achat in-screen — corrigée).
+
+### Points ouverts / dette assumée
+- **Gravité contrainte au ralentissement** : le modèle « chemin défini » (déviation M2) empêche le
+  « courbe/regroupe » du différenciateur ; les 3 unités gravité se distinguent par profil de champ
+  (large-doux / focalisé-fort / épique lourd). À rouvrir en design combat (ennemis hors-chemin ?
+  distorsion locale du chemin ?).
+- **Récompenses farmables** : rejouer un nœud recrédite (pas de cap). Acceptable en M3, à plafonner
+  en M4/M5.
+- **Polices** : `fonts.googleapis.com` est bloqué dans le bac à sable/artefact (CSP) → repli
+  système dans l'aperçu ; Baloo 2/Nunito se chargeront sur device. À embarquer en local (self-host)
+  au plus tard en M6.
+- Restent Phase 3 (juice, FTUE, sprites, 60fps device) et les missions M4 (PvP/ligues) et M5
+  (boutique/passe/monét.).
+
+**Décision — verrou Mission 3 : 🟢 vert** pour la « méta minimale » (hub 20 nœuds, collection 12,
+amélioration/fusion, deck, sauvegarde). Les items Phase 3 du skill (onboarding, juice, art)
+restent explicitement à faire avant de fermer la Phase 3.
