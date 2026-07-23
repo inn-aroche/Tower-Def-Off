@@ -206,4 +206,15 @@ export class AppState {
     this.data = createDefaultSaveData();
     this.persist();
   }
+
+  // ── FTUE ─────────────────────────────────────────────────────────────────
+  get tutorialSeen(): boolean {
+    return this.data.progress.tutorialSeen;
+  }
+  markTutorialSeen(): void {
+    if (this.data.progress.tutorialSeen) return;
+    this.data.progress.tutorialSeen = true;
+    this.persist();
+    this.analytics.track('tutorial_completed', {});
+  }
 }

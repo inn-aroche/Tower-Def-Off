@@ -42,3 +42,12 @@ export type HapticStyle = 'light' | 'medium' | 'heavy';
 export interface HapticsProvider {
   impact(style: HapticStyle): void;
 }
+
+export type SfxName = 'summon' | 'merge' | 'kill' | 'baseHit' | 'hit';
+
+export interface AudioProvider {
+  /** Resume the audio pipeline after a user gesture (autoplay policy). */
+  resume(): void;
+  setEnabled(enabled: boolean): void;
+  play(sound: SfxName): void;
+}

@@ -11,6 +11,8 @@ import { drawCombatFrame, type CombatUiState, type RenderContext } from '../../r
 import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
 import { Effects } from '../../render/Effects';
 import { WebHapticsProvider } from '../../platform/Haptics';
+import { WebAudioProvider } from '../../platform/Audio';
+import { TutorialCoach } from '../../ui/Tutorial';
 
 const TICK_SEC = 1 / 30;
 const MAX_TICKS_PER_FRAME = 5;
@@ -113,11 +115,24 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     }
   }
 
-  const onPointer = (e: PointerEvent) => handleTap(e.clientX, e.clientY);
+  const onPointer = (e: PointerEvent) => {
+    audio.resume();
+    handleTap(e.clientX, e.clientY);
+  };
   canvas.addEventListener('pointerdown', onPointer);
 
   const effects = new Effects();
   const haptics = new WebHapticsProvider();
+  const audio = new WebAudioProvider();
+  audio.setEnabled(app.soundOn);
+  // FTUE: guide the very first campaign combat.
+  let coach: TutorialCoach | null =
+    !app.tutorialSeen && nodeIndex === 0
+      ? new TutorialCoach(screen, () => {
+          app.markTutorialSeen();
+          coach = null;
+        })
+      : null;
   let raf = 0;
   let lastMs: number | null = null;
   let acc = 0;
@@ -149,11 +164,19 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     }
     for (const ev of sim.consumeEvents()) {
       effects.emit(ev);
-      if (ev.type === 'merge') haptics.impact('medium');
-      else if (ev.type === 'baseHit') haptics.impact('heavy');
+      if (ev.type === 'merge') {
+        haptics.impact('medium');
+        audio.play('merge');
+      } else if (ev.type === 'baseHit') {
+        haptics.impact('heavy');
+        audio.play('baseHit');
+      } else if (ev.type === 'summon') audio.play('summon');
+      else if (ev.type === 'kill') audio.play('kill');
+      else if (ev.type === 'damage') audio.play('hit');
     }
     effects.update(frameDt);
     const snap = sim.snapshot();
+    coach?.update(snap);
 
     const shake = effects.shakeOffset();
     c.save();
@@ -176,6 +199,7 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', onPointer);
+      coach?.destroy();
     },
   };
 }

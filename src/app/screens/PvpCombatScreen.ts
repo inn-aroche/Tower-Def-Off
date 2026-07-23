@@ -10,6 +10,7 @@ import { drawCombatFrame, type CombatUiState, type RenderContext } from '../../r
 import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
 import { Effects } from '../../render/Effects';
 import { WebHapticsProvider } from '../../platform/Haptics';
+import { WebAudioProvider } from '../../platform/Audio';
 
 const TICK_SEC = 1 / 30;
 const MAX_TICKS_PER_FRAME = 5;
@@ -111,11 +112,16 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
     else if (res.reason === 'mismatch') ui.selectedUnit = { col: cell.col, row: cell.row };
     else ui.selectedUnit = null;
   }
-  const onPointer = (e: PointerEvent) => handleTap(e.clientX, e.clientY);
+  const onPointer = (e: PointerEvent) => {
+    audio.resume();
+    handleTap(e.clientX, e.clientY);
+  };
   canvas.addEventListener('pointerdown', onPointer);
 
   const effects = new Effects();
   const haptics = new WebHapticsProvider();
+  const audio = new WebAudioProvider();
+  audio.setEnabled(app.soundOn);
   let raf = 0;
   let lastMs: number | null = null;
   let acc = 0;
@@ -156,8 +162,15 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
     botSim.consumeEvents(); // discard the headless opponent's events (only the player board is drawn)
     for (const ev of playerSim.consumeEvents()) {
       effects.emit(ev);
-      if (ev.type === 'merge') haptics.impact('medium');
-      else if (ev.type === 'baseHit') haptics.impact('heavy');
+      if (ev.type === 'merge') {
+        haptics.impact('medium');
+        audio.play('merge');
+      } else if (ev.type === 'baseHit') {
+        haptics.impact('heavy');
+        audio.play('baseHit');
+      } else if (ev.type === 'summon') audio.play('summon');
+      else if (ev.type === 'kill') audio.play('kill');
+      else if (ev.type === 'damage') audio.play('hit');
     }
     effects.update(frameDt);
 

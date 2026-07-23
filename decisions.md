@@ -542,3 +542,28 @@ le plateau joueur est rendu). Tests ajoutés : émission `summon`/`attack`/`dama
 **Reste Phase 3** : SFX (audio), FTUE/onboarding guidé, sprites (art final), perspective 3D du
 plateau, validation 60 fps device — puis playtests externes. La gravité « courbe/regroupe »
 (vs simple ralentissement) reste un chantier de design combat séparé.
+
+## Phase 3 (2/3) — SFX audio
+
+`AudioProvider` (interface plateforme) + **`WebAudioProvider` procédural** (`platform/Audio.ts`) :
+sons **synthétisés en WebAudio, zéro fichier asset** — donc fonctionnels partout, y compris
+l'artefact partagé. Enveloppes courtes : invocation (pluck triangle montant), **fusion**
+(arpège C5→G5 brillant — le son signature), élimination (burst de bruit filtré), fuite de base
+(thud sinus grave + bruit), impact (tick throttlé pour éviter la cacophonie). Gated par le réglage
+**Son** (`app.soundOn`), `resume()` sur le premier geste (politique autoplay), dégrade
+gracieusement sans `AudioContext` (node/headless). Câblé sur les mêmes `CombatEvent` que le juice
+visuel (PvE + PvP). `NullAudioProvider` par défaut. Tests : Null no-op + WebAudio safe headless.
+
+## Phase 3 (3/3) — FTUE (tutoriel guidé)
+
+`ui/Tutorial.ts` (`TutorialCoach`) : coach marks **non bloquants** au **premier combat de campagne**
+(nœud 0 seulement), pilotés **uniquement par l'observation du snapshot sim** (aucun hook dans la
+logique de combat) — 4 étapes : poser une carte → poser une 2ᵉ identique → fusionner → défendre.
+Surbrillance pulsée de la zone (main de cartes / plateau) + scrim, bandeau d'instruction, lien
+**Passer**. Auto-dismiss après la fusion. Flag persistant **`progress.tutorialSeen`** ⇒ ne
+réapparaît jamais. **Sauvegarde v4** (+ migration v3→v4 et v2→v4, testées). Rouge #3 de l'audit
+(onboarding) **levé**.
+
+Après cette passe, la Phase 3 n'a plus que **l'art final (sprites) + perspective 3D + validation
+60 fps device** avant playtests — les 3 gros rouges « feel/lisibilité » (juice, audio, onboarding)
+sont traités.

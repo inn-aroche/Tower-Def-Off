@@ -34,10 +34,10 @@ describe('save migration', () => {
   });
 
   it('current default save declares the current schema version', () => {
-    expect(SAVE_SCHEMA_VERSION).toBe(3);
+    expect(SAVE_SCHEMA_VERSION).toBe(4);
   });
 
-  it('migrates a v2 save: carries state over and seeds the shop block', () => {
+  it('migrates a v2 save: carries state over and seeds the shop + progress blocks', () => {
     const v2 = {
       settings: { soundOn: true },
       currencies: { gold: 1234, gems: 42 },
@@ -52,6 +52,25 @@ describe('save migration', () => {
     expect(migrated.campaign.unlockedNode).toBe(7);
     expect(migrated.league.trophies).toBe(640);
     expect(migrated.shop).toEqual({ chestsOpened: 0, noAds: false, passActive: false });
+    expect(migrated.progress).toEqual({ tutorialSeen: false });
+  });
+
+  it('migrates a v3 save: carries shop over and seeds progress', () => {
+    const fresh = createDefaultSaveData();
+    const v3 = { ...fresh, shop: { chestsOpened: 5, noAds: true, passActive: true } } as unknown;
+    delete (v3 as { progress?: unknown }).progress;
+    const migrated = migrateSaveData({ schemaVersion: 3, data: v3 });
+    expect(migrated.shop).toEqual({ chestsOpened: 5, noAds: true, passActive: true });
+    expect(migrated.progress).toEqual({ tutorialSeen: false });
+  });
+});
+
+describe('AppState FTUE', () => {
+  it('marks the tutorial as seen once', () => {
+    const app = makeApp();
+    expect(app.tutorialSeen).toBe(false);
+    app.markTutorialSeen();
+    expect(app.tutorialSeen).toBe(true);
   });
 });
 
