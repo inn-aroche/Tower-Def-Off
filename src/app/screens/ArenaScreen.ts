@@ -30,12 +30,19 @@ export function ArenaScreen(ctx: ScreenCtx): Screen {
       : el('div', { style: 'font:700 11px "Nunito";color:var(--ink-soft);margin-top:6px', text: 'Ligue maximale atteinte' }),
   ]);
 
-  const fight = el('button', {
-    class: 'btn btn--green',
-    style: 'margin:0 14px 14px;font-size:17px',
-    text: `Combattre — ${league.botName}`,
-    onclick: () => nav({ name: 'pvp' }),
-  });
+  const fight = el('div', { style: 'display:flex;gap:10px;margin:0 14px 14px' }, [
+    el('button', {
+      class: 'btn btn--green',
+      style: 'flex:1;font-size:16px',
+      text: `Combattre — ${league.botName}`,
+      onclick: () => nav({ name: 'pvp' }),
+    }),
+    el('button', {
+      class: 'btn btn--purple',
+      style: 'flex:0 0 116px;font-size:16px',
+      onclick: () => nav({ name: 'pvp', blitz: true }),
+    }, [el('div', { text: '⚡ Blitz' }), el('div', { style: 'font:700 9px "Nunito";opacity:.85', text: 'mana rapide · boss' })]),
+  ]);
 
   // Ladder
   const ladderLabel = el('div', { class: 'section-label', style: 'padding:6px 14px', text: 'Ligues' });

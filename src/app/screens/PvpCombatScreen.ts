@@ -4,7 +4,7 @@ import { CombatSim } from '../../sim/CombatSim';
 import { BotDriver } from '../../sim/BotPolicy';
 import { ECONOMY } from '../../data/economy';
 import { ENEMIES } from '../../data/enemies';
-import { ARENA_LEVEL, botUnitDefs, LOSS_TROPHIES, WIN_TROPHIES } from '../../data/arena';
+import { ARENA_LEVEL, BLITZ_ARENA_LEVEL, BLITZ_ECONOMY, botUnitDefs, LOSS_TROPHIES, WIN_TROPHIES } from '../../data/arena';
 import { computeBoardLayout, pixelToCell } from '../../render/BoardLayout';
 import { drawCombatFrame, type CombatUiState, type RenderContext } from '../../render/CombatRenderer';
 import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
@@ -18,24 +18,26 @@ const MAX_TICKS_PER_FRAME = 5;
 export function PvpCombatScreen(ctx: ScreenCtx): Screen {
   const { app, host, nav } = ctx;
   const league = app.currentLeague();
-  const level = ARENA_LEVEL;
+  const blitz = ctx.route.name === 'pvp' && ctx.route.blitz === true;
+  const level = blitz ? BLITZ_ARENA_LEVEL : ARENA_LEVEL;
+  const economy = blitz ? BLITZ_ECONOMY : ECONOMY;
 
   const playerDefs = app.scaledDeckDefs();
-  const playerSim = new CombatSim({ economy: ECONOMY, level, deck: app.deck, unitDefs: playerDefs, enemyDefs: ENEMIES });
+  const playerSim = new CombatSim({ economy, level, deck: app.deck, unitDefs: playerDefs, enemyDefs: ENEMIES });
 
   const botDefs = botUnitDefs(league);
-  const botSim = new CombatSim({ economy: ECONOMY, level, deck: league.botDeck, unitDefs: botDefs, enemyDefs: ENEMIES });
-  const bot = new BotDriver(botSim, league.botDeck, botDefs, level.path, ECONOMY.gridCols, ECONOMY.gridRows, league.botActIntervalSec);
+  const botSim = new CombatSim({ economy, level, deck: league.botDeck, unitDefs: botDefs, enemyDefs: ENEMIES });
+  const bot = new BotDriver(botSim, league.botDeck, botDefs, level.path, economy.gridCols, economy.gridRows, league.botActIntervalSec);
 
   const renderContext: RenderContext = {
     unitDefs: new Map(playerDefs.map((u) => [u.id, u])),
     enemyDefs: new Map(ENEMIES.map((e) => [e.id, e])),
-    levelName: `Arène · ${league.name}`,
+    levelName: blitz ? `⚡ Blitz · ${league.name}` : `Arène · ${league.name}`,
     path: level.path,
   };
   const ui: CombatUiState = { selectedCardIndex: null, selectedUnit: null };
 
-  app.analytics.track('pvp_start', { league: league.id });
+  app.analytics.track('pvp_start', { league: league.id, blitz });
 
   const screen = el('div', { class: 'screen', style: 'background:#efe8d6' });
   const canvas = el('canvas', { style: 'display:block;touch-action:none' });
@@ -137,11 +139,11 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
 
     const delta = outcome === 'victory' ? WIN_TROPHIES : outcome === 'defeat' ? -LOSS_TROPHIES : 0;
     const total = app.addTrophies(delta);
-    app.analytics.track('pvp_end', { league: league.id, outcome, delta });
+    app.analytics.track('pvp_end', { league: league.id, outcome, delta, blitz });
     window.setTimeout(() => {
       nav({
         name: 'pvpResults',
-        payload: { outcome, playerLife: Math.max(0, playerLife), botLife: Math.max(0, botLife), trophiesDelta: delta, totalTrophies: total, leagueName: league.name, botName: league.botName },
+        payload: { outcome, playerLife: Math.max(0, playerLife), botLife: Math.max(0, botLife), trophiesDelta: delta, totalTrophies: total, leagueName: league.name, botName: league.botName, blitz },
       });
     }, 650);
   };

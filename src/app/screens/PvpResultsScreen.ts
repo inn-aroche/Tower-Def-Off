@@ -36,7 +36,7 @@ export function PvpResultsScreen(ctx: ScreenCtx): Screen {
     ]),
     // Trophies
     el('div', { class: 'panel', style: 'text-align:center;min-width:200px' }, [
-      el('div', { class: 'section-label', text: `Ligue ${payload.leagueName}` }),
+      el('div', { class: 'section-label', text: `${payload.blitz ? '⚡ Blitz · ' : ''}Ligue ${payload.leagueName}` }),
       el('div', {
         style: `font:800 26px "Baloo 2";margin:4px 0;color:${payload.trophiesDelta >= 0 ? '#2e7d32' : '#c0392b'}`,
         text: `${payload.trophiesDelta >= 0 ? '+' : ''}${payload.trophiesDelta} 🏆`,
@@ -46,7 +46,7 @@ export function PvpResultsScreen(ctx: ScreenCtx): Screen {
   ]);
 
   const actions = el('div', { style: 'width:100%;display:flex;flex-direction:column;gap:10px;padding:0 24px 40px' }, [
-    el('button', { class: 'btn btn--green', style: 'width:100%', text: 'Rejouer', onclick: () => nav({ name: 'pvp' }) }),
+    el('button', { class: 'btn btn--green', style: 'width:100%', text: 'Rejouer', onclick: () => nav({ name: 'pvp', blitz: payload.blitz }) }),
     el('button', { style: 'background:none;border:none;color:#f0e0c0;font:700 12px "Nunito";cursor:pointer;padding:6px', text: "Retour à l'arène", onclick: () => nav({ name: 'arena' }) }),
   ]);
 

@@ -22,6 +22,7 @@ export interface PvpResultPayload {
   totalTrophies: number;
   leagueName: string;
   botName: string;
+  blitz: boolean;
 }
 
 export type Route =
@@ -34,7 +35,7 @@ export type Route =
   | { name: 'survival' }
   | { name: 'survivalResults'; payload: SurvivalResultPayload }
   | { name: 'arena' }
-  | { name: 'pvp' }
+  | { name: 'pvp'; blitz?: boolean }
   | { name: 'pvpResults'; payload: PvpResultPayload }
   | { name: 'shop' }
   | { name: 'chest'; kind: 'common' | 'epic' }

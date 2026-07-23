@@ -642,3 +642,33 @@ davantage.
 **Verrous** : `typecheck` + **86 tests** + `build` verts, `simulate:survival` OK (converge + skill
 compte), smoke navigateur (Hub → Survie → combat rendu « VAGUE 1 · ∞ », zéro erreur JS). Non-négos
 tenus : sim pure/déterministe, tout l'équilibrage en `data`, save versionnée + migration testée.
+
+## Phase 4 (3/3) — 2ᵉ mode PvP : Blitz (mana rapide, boss dans l'arène)
+
+**Brief** : un 2ᵉ format PvP court et nerveux, avec un **boss** partagé — plus de variété que le seul
+duel classique.
+
+**Data (`data/arena.ts`)** : `BLITZ_ECONOMY` (mana ×2,2 : regen 1,1→2,4, start 6→10 ⇒ le plateau
+se remplit vite) + `BLITZ_ARENA_LEVEL` — 2 vagues denses, base plus fragile (22 PV), **capées par
+un Nécromancien** (boss invocateur) que les **deux camps** affrontent (duel symétrique : celui qui
+fuit le moins gagne). Réutilise la **même ligue/le même bot** que le classique — donc la calibration
+d'échelle de puissance déjà validée tient par construction.
+
+**Intégration** : route `pvp` gagne un flag `blitz`, `PvpCombatScreen` choisit économie+niveau+libellé
+(« ⚡ Blitz · <ligue> ») selon le flag, deux boutons sur l'Arène (Classique / ⚡ Blitz), libellé Blitz
+sur l'écran de résultats, « Rejouer » conserve le mode. Zéro nouveau système de sim : Blitz = data +
+routage.
+
+**Calibration (`npm run simulate:pvp`, étendu aux 2 modes)** : le match unique déterministe est
+binaire (victoire/défaite nette), donc jamais « contesté » — j'ai basculé sur un **sweep de skill du
+joueur** (comme la sim campagne) : le taux de victoire par ligue devient continu. Résultat, rampe
+équitable et monotone dans les deux modes :
+- Classique : Bois 92 % · Bronze 67 % · **Argent 33 %** · Or 0 % · Platine 0 %
+- Blitz : Bois 100 % · Bronze 67 % · **Argent 50 % · Or 33 %** · Platine 8 %
+Le joueur starter gagne en bas, conteste son palier, perd en haut (il faut améliorer son deck) — dans
+les deux modes. Blitz est un peu plus « swingy » (courbe plus étalée), ce qui colle à son identité.
+
+**Verrous** : `typecheck` + **88 tests** (dont data Blitz : mana plus rapide, boss présent) + `build`
+verts, `simulate:pvp` OK (2 modes), smoke navigateur (Arène → ⚡ Blitz : combat rendu, **Nécromancien
+couronné**, spectres volants ailés, mana pleine, zéro erreur JS). Non-négos tenus : sim
+pure/déterministe, tout l'équilibrage en `data`.

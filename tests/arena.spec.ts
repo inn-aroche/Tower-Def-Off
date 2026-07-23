@@ -3,7 +3,9 @@ import { AppState } from '../src/app/AppState';
 import { NullAdProvider, NullAnalyticsProvider, NullIapProvider } from '../src/platform/NullProviders';
 import type { SaveProvider } from '../src/platform/types';
 import { createDefaultSaveData, type SaveData } from '../src/meta/SaveData';
-import { botUnitDefs, leagueForTrophies, LEAGUES } from '../src/data/arena';
+import { BLITZ_ARENA_LEVEL, BLITZ_ECONOMY, botUnitDefs, leagueForTrophies, LEAGUES } from '../src/data/arena';
+import { ECONOMY } from '../src/data/economy';
+import { ENEMIES_BY_ID } from '../src/data/enemies';
 import { UNITS_BY_ID } from '../src/data/units';
 
 function fakeSave(): SaveProvider<SaveData> {
@@ -39,6 +41,20 @@ describe('botUnitDefs', () => {
     const sword = defs.find((d) => d.id === 'swordsman')!;
     const base = UNITS_BY_ID.get('swordsman')!;
     expect(sword.levels[0].damage).toBe(Math.round(base.levels[0].damage * gold.botPower));
+  });
+});
+
+describe('Blitz mode data', () => {
+  it('regenerates mana faster than the classic economy', () => {
+    expect(BLITZ_ECONOMY.manaRegenPerSec).toBeGreaterThan(ECONOMY.manaRegenPerSec);
+    expect(BLITZ_ECONOMY.gridCols).toBe(ECONOMY.gridCols);
+    expect(BLITZ_ECONOMY.gridRows).toBe(ECONOMY.gridRows);
+  });
+
+  it('caps the stream with a real boss enemy', () => {
+    const ids = BLITZ_ARENA_LEVEL.waves.flatMap((w) => w.spawnGroups.map((g) => g.enemyId));
+    const boss = ids.find((id) => ENEMIES_BY_ID.get(id)?.boss);
+    expect(boss).toBeDefined();
   });
 });
 

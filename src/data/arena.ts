@@ -1,4 +1,5 @@
-import type { LevelDef, UnitDef, UnitLevelStats } from '../sim/types';
+import type { EconomyConfig, LevelDef, UnitDef, UnitLevelStats } from '../sim/types';
+import { ECONOMY } from './economy';
 import { CAMPAIGN_PATH } from './levels';
 import { UNITS_BY_ID } from './units';
 
@@ -31,6 +32,41 @@ export const ARENA_LEVEL: LevelDef = {
         { enemyId: 'goblin', count: 16, intervalSec: 0.35, startDelaySec: 0 },
         { enemyId: 'brute', count: 5, intervalSec: 1.3, startDelaySec: 2 },
         { enemyId: 'troll', count: 3, intervalSec: 2.2, startDelaySec: 3 },
+      ],
+    },
+  ],
+};
+
+/**
+ * "Blitz" PvP — a faster, punchier variant. Mana pours in (so the board fills fast), the base is
+ * more fragile, and the stream is short and vicious, capped by a **boss** both sides must survive.
+ * Same symmetric-duel rule as classic: whoever leaks less wins.
+ */
+export const BLITZ_ECONOMY: EconomyConfig = {
+  ...ECONOMY,
+  manaRegenPerSec: 2.4,
+  manaStartValue: 10,
+};
+
+export const BLITZ_ARENA_LEVEL: LevelDef = {
+  id: 'arena-blitz',
+  name: 'Arène Blitz',
+  playerStartLife: 22,
+  path: CAMPAIGN_PATH,
+  waves: [
+    {
+      startDelaySec: 1.5,
+      spawnGroups: [
+        { enemyId: 'runner', count: 14, intervalSec: 0.32, startDelaySec: 0 },
+        { enemyId: 'goblin', count: 12, intervalSec: 0.38, startDelaySec: 1 },
+      ],
+    },
+    {
+      startDelaySec: 8,
+      spawnGroups: [
+        { enemyId: 'brute', count: 5, intervalSec: 0.8, startDelaySec: 0 },
+        { enemyId: 'wraith', count: 4, intervalSec: 0.7, startDelaySec: 1 },
+        { enemyId: 'necromancer', count: 1, intervalSec: 0, startDelaySec: 3 },
       ],
     },
   ],
