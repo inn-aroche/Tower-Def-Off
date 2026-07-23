@@ -445,3 +445,64 @@ collection→deck→combat. Écran **Ouverture de coffre** avec reveal (or + tui
 
 **Décision — verrou Mission 5 : 🟢 vert** pour boutique + coffres + paramètres + hooks
 monétisation propres (NullProvider). Tous les écrans de la maquette sont désormais implémentés.
+
+---
+
+## M6 — Préparation Capacitor + audit complet
+
+### Préparation Capacitor
+- `capacitor.config.ts` (appId `com.wardens.game`, `webDir: dist`, fond crème anti-flash), deps
+  `@capacitor/{core,cli,android,ios}`, scripts `cap:sync` / `cap:android` / `cap:ios`,
+  `docs/capacitor.md` (setup one-time + boucle build/sync + mapping plugins→interfaces
+  `src/platform`). Le build web (`base: './'`) est déjà self-contained ⇒ wrapping sans changement
+  de code. `android/` et `ios/` ignorés jusqu'à `cap add`.
+- `README.md` (run, checks, archi) et `CLAUDE.md` (règles pour futurs agents) ajoutés.
+
+### Audit — anatomie d'un jeu complet (12 points du skill)
+
+| # | Élément | État | Note |
+|---|---|---|---|
+| 1 | Promesse claire | 🟢 | TD à merge + gravité, portrait F2P |
+| 2 | Core loop | 🟢 | invoquer→défendre→fusionner→récompense, jouable M1, affinée M2 |
+| 3 | Onboarding | 🔴 | **pas de FTUE guidée** — chantier Phase 3 |
+| 4 | Progression 3 horizons | 🟢 | session (combat) · multi-jours (saga 20 nœuds + upgrades) · aspirationnel (ligues, collection 12) |
+| 5 | Feedbacks (juice) | 🔴 | **aucun** (pas d'impacts/SFX/haptics/screenshake) — chantier Phase 3 |
+| 6 | Système d'objectifs | 🟡 | nœuds + étoiles + ligues ; **pas de dailies/quêtes** (rétention) |
+| 7 | Économie cohérente | 🟢 | or/gemmes/doublons, courbe d'upgrade, coffres, **simulée** |
+| 8 | Difficulté maîtrisée | 🟢 | rampe 20 nœuds validée par sim (100 %→63 % boss) |
+| 9 | Boucle de rétention | 🟡 | collection/ligues/coffres ; dailies/streaks/events **manquants** |
+| 10 | Monétisation propre | 🟢 | hybride passe+gemmes+coffres+rewarded opt-in, **zéro dark pattern**, hooks NullProvider |
+| 11 | Lisibilité UX/UI | 🟢 | tokens maquette, nav claire, thumb-friendly ; **art placeholder** (formes) |
+| 12 | KPI & observabilité | 🟡 | events câblés (combat, merge, gravité, chest, rewarded, pvp) via NullAnalytics ; **backend réel + funnel FTUE** à brancher |
+
+### Verrous du pipeline (skill)
+- **Phase 1 Concept** 🟢 · **Phase 2 Prototype** 🟢 (fun sans méta prouvé en sim ; playtests
+  externes restent à mener) · **Phase 3 Vertical slice** 🔴 (juice + FTUE + art + 60fps device non
+  faits) · **Phase 4 Production** 🟡 (contenu/économie/monét. en place et simulés ; manquent
+  dailies, art final, équilibrage sur joueurs réels) · **Phases 5-6 Soft launch/Live** ⏳ (hors
+  périmètre — nécessitent de vrais joueurs).
+
+### Palier P-2 — état de préparation
+Toute la v1 tourne **en local, déterministe** ; les bots PvP sont des données jouées par le même
+moteur (aucun netcode). Le chemin de dérisquage P-2 de `references/paliers-backend.md` est tenu :
+sim réutilisable côté serveur ✅, bots en data ✅, sim d'équilibrage ✅. **Restent pour la v2**
+(hors périmètre actuel, chiffrés dans l'entrée Phase 1) : auth Supabase, tables ligue/trophées
+server-authoritative, Edge Functions de validation anti-triche, ADR palier complet.
+
+### Dette technique consolidée (backlog priorisé)
+1. **Juice + FTUE + sprites** (Phase 3) — le plus gros bloqueur avant tout playtest sérieux.
+2. **Gravité : bend/regroup** contraint par le chemin fixe → rouvrir le design combat.
+3. **Dailies / quêtes / events** (rétention) + plafonds anti-farm sur coffres et récompenses PvE/PvP.
+4. **Backend réel** : analytics (funnel FTUE), puis P-2 v2 (cloud save, ligues serveur).
+5. **Polices self-hostées** (retirer le CDN Google Fonts) avant soumission store.
+6. **Passe héroïque** : piste de récompenses détaillée (juste l'achat stub aujourd'hui).
+
+### Décision kill / pivot / scale
+**Ni kill ni pivot** : la core loop est cohérente et le jeu complet est jouable de bout en bout
+(hub→deck→combat→récompenses→upgrade→arène→boutique). Pas encore de **scale** : le scale exige un
+signal de rétention sur de vrais joueurs (D1/D7), impossible à obtenir en sim. **Prochaine étape
+décisive = Phase 3 (juice + FTUE + art) puis un vrai playtest** pour décider du scale.
+
+**Décision — verrou Mission 6 : 🟢 vert** pour la préparation Capacitor et l'audit. Le pipeline
+M1-M6 « one-shot » est bouclé ; la suite (Phase 3 polish → soft launch) demande des itérations
+avec de vrais joueurs, comme prévu par le skill.
