@@ -6,6 +6,14 @@ export interface ResultsPayload {
   rewards: { gold: number; gems: number; duplicates: Array<{ unitId: string; count: number }> };
 }
 
+export interface SurvivalResultPayload {
+  wavesReached: number;
+  bestWave: number;
+  isRecord: boolean;
+  kills: number;
+  rewards: { gold: number; gems: number };
+}
+
 export interface PvpResultPayload {
   outcome: 'victory' | 'defeat' | 'draw';
   playerLife: number;
@@ -23,6 +31,8 @@ export type Route =
   | { name: 'deck' }
   | { name: 'combat'; nodeIndex: number }
   | { name: 'results'; payload: ResultsPayload }
+  | { name: 'survival' }
+  | { name: 'survivalResults'; payload: SurvivalResultPayload }
   | { name: 'arena' }
   | { name: 'pvp' }
   | { name: 'pvpResults'; payload: PvpResultPayload }

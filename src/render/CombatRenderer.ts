@@ -126,7 +126,10 @@ function drawTopBar(ctx: CanvasRenderingContext2D, canvasW: number, snapshot: Co
 
   ctx.font = "800 12px 'Baloo 2', 'Nunito', sans-serif";
   ctx.fillStyle = '#f0c26a';
-  ctx.fillText(`VAGUE ${Math.min(snapshot.currentWaveIndex + 1, snapshot.totalWaves)}/${snapshot.totalWaves}`, 16, 64);
+  const waveText = snapshot.endless
+    ? `VAGUE ${snapshot.currentWaveIndex + 1} · ∞`
+    : `VAGUE ${Math.min(snapshot.currentWaveIndex + 1, snapshot.totalWaves)}/${snapshot.totalWaves}`;
+  ctx.fillText(waveText, 16, 64);
 
   // timer pill (right)
   ctx.textAlign = 'right';

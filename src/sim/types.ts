@@ -142,6 +142,8 @@ export interface CombatSnapshot {
   currentWaveIndex: number;
   totalWaves: number;
   kills: number;
+  /** Survival mode: waves are generated forever and the only end state is defeat. */
+  endless: boolean;
 }
 
 /**

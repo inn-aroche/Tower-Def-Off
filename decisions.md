@@ -605,3 +605,40 @@ vol en ligne droite, spawn boss événementiel, invocation, régén (comparé à
 **Verrous** : `typecheck` + **74 tests** + `build` verts, `simulate` OK (toutes portes gagnables),
 smoke navigateur (combat rendu sans erreur JS ; seules erreurs = CDN Google Fonts bloqué =
 fallback système attendu). Non-négociables tenus : sim pure, tout l'équilibrage en `data`.
+
+## Phase 4 (2/3) — Mode Survie (endless)
+
+**Brief** : un mode « une main de plus » à score, orthogonal à la campagne — vagues infinies,
+difficulté qui finit *toujours* par submerger, meilleur score gardé. C'est le mode rétention des
+TD modernes.
+
+**Data (`data/survival.ts`, tout l'équilibrage ici)** : `survivalWave(n)` — **générateur pur**
+(zéro RNG) : fodder qui grossit, menaces du bestiaire introduites par paliers
+(coureur→brute→spectre→saboteur→juggernaut→ogre→troll), **boss toutes les 5 vagues** (cycle des 4,
+doublés dès la vague 20). HP en **rampe exponentielle `1.075^n`** (douce tôt — v5 ≈ ×1,4, v10 ≈ ×2 —
+puis mur — v25 ≈ ×5,4, v35 ≈ ×10,7) : quelle que soit la défense, un mur imbattable arrive
+forcément → la seule question est *quelle vague*. Récompenses honnêtes (or = vague×12, gemmes = ⌊v/5⌋).
+
+**Sim** : `CombatSim` gagne un mode `survival` optionnel — ignore les vagues du niveau et **génère
+le planning à la volée** (`scheduleSurvivalWave`, tri local, ordre global préservé par le gap), HP
+mise à l'échelle **au spawn** via `hpMult` par vague (la campagne, elle, pré-scale ses defs — les
+deux cohabitent). En survie l'issue n'est **jamais** `victory` : seule la chute de base termine.
+Snapshot expose `endless` ⇒ le HUD affiche « VAGUE n · ∞ ». Toujours déterministe (2 runs identiques
+= snapshots égaux, testé).
+
+**Méta/écrans** : **save v5** (`survival.bestWave`, migration v4→v5 + les anciennes rebranchées,
+testées). `AppState.recordSurvival` (garde le record, paie, dit si nouveau record). Nouvel écran de
+combat `SurvivalScreen` (variante sans FTUE/récompenses de nœud), `SurvivalResultsScreen`
+(vague atteinte en gros, record, stats), carte d'entrée proéminente sur le Hub.
+
+**Sim d'équilibrage** (`npm run simulate:survival`, ajouté aux gates) : au lieu d'un taux de
+victoire (il n'y en a pas), on mesure **la profondeur atteinte** sur le sweep de skill. 1ʳᵉ passe :
+rampe linéaire 0,08 ⇒ le bot tenait jusqu'au plafond 12 min (vague 42, **run non convergent**) →
+bascule en exponentiel `1.075^n`. Résultat : **tous les runs se terminent** (vagues 27–32) et le
+skill change la profondeur (le plus lent cale plus tôt). Le plateau entre skills rapides vient du
+deck fixe du bot (le plateau se remplit, DPS plafonné) ; un humain qui améliore ses unités varie
+davantage.
+
+**Verrous** : `typecheck` + **86 tests** + `build` verts, `simulate:survival` OK (converge + skill
+compte), smoke navigateur (Hub → Survie → combat rendu « VAGUE 1 · ∞ », zéro erreur JS). Non-négos
+tenus : sim pure/déterministe, tout l'équilibrage en `data`, save versionnée + migration testée.

@@ -20,11 +20,21 @@ export function HubScreen(ctx: ScreenCtx): Screen {
     }),
   ]);
 
-  // Event banner + deck / arena access
+  // Event banner + survival / deck / arena access
+  const best = app.survivalBest;
   const header = el('div', { style: 'padding:12px 14px 4px;display:flex;gap:10px;align-items:stretch' }, [
-    el('div', { class: 'panel', style: 'flex:1;padding:10px 12px' }, [
-      el('div', { class: 'section-label', text: 'Événement' }),
-      el('div', { style: 'font:800 14px "Baloo 2",sans-serif;color:var(--ink)', text: 'Invasion des Trolls' }),
+    el('button', {
+      class: 'panel',
+      style:
+        'flex:1;padding:10px 12px;text-align:left;border:none;cursor:pointer;' +
+        'background:linear-gradient(160deg,#3a6a8f,#1f3d55);color:#fff',
+      onclick: () => nav({ name: 'survival' }),
+    }, [
+      el('div', { class: 'section-label', style: 'color:#bfe0f5', text: '🌊 Survie · sans fin' }),
+      el('div', {
+        style: 'font:800 14px "Baloo 2",sans-serif;color:#fff',
+        text: best > 0 ? `Record : vague ${best}` : 'Jusqu’où tiendras-tu ?',
+      }),
     ]),
     el('div', { style: 'display:flex;flex-direction:column;gap:6px' }, [
       el('button', { class: 'btn btn--purple', style: 'padding:8px 14px;font-size:12px', onclick: () => nav({ name: 'deck' }) }, [

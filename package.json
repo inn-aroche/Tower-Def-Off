@@ -12,6 +12,7 @@
     "typecheck": "tsc -b --noEmit",
     "simulate": "tsx scripts/simulate-balance.ts",
     "simulate:pvp": "tsx scripts/simulate-pvp.ts",
+    "simulate:survival": "tsx scripts/simulate-survival.ts",
     "cap:sync": "npm run build && cap sync",
     "cap:android": "npm run build && cap sync android && cap open android",
     "cap:ios": "npm run build && cap sync ios && cap open ios"

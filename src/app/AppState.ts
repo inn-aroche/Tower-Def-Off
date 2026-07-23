@@ -192,6 +192,21 @@ export class AppState {
     return this.data.league.trophies;
   }
 
+  // ── Survival (endless) ────────────────────────────────────────────────────
+  get survivalBest(): number {
+    return this.data.survival.bestWave;
+  }
+  /** Records a survival run: keeps the best wave, grants rewards, returns whether it's a new record. */
+  recordSurvival(wavesReached: number, rewards: { gold: number; gems: number }): boolean {
+    const isRecord = wavesReached > this.data.survival.bestWave;
+    if (isRecord) this.data.survival.bestWave = wavesReached;
+    this.data.currencies.gold += rewards.gold;
+    this.data.currencies.gems += rewards.gems;
+    this.persist();
+    this.analytics.track('survival_end', { wavesReached, isRecord });
+    return isRecord;
+  }
+
   // ── Settings ────────────────────────────────────────────────────────────
   get soundOn(): boolean {
     return this.data.settings.soundOn;

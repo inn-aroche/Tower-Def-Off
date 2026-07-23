@@ -34,7 +34,7 @@ describe('save migration', () => {
   });
 
   it('current default save declares the current schema version', () => {
-    expect(SAVE_SCHEMA_VERSION).toBe(4);
+    expect(SAVE_SCHEMA_VERSION).toBe(5);
   });
 
   it('migrates a v2 save: carries state over and seeds the shop + progress blocks', () => {
@@ -59,9 +59,37 @@ describe('save migration', () => {
     const fresh = createDefaultSaveData();
     const v3 = { ...fresh, shop: { chestsOpened: 5, noAds: true, passActive: true } } as unknown;
     delete (v3 as { progress?: unknown }).progress;
+    delete (v3 as { survival?: unknown }).survival;
     const migrated = migrateSaveData({ schemaVersion: 3, data: v3 });
     expect(migrated.shop).toEqual({ chestsOpened: 5, noAds: true, passActive: true });
     expect(migrated.progress).toEqual({ tutorialSeen: false });
+    expect(migrated.survival).toEqual({ bestWave: 0 });
+  });
+
+  it('migrates a v4 save: carries state over and seeds the survival block', () => {
+    const fresh = createDefaultSaveData();
+    const v4 = { ...fresh, progress: { tutorialSeen: true }, currencies: { gold: 500, gems: 20 } } as unknown;
+    delete (v4 as { survival?: unknown }).survival;
+    const migrated = migrateSaveData({ schemaVersion: 4, data: v4 });
+    expect(migrated.progress).toEqual({ tutorialSeen: true });
+    expect(migrated.currencies).toEqual({ gold: 500, gems: 20 });
+    expect(migrated.survival).toEqual({ bestWave: 0 });
+  });
+});
+
+describe('AppState survival', () => {
+  it('keeps the best wave and grants rewards; reports records only on improvement', () => {
+    const app = makeApp();
+    const gold = app.gold;
+    const gems = app.gems;
+    expect(app.survivalBest).toBe(0);
+    expect(app.recordSurvival(7, { gold: 84, gems: 1 })).toBe(true);
+    expect(app.survivalBest).toBe(7);
+    expect(app.gold).toBe(gold + 84);
+    expect(app.gems).toBe(gems + 1);
+    // a worse run still pays out but is not a record and does not lower the best
+    expect(app.recordSurvival(4, { gold: 48, gems: 0 })).toBe(false);
+    expect(app.survivalBest).toBe(7);
   });
 });
 

@@ -17,7 +17,17 @@ import type {
   LiveEnemy,
   PlacedUnit,
   UnitDef,
+  WaveDef,
 } from './types';
+
+export interface SurvivalConfig {
+  /** Deterministic wave generator, called for wave 0,1,2,… to extend the schedule forever. */
+  makeWave: (waveIndex: number) => WaveDef;
+  /** Per-enemy HP multiplier applied at spawn, by the wave the enemy belongs to. */
+  hpMultForWave: (waveIndex: number) => number;
+  /** Breathing room between a wave's last spawn and the next wave's start. */
+  waveGapSec: number;
+}
 
 export interface CombatSimConfig {
   economy: EconomyConfig;
@@ -25,6 +35,8 @@ export interface CombatSimConfig {
   deck: string[];
   unitDefs: UnitDef[];
   enemyDefs: EnemyDef[];
+  /** When set, the level's own waves are ignored and waves are generated endlessly. */
+  survival?: SurvivalConfig;
 }
 
 export type SummonResult =
@@ -43,6 +55,10 @@ export class CombatSim {
   private readonly unitDefs: Map<string, UnitDef>;
   private readonly enemyDefs: Map<string, EnemyDef>;
   private readonly schedule: ScheduledSpawn[];
+  private readonly survival?: SurvivalConfig;
+  /** Next survival wave index to generate, and the absolute time it should start. */
+  private survivalCursor = 0;
+  private survivalNextAtSec = 0;
 
   private elapsedSec = 0;
   private mana: number;
@@ -68,7 +84,9 @@ export class CombatSim {
     this.deck = config.deck;
     this.unitDefs = new Map(config.unitDefs.map((u) => [u.id, u]));
     this.enemyDefs = new Map(config.enemyDefs.map((e) => [e.id, e]));
-    this.schedule = buildSpawnSchedule(config.level);
+    this.survival = config.survival;
+    // Survival ignores the level's authored waves — it generates them on the fly (see step()).
+    this.schedule = config.survival ? [] : buildSpawnSchedule(config.level);
     this.mana = config.economy.manaStartValue;
     this.life = config.level.playerStartLife;
     this.endProgress = pathEndProgress(this.path);
@@ -78,9 +96,9 @@ export class CombatSim {
     this.flyFactor = this.endProgress / straight;
   }
 
-  private spawnEnemy(enemyId: string): void {
+  private spawnEnemy(enemyId: string, hpMult = 1): void {
     const def = this.enemyDefs.get(enemyId);
-    const hp = def?.hp ?? 1;
+    const hp = Math.max(1, Math.round((def?.hp ?? 1) * hpMult));
     this.enemies.push({
       instanceId: this.nextInstanceId++,
       enemyId,
@@ -101,9 +119,14 @@ export class CombatSim {
     this.elapsedSec += dtSec;
     this.mana = regenMana(this.mana, this.economy, dtSec);
 
+    // Endless mode keeps a wave or two queued ahead of the clock.
+    if (this.survival) {
+      while (this.survivalNextAtSec <= this.elapsedSec + 1) this.scheduleSurvivalWave();
+    }
+
     while (this.spawnCursor < this.schedule.length && this.schedule[this.spawnCursor].atSec <= this.elapsedSec) {
       const spawn = this.schedule[this.spawnCursor];
-      this.spawnEnemy(spawn.enemyId);
+      this.spawnEnemy(spawn.enemyId, spawn.hpMult ?? 1);
       this.lastSpawnedWaveIndex = spawn.waveIndex;
       this.spawnCursor++;
     }
@@ -165,9 +188,31 @@ export class CombatSim {
       this.kills += killedSet.size;
     }
 
-    if (this.spawnCursor >= this.schedule.length && this.enemies.length === 0) {
+    // Survival never "wins" — waves are endless; the only end state is defeat above.
+    if (!this.survival && this.spawnCursor >= this.schedule.length && this.enemies.length === 0) {
       this.outcome = 'victory';
     }
+  }
+
+  /** Appends the next generated survival wave to the schedule, keeping it time-sorted. */
+  private scheduleSurvivalWave(): void {
+    const cfg = this.survival!;
+    const wave = cfg.makeWave(this.survivalCursor);
+    const hpMult = cfg.hpMultForWave(this.survivalCursor);
+    const start = this.survivalNextAtSec;
+    const spawns: ScheduledSpawn[] = [];
+    for (const g of wave.spawnGroups) {
+      for (let i = 0; i < g.count; i++) {
+        spawns.push({ atSec: start + g.startDelaySec + i * g.intervalSec, enemyId: g.enemyId, waveIndex: this.survivalCursor, hpMult });
+      }
+    }
+    spawns.sort((a, b) => a.atSec - b.atSec);
+    // Every spawn here starts at/after `start`, which is strictly after the previous wave's last
+    // spawn, so appending this sorted block preserves the schedule's global time order.
+    const lastAt = spawns.length > 0 ? spawns[spawns.length - 1].atSec : start;
+    for (const s of spawns) this.schedule.push(s);
+    this.survivalNextAtSec = lastAt + cfg.waveGapSec;
+    this.survivalCursor++;
   }
 
   /** Periodic/continuous enemy special behaviour. Deterministic — no RNG. */
@@ -266,6 +311,7 @@ export class CombatSim {
       currentWaveIndex: this.lastSpawnedWaveIndex,
       totalWaves: this.level.waves.length,
       kills: this.kills,
+      endless: this.survival !== undefined,
     };
   }
 }

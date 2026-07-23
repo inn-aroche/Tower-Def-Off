@@ -4,6 +4,8 @@ export interface ScheduledSpawn {
   atSec: number;
   enemyId: string;
   waveIndex: number;
+  /** Per-enemy HP multiplier applied at spawn (survival mode ramp; campaign pre-scales its defs). */
+  hpMult?: number;
 }
 
 /** Flattens a level's wave definitions into an absolute-time spawn schedule, sorted ascending. */
