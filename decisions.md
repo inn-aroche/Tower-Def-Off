@@ -331,3 +331,68 @@ combat inchangé. `main.ts` ne démarre plus sur le combat mais sur le Hub.
 **Décision — verrou Mission 3 : 🟢 vert** pour la « méta minimale » (hub 20 nœuds, collection 12,
 amélioration/fusion, deck, sauvegarde). Les items Phase 3 du skill (onboarding, juice, art)
 restent explicitement à faire avant de fermer la Phase 3.
+
+---
+
+## M4 — Arène PvP (bots calibrés) + ligues + trophées
+
+Mode « avance au max » (autonomie). Livré : l'arène PvP contre bots, le système de ligues à
+trophées, et la simulation de calibrage — conforme au palier **P-2** (bots présentés comme
+adversaires en v1, aucun temps réel synchrone).
+
+### Modèle PvP retenu (décision de design)
+Fidèle au genre (Rush Royale) et à la maquette Combat : les deux camps **affrontent le même flux
+de vagues** (mêmes vagues, même vie de départ) ; le gagnant est **celui qui laisse le moins
+fuir** (plus de vie restante à la fin, ou dernière base debout). Ce n'est PAS un affrontement
+d'unités entre joueurs. Concrètement, `PvpCombatScreen` fait tourner **deux `CombatSim` en
+parallèle** — le joueur (interactif, son deck scalé par niveaux méta) et le bot (headless, piloté
+par `BotDriver`). L'adversaire est affiché en **bandeau DOM** au-dessus du canvas (nom + barre de
+vie live), exactement comme le header adversaire du wireframe.
+
+### BotDriver partagé (sim ↔ live) — décision d'archi
+La politique de bot vit dans `src/sim/BotPolicy.ts` (`BotDriver` : merge glouton + achat/pose par
+intervalle de réaction). **Le même code pilote l'adversaire en jeu ET les simulations headless** —
+donc ce que les scripts d'équilibrage valident est exactement ce qu'un joueur affronte. Le
+`simulate-balance` de campagne a été refactoré pour l'utiliser (fin des copies dupliquées).
+
+### Ligues & trophées
+- **5 ligues** (`data/arena.ts`) : Bois / Bronze / Argent / Or / Platine, seuils de trophées
+  croissants, chacune avec une **policy bot** (intervalle de réaction ↓, deck ↑, `botPower` ↑ qui
+  scale les stats du bot comme un niveau méta). Victoire **+30**, défaite **−20**, trophées
+  plancher 0. `AppState.currentLeague()` dérive la ligue des trophées.
+- Écrans : **Arène** (ligue courante, trophées, prochain palier, bouton Combattre, échelle des
+  ligues), **PvP** (ci-dessus), **Résultats PvP** (issue, comparaison de vie Toi vs adversaire,
+  Δtrophées, total). Accès via un bouton **⚔ Arène** sur le Hub.
+
+### Calibrage (verrou skill « win rates »)
+`npm run simulate:pvp` oppose un **joueur de référence** (deck de départ, réaction 1,1 s) à chaque
+ligue sur les vagues d'arène. La sim étant déterministe, le signal visé n'est pas « 50 % partout »
+mais une **rampe monotone** : le joueur starter **gagne** en bas, **conteste** son palier, **perd**
+en haut (les hautes ligues exigent un deck amélioré — ce qui referme la boucle méta M3→M4). Après
+tuning (durcissement des vagues d'arène pour créer des fuites différenciantes + ajout d'une unité
+bon marché aux decks Or/Platine pour lisser la rampe) :
+
+  | Ligue | bot act | power | win% joueur starter |
+  |---|---|---|---|
+  | Bois | 2.4 | 1.00 | 100 % (gagne) |
+  | Bronze | 1.9 | 1.15 | 100 % (gagne) |
+  | Argent | 1.5 | 1.35 | 50 % (nul, son palier) |
+  | Or | 1.1 | 1.60 | 0 % (perd — deck à améliorer) |
+  | Platine | 0.8 | 1.90 | 0 % (perd) |
+
+  Insight de design capté par la sim : à score « qui fuit le moins », **la courbe de coût du deck
+  compte plus que la puissance brute** (un deck tout-cher fuit la ruée initiale) → les decks bots
+  incluent désormais une unité bon marché.
+
+### Tests
+- 54 tests verts, dont `arena.spec.ts` : mapping trophées→ligue, monotonie des ligues, scaling
+  `botUnitDefs`, `AppState.addTrophies` (clamp 0) + `currentLeague`.
+- Vérif navigateur (Playwright) : Arène (ligue/échelle) et PvP live (bandeau adversaire, vie qui
+  descend) confirmés.
+
+### Dette assumée
+- **Résultats PvP farmables** (rejouer recrédite) — à plafonner en M5.
+- Calibrage = **proxy déterministe** (un match/ligue) ; à affiner quand la télémétrie de deck
+  réel existera (M5+). La vraie cible « familles à 50±7 % » reste un chantier data ultérieur.
+
+**Décision — verrou Mission 4 : 🟢 vert** pour l'arène bots + ligues + résultats + calibrage.

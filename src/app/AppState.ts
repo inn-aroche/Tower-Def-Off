@@ -3,6 +3,7 @@ import type { UnitDef } from '../sim/types';
 import { UNITS, UNITS_BY_ID } from '../data/units';
 import { DECK_MAX, DECK_MIN, scaleUnitDef, upgradeCost, type OwnedUnit } from '../data/meta';
 import { CAMPAIGN } from '../data/campaign';
+import { leagueForTrophies, type League } from '../data/arena';
 import type { SaveData } from '../meta/SaveData';
 
 /** Single source of truth for meta state. Screens read from it and call mutators, which persist. */
@@ -141,6 +142,19 @@ export class AppState {
     this.data.currencies.gems += rewards.gems;
     for (const d of rewards.duplicates) this.addDuplicates(d.unitId, d.count);
     this.persist();
+  }
+
+  // ── League (PvP) ────────────────────────────────────────────────────────
+  get trophies(): number {
+    return this.data.league.trophies;
+  }
+  currentLeague(): League {
+    return leagueForTrophies(this.data.league.trophies);
+  }
+  addTrophies(n: number): number {
+    this.data.league.trophies = Math.max(0, this.data.league.trophies + n);
+    this.persist();
+    return this.data.league.trophies;
   }
 
   // ── Settings ────────────────────────────────────────────────────────────

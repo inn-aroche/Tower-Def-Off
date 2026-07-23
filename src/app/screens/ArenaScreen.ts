@@ -1,0 +1,61 @@
+import type { Screen, ScreenCtx } from '../Router';
+import { el } from '../../ui/dom';
+import { LEAGUES } from '../../data/arena';
+import { currencyPills } from './common';
+
+export function ArenaScreen(ctx: ScreenCtx): Screen {
+  const { app, nav } = ctx;
+  const screen = el('div', { class: 'screen' });
+  const league = app.currentLeague();
+  const trophies = app.trophies;
+  const idx = LEAGUES.findIndex((l) => l.id === league.id);
+  const next = LEAGUES[idx + 1];
+
+  const top = el('div', { class: 'topbar' }, [
+    el('button', { class: 'topbar__back', text: '‹', onclick: () => nav({ name: 'hub' }) }),
+    el('div', { class: 'topbar__title', text: 'Arène' }),
+    currencyPills(app),
+  ]);
+
+  // Current league banner
+  const banner = el('div', { class: 'panel', style: 'margin:14px;text-align:center' }, [
+    el('div', { class: 'section-label', text: 'Ligue actuelle' }),
+    el('div', { style: 'font:800 24px "Baloo 2",sans-serif;color:var(--ink);margin:4px 0', text: league.name }),
+    el('div', { style: 'display:inline-flex;align-items:center;gap:6px;font:800 16px "Baloo 2";color:var(--gold-ink)' }, [
+      el('span', { text: '🏆', style: 'font-size:18px' }),
+      el('span', { text: String(trophies) }),
+    ]),
+    next
+      ? el('div', { style: 'font:700 11px "Nunito";color:var(--ink-soft);margin-top:6px', text: `${next.minTrophies - trophies} trophées avant ${next.name}` })
+      : el('div', { style: 'font:700 11px "Nunito";color:var(--ink-soft);margin-top:6px', text: 'Ligue maximale atteinte' }),
+  ]);
+
+  const fight = el('button', {
+    class: 'btn btn--green',
+    style: 'margin:0 14px 14px;font-size:17px',
+    text: `Combattre — ${league.botName}`,
+    onclick: () => nav({ name: 'pvp' }),
+  });
+
+  // Ladder
+  const ladderLabel = el('div', { class: 'section-label', style: 'padding:6px 14px', text: 'Ligues' });
+  const ladder = el('div', { class: 'screen__scroll', style: 'padding:4px 14px 16px;display:flex;flex-direction:column;gap:8px' });
+  for (let i = LEAGUES.length - 1; i >= 0; i--) {
+    const l = LEAGUES[i];
+    const isCurrent = l.id === league.id;
+    ladder.append(
+      el('div', {
+        class: 'panel',
+        style: `display:flex;align-items:center;gap:10px;padding:10px 12px;${isCurrent ? 'outline:3px solid #f0c26a;outline-offset:-3px' : ''}`,
+      }, [
+        el('div', { style: 'font:800 15px "Baloo 2";color:var(--ink);flex:1', text: l.name }),
+        el('div', { style: 'font:700 11px "Nunito";color:var(--ink-soft)', text: `${l.minTrophies}+ 🏆` }),
+        isCurrent ? el('div', { style: 'font:800 10px "Baloo 2";color:var(--green-edge)', text: 'ICI' }) : el('span', {}),
+      ]),
+    );
+  }
+
+  screen.append(top, banner, fight, ladderLabel, ladder);
+  ctx.host.append(screen);
+  return { unmount() {} };
+}

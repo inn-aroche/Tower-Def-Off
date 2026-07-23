@@ -7,6 +7,9 @@ import { UnitDetailScreen } from './app/screens/UnitDetailScreen';
 import { DeckScreen } from './app/screens/DeckScreen';
 import { CombatScreen } from './app/screens/CombatScreen';
 import { ResultsScreen } from './app/screens/ResultsScreen';
+import { ArenaScreen } from './app/screens/ArenaScreen';
+import { PvpCombatScreen } from './app/screens/PvpCombatScreen';
+import { PvpResultsScreen } from './app/screens/PvpResultsScreen';
 import { LocalStorageSaveProvider } from './platform/LocalStorageSave';
 import { NullAdProvider, NullAnalyticsProvider, NullIapProvider } from './platform/NullProviders';
 import { createDefaultSaveData, migrateSaveData, SAVE_KEY, SAVE_SCHEMA_VERSION, type SaveData } from './meta/SaveData';
@@ -33,6 +36,9 @@ const factories: Record<Route['name'], ScreenFactory> = {
   deck: DeckScreen,
   combat: CombatScreen,
   results: ResultsScreen,
+  arena: ArenaScreen,
+  pvp: PvpCombatScreen,
+  pvpResults: PvpResultsScreen,
 };
 
 const router = new Router(host, app, factories);
