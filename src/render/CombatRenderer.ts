@@ -21,6 +21,14 @@ const ENEMY_COLOR: Record<string, string> = {
   runner: '#e0a83c',
   brute: '#7d3c3c',
   troll: '#4a2e57',
+  wraith: '#7f8fd0',
+  saboteur: '#c0392b',
+  juggernaut: '#5d6d7e',
+  ogre: '#5a7d3c',
+  warlord: '#a83232',
+  necromancer: '#5b3a6e',
+  stone_colossus: '#6b6b6b',
+  high_priestess: '#c9a0dc',
 };
 
 export interface RenderContext {
@@ -259,6 +267,17 @@ function drawBoard(
 
     drawPictogram(ctx, def.family, x + cs / 2, y + cs / 2, size * 0.6);
 
+    // stunned overlay — greyed out with a spinning spark so the player reads "disabled"
+    if ((unit.stunnedUntilSec ?? 0) > snapshot.elapsedSec) {
+      roundRectPath(ctx, x + pad, y + pad, size, size, size * 0.24);
+      ctx.fillStyle = 'rgba(40,44,52,0.55)';
+      ctx.fill();
+      ctx.font = `${size * 0.5}px 'Baloo 2', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⚡', x + cs / 2, y + cs / 2 + 1);
+    }
+
     // level badge
     const br = size * 0.2;
     const bx = x + cs - pad - br * 0.4;
@@ -278,22 +297,58 @@ function drawBoard(
   for (const enemy of snapshot.enemies) {
     const def = render.enemyDefs.get(enemy.enemyId);
     if (!def) continue;
+    const boss = def.boss === true;
+    const radius = cs * (boss ? 0.42 : 0.3);
     const ex = layout.originX + enemy.x * cs;
-    const ey = layout.originY + enemy.y * cs;
-    const radius = cs * 0.3;
+    // Flyers hover above the field; a bob keeps them lively.
+    const hover = def.flying ? radius * (1.05 + 0.12 * Math.sin(snapshot.elapsedSec * 4 + enemy.instanceId)) : 0;
+    const ey = layout.originY + enemy.y * cs - hover;
+    const groundY = layout.originY + enemy.y * cs;
 
+    // ground shadow (stays on the field even when a flyer is lifted)
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath();
-    ctx.ellipse(ex, ey + radius * 0.7, radius * 0.95, radius * 0.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, groundY + radius * 0.7, radius * (def.flying ? 0.7 : 0.95), radius * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    // flyer wings behind the body
+    if (def.flying) {
+      const flap = 0.5 + 0.5 * Math.abs(Math.sin(snapshot.elapsedSec * 8 + enemy.instanceId));
+      ctx.fillStyle = 'rgba(127,143,208,0.55)';
+      for (const dir of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(ex + dir * radius * 0.85, ey - radius * 0.1, radius * 0.7, radius * (0.35 + 0.25 * flap), dir * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     ctx.beginPath();
     ctx.arc(ex, ey, radius, 0, Math.PI * 2);
     ctx.fillStyle = ENEMY_COLOR[enemy.enemyId] ?? '#555';
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = boss ? 3 : 2;
+    ctx.strokeStyle = boss ? '#ffd76a' : '#fff';
     ctx.stroke();
+
+    // armored: metallic bolt ring
+    if (def.armor && def.armor > 0) {
+      ctx.strokeStyle = 'rgba(220,225,235,0.9)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([radius * 0.5, radius * 0.35]);
+      ctx.beginPath();
+      ctx.arc(ex, ey, radius * 0.78, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // regenerator: soft green pulse
+    if (def.regenPerSec && enemy.hp < enemy.maxHp) {
+      ctx.strokeStyle = `rgba(120,220,120,${0.35 + 0.25 * pulse})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(ex, ey, radius * 1.15, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     // hit flash
     if (fx.isFlashing?.(enemy.instanceId)) {
@@ -303,14 +358,39 @@ function drawBoard(
       ctx.fill();
     }
 
-    const hpFrac = Math.max(0, Math.min(1, enemy.hp / def.hp));
+    // active shield bubble
+    if (enemy.shieldedUntilSec > snapshot.elapsedSec) {
+      ctx.strokeStyle = `rgba(120,190,255,${0.55 + 0.3 * pulse})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(ex, ey, radius * 1.35, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = `rgba(120,190,255,${0.12 + 0.06 * pulse})`;
+      ctx.beginPath();
+      ctx.arc(ex, ey, radius * 1.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // HP bar (uses live maxHp so scaled/boss enemies read correctly)
+    const hpFrac = Math.max(0, Math.min(1, enemy.hp / Math.max(1, enemy.maxHp)));
     const barW = radius * 2;
     const barX = ex - radius;
-    const barY = ey - radius - 6;
+    const barY = ey - radius - (boss ? 9 : 6);
     ctx.fillStyle = '#1f1610';
-    ctx.fillRect(barX, barY, barW, 3.5);
-    ctx.fillStyle = hpFrac > 0.4 ? '#4caf50' : '#e74c3c';
-    ctx.fillRect(barX, barY, barW * hpFrac, 3.5);
+    ctx.fillRect(barX, barY, barW, boss ? 5 : 3.5);
+    ctx.fillStyle = boss ? '#ffb347' : hpFrac > 0.4 ? '#4caf50' : '#e74c3c';
+    ctx.fillRect(barX, barY, barW * hpFrac, boss ? 5 : 3.5);
+
+    // boss crown + name label
+    if (boss) {
+      ctx.font = `${radius * 0.9}px 'Baloo 2', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('👑', ex, ey - radius - 16);
+      ctx.fillStyle = '#ffe9b0';
+      ctx.font = "800 10px 'Baloo 2', sans-serif";
+      ctx.fillText(def.name, ex, barY - 7);
+    }
   }
 }
 

@@ -36,7 +36,7 @@ function unit(overrides: Partial<PlacedUnit>): PlacedUnit {
 
 /** Enemy at cell-centre (x, y). pathProgress defaults so "more advanced" ordering is testable. */
 function enemy(overrides: Partial<LiveEnemy>): LiveEnemy {
-  return { instanceId: 1, enemyId: 'e', pathProgress: 0, x: 0.5, y: 4.5, hp: 20, ...overrides };
+  return { instanceId: 1, enemyId: 'e', pathProgress: 0, x: 0.5, y: 4.5, hp: 20, maxHp: 20, shieldedUntilSec: 0, abilityTimerSec: 0, ...overrides };
 }
 
 describe('gravitySlowFactor', () => {
@@ -60,7 +60,7 @@ describe('resolveAttacks', () => {
   it('damages the most-advanced enemy in range and resets cooldown', () => {
     const units = [unit({ col: 0, row: 5 })]; // centre (0.5, 5.5)
     const enemies = [enemy({ instanceId: 1, x: 0.5, y: 4.5, pathProgress: 5 })];
-    const result = resolveAttacks(deps, units, enemies, 0.1);
+    const result = resolveAttacks(deps, units, enemies, 0.1, 0);
     expect(enemies[0].hp).toBe(10);
     expect(units[0].attackCooldownSec).toBeCloseTo(1);
     expect(result.killedEnemyInstanceIds).toEqual([]);
@@ -69,7 +69,7 @@ describe('resolveAttacks', () => {
   it('does not attack while on cooldown', () => {
     const units = [unit({ col: 0, row: 5, attackCooldownSec: 0.5 })];
     const enemies = [enemy({ x: 0.5, y: 4.5 })];
-    resolveAttacks(deps, units, enemies, 0.2);
+    resolveAttacks(deps, units, enemies, 0.2, 0);
     expect(enemies[0].hp).toBe(20);
     expect(units[0].attackCooldownSec).toBeCloseTo(0.3);
   });
@@ -77,7 +77,7 @@ describe('resolveAttacks', () => {
   it('reports kills when hp drops to 0 or below', () => {
     const units = [unit({ col: 0, row: 5 })];
     const enemies = [enemy({ instanceId: 42, x: 0.5, y: 4.5, hp: 5 })];
-    expect(resolveAttacks(deps, units, enemies, 0.1).killedEnemyInstanceIds).toEqual([42]);
+    expect(resolveAttacks(deps, units, enemies, 0.1, 0).killedEnemyInstanceIds).toEqual([42]);
   });
 
   it('picks the enemy with the highest pathProgress among those in range', () => {
@@ -86,7 +86,7 @@ describe('resolveAttacks', () => {
       enemy({ instanceId: 1, x: 0.5, y: 4.6, pathProgress: 3, hp: 20 }),
       enemy({ instanceId: 2, x: 0.5, y: 4.4, pathProgress: 7, hp: 20 }),
     ];
-    resolveAttacks(deps, units, enemies, 0.1);
+    resolveAttacks(deps, units, enemies, 0.1, 0);
     expect(enemies[0].hp).toBe(20); // less advanced, untouched
     expect(enemies[1].hp).toBe(10); // most advanced, targeted
   });
@@ -94,8 +94,42 @@ describe('resolveAttacks', () => {
   it('ignores enemies outside the radius', () => {
     const units = [unit({ col: 0, row: 5 })]; // centre (0.5, 5.5), range 1.6
     const enemies = [enemy({ x: 3.5, y: 5.5 }), enemy({ x: 0.5, y: 2.5 })];
-    resolveAttacks(deps, units, enemies, 0.1);
+    resolveAttacks(deps, units, enemies, 0.1, 0);
     expect(enemies[0].hp).toBe(20);
     expect(enemies[1].hp).toBe(20);
+  });
+
+  it('subtracts armor from damage (floored at 1)', () => {
+    const armored: EnemyDef = { id: 'armored', name: 'Armored', hp: 40, speed: 1, damageToBase: 1, armor: 6 };
+    const heavy: EnemyDef = { id: 'heavy', name: 'Heavy', hp: 40, speed: 1, damageToBase: 1, armor: 50 };
+    const d = { unitDefs: deps.unitDefs, enemyDefs: new Map([['armored', armored], ['heavy', heavy]]) };
+    const units = [unit({ col: 0, row: 5 })]; // 10 damage
+    const a = [enemy({ enemyId: 'armored', x: 0.5, y: 4.5, hp: 40, maxHp: 40 })];
+    resolveAttacks(d, units, a, 0.1, 0);
+    expect(a[0].hp).toBe(36); // 40 - (10 - 6)
+
+    const h = [enemy({ enemyId: 'heavy', x: 0.5, y: 4.5, hp: 40, maxHp: 40 })];
+    resolveAttacks(d, [unit({ col: 0, row: 5 })], h, 0.1, 0);
+    expect(h[0].hp).toBe(39); // 40 - max(1, 10 - 50)
+  });
+
+  it('cannot target a shielded enemy', () => {
+    const units = [unit({ col: 0, row: 5 })];
+    const enemies = [enemy({ x: 0.5, y: 4.5, shieldedUntilSec: 5 })];
+    resolveAttacks(deps, units, enemies, 0.1, 2); // elapsed 2 < shield 5
+    expect(enemies[0].hp).toBe(20); // untouched
+    // once the shield lapses it can be hit again
+    resolveAttacks(deps, [unit({ col: 0, row: 5 })], enemies, 0.1, 6);
+    expect(enemies[0].hp).toBe(10);
+  });
+
+  it('a stunned unit does not attack', () => {
+    const units = [unit({ col: 0, row: 5, stunnedUntilSec: 5 })];
+    const enemies = [enemy({ x: 0.5, y: 4.5 })];
+    resolveAttacks(deps, units, enemies, 0.1, 2); // elapsed 2 < stun 5
+    expect(enemies[0].hp).toBe(20);
+    // recovers after the stun expires
+    resolveAttacks(deps, units, enemies, 0.1, 6);
+    expect(enemies[0].hp).toBe(10);
   });
 });

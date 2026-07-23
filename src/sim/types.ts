@@ -41,7 +41,25 @@ export interface EnemyDef {
   speed: number;
   /** Life lost by the player base if this enemy reaches the end of the path. */
   damageToBase: number;
+  /** Flyers cut straight from spawn to base (ignoring the winding path) and ignore gravity. */
+  flying?: boolean;
+  /** Flat damage reduction per hit (a hit always deals at least 1). */
+  armor?: number;
+  /** HP regenerated per second, up to the enemy's max HP. */
+  regenPerSec?: number;
+  /** Bosses render larger with a prominent HP bar. */
+  boss?: boolean;
+  /** Optional special behaviour (bosses and elites). */
+  ability?: EnemyAbility;
+  /** Saboteurs "explode" on death, stunning player units in radius (cells). */
+  stunOnDeath?: { radius: number; stunSec: number };
 }
+
+export type EnemyAbility =
+  | { kind: 'heal_aura'; radius: number; healPerSec: number }
+  | { kind: 'shield'; periodSec: number; durationSec: number }
+  | { kind: 'summon'; periodSec: number; enemyId: string; count: number }
+  | { kind: 'stun_units'; periodSec: number; radius: number; stunSec: number };
 
 export interface WaveSpawnGroup {
   enemyId: string;
@@ -82,6 +100,8 @@ export interface PlacedUnit {
   col: number;
   row: number;
   attackCooldownSec: number;
+  /** Absolute elapsedSec until which this unit is stunned (can't attack). */
+  stunnedUntilSec?: number;
 }
 
 export interface LiveEnemy {
@@ -93,6 +113,11 @@ export interface LiveEnemy {
   x: number;
   y: number;
   hp: number;
+  maxHp: number;
+  /** Absolute elapsedSec until which incoming damage is blocked (boss shield). */
+  shieldedUntilSec: number;
+  /** Accumulates for periodic abilities. */
+  abilityTimerSec: number;
 }
 
 export type CombatOutcome = 'ongoing' | 'victory' | 'defeat';
@@ -130,4 +155,6 @@ export type CombatEvent =
   | { type: 'kill'; x: number; y: number; enemyId: string }
   | { type: 'merge'; col: number; row: number; newLevel: number }
   | { type: 'summon'; col: number; row: number; family: UnitFamily }
-  | { type: 'baseHit'; amount: number };
+  | { type: 'baseHit'; amount: number }
+  | { type: 'stun'; col: number; row: number }
+  | { type: 'spawn'; x: number; y: number; boss: boolean };

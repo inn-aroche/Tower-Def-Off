@@ -567,3 +567,41 @@ réapparaît jamais. **Sauvegarde v4** (+ migration v3→v4 et v2→v4, testées
 Après cette passe, la Phase 3 n'a plus que **l'art final (sprites) + perspective 3D + validation
 60 fps device** avant playtests — les 3 gros rouges « feel/lisibilité » (juice, audio, onboarding)
 sont traités.
+
+## Phase 4 (1/3) — Bestiaire : ennemis à traits + boss à capacités
+
+**Brief** : sortir du « tout le monde marche et tape » — donner au joueur des *problèmes*
+différents à résoudre (le cœur d'un bon TD). **12 ennemis** en 3 paliers (`data/enemies.ts`) :
+- **Basiques** : gobelin, coureur (rapide), brute (tanky), troll (mur de PV).
+- **Élites** (dès le nœud 7, injectés en dernière vague) : **spectre volant** (`flying` — coupe en
+  ligne droite, ignore la gravité et le chemin), **saboteur** (`stunOnDeath` — explose et **paralyse
+  tes unités** autour à sa mort → punit le kill au corps-à-corps), **juggernaut** (`armor 6` —
+  réduit chaque coup, floor à 1), **ogre** (`regenPerSec` — se régénère, force le focus-fire).
+- **Boss** (nœuds 5/10/15/20, arrivée téléphonée : ring + screenshake) : **nécromancien** (invoque
+  des gobelins en boucle), **seigneur de guerre** (paralyse périodiquement tes unités),
+  **colosse de pierre** (`armor` + **bouclier** périodique = intouchable par fenêtres),
+  **grande prêtresse** (**aura de soin** — soigne les ennemis proches, à tuer en priorité).
+
+**Sim (pur, déterministe, zéro RNG)** : traits résolus par géométrie/timers absolus — vol mappé sur
+l'échelle `pathProgress` via `flyFactor` (breach/ciblage restent uniformes), `armor` dans
+`resolveAttacks` (`max(1, dmg-armor)`), `regen` clampé à `maxHp`, capacités via `tickAbility`
+(aura continue ; bouclier/invocation/paralysie périodiques par `abilityTimerSec`). `LiveEnemy`
+gagne `maxHp/shieldedUntilSec/abilityTimerSec`, `PlacedUnit` gagne `stunnedUntilSec`. Nouveaux
+`CombatEvent` : `stun`, `spawn(boss)`. Les balance-sims restent valides (aucune RNG introduite).
+
+**Rendu** (`CombatRenderer`) : volants avec **ombre au sol décalée + ailes battantes + bob**,
+armure = **anneau métallique pointillé**, régén = **pulse vert**, bouclier = **bulle bleue**,
+boss = **rayon accru + couronne + label + barre de PV renforcée**, unités paralysées = **voile gris
++ ⚡**. Events `stun` (éclair + anneau) et `spawn` boss (ring orange + shake) dans `Effects`.
+
+**Rebalance obligatoire** (les élites/boss durcissent la courbe). Après `npm run simulate` :
+la courbe initiale échouait (**nœud 20 à 0 %**, boss finaux trop tanky×mult composé). Corrections :
+rampe HP **0,11 → 0,09** par nœud, colosse **1300→1050 PV** (bouclier 6/2,2 → 7/1,7), seigneur
+**900→820** (stun 5/2 → 6/1,8), prêtresse soin **30→22/s**. Résultat : **tous les nœuds gagnables**,
+boss = vraies portes de skill (nœud 10 : 75 %, 15 : 63 %, **20 : 25 %** — le boss final exige la
+maîtrise). Tests sim ajoutés : armure, bouclier bloque le ciblage, unité paralysée n'attaque pas,
+vol en ligne droite, spawn boss événementiel, invocation, régén (comparé à un jumeau sans régén).
+
+**Verrous** : `typecheck` + **74 tests** + `build` verts, `simulate` OK (toutes portes gagnables),
+smoke navigateur (combat rendu sans erreur JS ; seules erreurs = CDN Google Fonts bloqué =
+fallback système attendu). Non-négociables tenus : sim pure, tout l'équilibrage en `data`.

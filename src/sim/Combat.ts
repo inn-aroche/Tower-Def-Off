@@ -31,11 +31,13 @@ export function gravitySlowFactor(deps: CombatDeps, enemy: LiveEnemy, units: Pla
   return factor;
 }
 
-/** Picks the most advanced (largest pathProgress) enemy within range for a damage-family unit, or undefined. */
-function findTarget(deps: CombatDeps, unit: PlacedUnit, enemies: LiveEnemy[]): LiveEnemy | undefined {
+/** Picks the most advanced (largest pathProgress) targetable enemy within range, or undefined.
+ * Shielded enemies are skipped (they can't be damaged right now). */
+function findTarget(deps: CombatDeps, unit: PlacedUnit, enemies: LiveEnemy[], elapsedSec: number): LiveEnemy | undefined {
   const { stats } = levelStats(deps, unit);
   let best: LiveEnemy | undefined;
   for (const enemy of enemies) {
+    if (enemy.shieldedUntilSec > elapsedSec) continue;
     if (distance(unit, enemy) > stats.range) continue;
     if (!best || enemy.pathProgress > best.pathProgress) best = enemy;
   }
@@ -53,20 +55,24 @@ export function resolveAttacks(
   units: PlacedUnit[],
   enemies: LiveEnemy[],
   dtSec: number,
+  elapsedSec: number,
 ): AttackResult {
   const killed: number[] = [];
   const events: CombatEvent[] = [];
   for (const unit of units) {
     const { def, stats } = levelStats(deps, unit);
     if (def.family === 'gravity') continue;
+    if (unit.stunnedUntilSec !== undefined && unit.stunnedUntilSec > elapsedSec) continue;
     unit.attackCooldownSec = Math.max(0, unit.attackCooldownSec - dtSec);
     if (unit.attackCooldownSec > 0) continue;
-    const target = findTarget(deps, unit, enemies);
+    const target = findTarget(deps, unit, enemies, elapsedSec);
     if (!target) continue;
-    target.hp -= stats.damage;
+    const armor = deps.enemyDefs.get(target.enemyId)?.armor ?? 0;
+    const dealt = Math.max(1, stats.damage - armor);
+    target.hp -= dealt;
     unit.attackCooldownSec = stats.attackIntervalSec;
     events.push({ type: 'attack', fromCol: unit.col, fromRow: unit.row, toX: target.x, toY: target.y, family: def.family });
-    events.push({ type: 'damage', enemyInstanceId: target.instanceId, x: target.x, y: target.y, amount: stats.damage });
+    events.push({ type: 'damage', enemyInstanceId: target.instanceId, x: target.x, y: target.y, amount: dealt });
     if (target.hp <= 0) killed.push(target.instanceId);
   }
   return { killedEnemyInstanceIds: killed, events };

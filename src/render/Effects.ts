@@ -15,7 +15,11 @@ interface Beam { x1: number; y1: number; x2: number; y2: number; life: number; m
 interface Ring { x: number; y: number; life: number; max: number; color: string; maxR: number; }
 
 const FAMILY_COLOR: Record<UnitFamily, string> = { melee: '#8ecae6', ranged: '#a3e0a3', gravity: '#8fe0da' };
-const ENEMY_COLOR: Record<string, string> = { goblin: '#c79a6a', runner: '#f0c46a', brute: '#c98a8a', troll: '#a98acb' };
+const ENEMY_COLOR: Record<string, string> = {
+  goblin: '#c79a6a', runner: '#f0c46a', brute: '#c98a8a', troll: '#a98acb',
+  wraith: '#7f8fd0', saboteur: '#c0392b', juggernaut: '#5d6d7e', ogre: '#5a7d3c',
+  warlord: '#a83232', necromancer: '#5b3a6e', stone_colossus: '#6b6b6b', high_priestess: '#c9a0dc',
+};
 
 export class Effects {
   private particles: Particle[] = [];
@@ -83,6 +87,22 @@ export class Effects {
       case 'baseHit': {
         this.addShake(0.35, 0.16 + Math.min(0.2, e.amount * 0.05));
         this.baseFlashT = 0.35;
+        break;
+      }
+      case 'stun': {
+        // electric burst on the disabled unit
+        this.rings.push({ x: e.col + 0.5, y: e.row + 0.5, life: 0.4, max: 0.4, color: 'rgba(120,190,255,0.85)', maxR: 0.9 });
+        this.numbers.push({ x: e.col + 0.5, y: e.row + 0.2, vy: -1.0, life: 0.7, max: 0.7, text: '⚡', color: '#8fc7ff' });
+        this.spawnParticles(e.col + 0.5, e.row + 0.5, this.reduced ? 3 : 7, '#8fc7ff', 2.4);
+        break;
+      }
+      case 'spawn': {
+        // boss arrival — ominous ground ring + shake
+        if (e.boss) {
+          this.rings.push({ x: e.x, y: e.y, life: 0.6, max: 0.6, color: 'rgba(255,180,80,0.85)', maxR: 1.6 });
+          this.spawnParticles(e.x, e.y, this.reduced ? 5 : 16, '#ffb347', 3.2);
+          this.addShake(0.4, 0.18);
+        }
         break;
       }
     }

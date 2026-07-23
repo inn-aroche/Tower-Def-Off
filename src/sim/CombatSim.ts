@@ -10,6 +10,7 @@ import type {
   CombatOutcome,
   CombatSnapshot,
   EconomyConfig,
+  EnemyAbility,
   EnemyDef,
   HandCard,
   LevelDef,
@@ -54,6 +55,11 @@ export class CombatSim {
   private nextInstanceId = 1;
   private lastSpawnedWaveIndex = 0;
   private events: CombatEvent[] = [];
+  private readonly endProgress: number;
+  private readonly spawnPos: { x: number; y: number };
+  private readonly basePos: { x: number; y: number };
+  /** Maps a flyer's straight-line travel onto the path-progress scale (so breach/targeting stay uniform). */
+  private readonly flyFactor: number;
 
   constructor(config: CombatSimConfig, _seed = 0) {
     this.economy = config.economy;
@@ -65,6 +71,28 @@ export class CombatSim {
     this.schedule = buildSpawnSchedule(config.level);
     this.mana = config.economy.manaStartValue;
     this.life = config.level.playerStartLife;
+    this.endProgress = pathEndProgress(this.path);
+    this.spawnPos = pathPosition(this.path, 0);
+    this.basePos = pathPosition(this.path, this.endProgress);
+    const straight = Math.max(0.001, Math.hypot(this.basePos.x - this.spawnPos.x, this.basePos.y - this.spawnPos.y));
+    this.flyFactor = this.endProgress / straight;
+  }
+
+  private spawnEnemy(enemyId: string): void {
+    const def = this.enemyDefs.get(enemyId);
+    const hp = def?.hp ?? 1;
+    this.enemies.push({
+      instanceId: this.nextInstanceId++,
+      enemyId,
+      pathProgress: 0,
+      x: this.spawnPos.x,
+      y: this.spawnPos.y,
+      hp,
+      maxHp: hp,
+      shieldedUntilSec: 0,
+      abilityTimerSec: 0,
+    });
+    if (def?.boss) this.events.push({ type: 'spawn', x: this.spawnPos.x, y: this.spawnPos.y, boss: true });
   }
 
   step(dtSec: number): void {
@@ -75,29 +103,34 @@ export class CombatSim {
 
     while (this.spawnCursor < this.schedule.length && this.schedule[this.spawnCursor].atSec <= this.elapsedSec) {
       const spawn = this.schedule[this.spawnCursor];
-      const start = pathPosition(this.path, 0);
-      this.enemies.push({
-        instanceId: this.nextInstanceId++,
-        enemyId: spawn.enemyId,
-        pathProgress: 0,
-        x: start.x,
-        y: start.y,
-        hp: this.enemyDefs.get(spawn.enemyId)?.hp ?? 1,
-      });
+      this.spawnEnemy(spawn.enemyId);
       this.lastSpawnedWaveIndex = spawn.waveIndex;
       this.spawnCursor++;
     }
 
     const deps = { unitDefs: this.unitDefs, enemyDefs: this.enemyDefs };
-    const endProgress = pathEndProgress(this.path);
+    const endProgress = this.endProgress;
 
+    // Movement (flyers cut straight and ignore gravity), regen, and enemy abilities.
     for (const enemy of this.enemies) {
-      const factor = gravitySlowFactor(deps, enemy, this.units);
-      const speed = this.enemyDefs.get(enemy.enemyId)?.speed ?? 0;
-      enemy.pathProgress += speed * factor * dtSec;
-      const pos = pathPosition(this.path, enemy.pathProgress);
-      enemy.x = pos.x;
-      enemy.y = pos.y;
+      const def = this.enemyDefs.get(enemy.enemyId);
+      const speed = def?.speed ?? 0;
+      if (def?.flying) {
+        enemy.pathProgress += speed * this.flyFactor * dtSec;
+        const t = Math.min(1, enemy.pathProgress / endProgress);
+        enemy.x = this.spawnPos.x + (this.basePos.x - this.spawnPos.x) * t;
+        enemy.y = this.spawnPos.y + (this.basePos.y - this.spawnPos.y) * t;
+      } else {
+        const factor = gravitySlowFactor(deps, enemy, this.units);
+        enemy.pathProgress += speed * factor * dtSec;
+        const pos = pathPosition(this.path, enemy.pathProgress);
+        enemy.x = pos.x;
+        enemy.y = pos.y;
+      }
+      if (def?.regenPerSec && enemy.hp < enemy.maxHp) {
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + def.regenPerSec * dtSec);
+      }
+      if (def?.ability) this.tickAbility(enemy, def.ability, dtSec);
     }
 
     const breached = this.enemies.filter((e) => e.pathProgress >= endProgress);
@@ -116,14 +149,17 @@ export class CombatSim {
       return;
     }
 
-    const { killedEnemyInstanceIds, events } = resolveAttacks(deps, this.units, this.enemies, dtSec);
+    const { killedEnemyInstanceIds, events } = resolveAttacks(deps, this.units, this.enemies, dtSec, this.elapsedSec);
     for (const e of events) this.events.push(e);
     if (killedEnemyInstanceIds.length > 0) {
       // Dedupe: two units can land the finishing blow on the same enemy in one tick, so the raw
       // list may contain the same instanceId twice — count and remove each enemy once.
       const killedSet = new Set(killedEnemyInstanceIds);
       for (const enemy of this.enemies) {
-        if (killedSet.has(enemy.instanceId)) this.events.push({ type: 'kill', x: enemy.x, y: enemy.y, enemyId: enemy.enemyId });
+        if (!killedSet.has(enemy.instanceId)) continue;
+        this.events.push({ type: 'kill', x: enemy.x, y: enemy.y, enemyId: enemy.enemyId });
+        const boom = this.enemyDefs.get(enemy.enemyId)?.stunOnDeath;
+        if (boom) this.stunUnitsInRadius(enemy.x, enemy.y, boom.radius, boom.stunSec);
       }
       this.enemies = this.enemies.filter((e) => !killedSet.has(e.instanceId));
       this.kills += killedSet.size;
@@ -131,6 +167,38 @@ export class CombatSim {
 
     if (this.spawnCursor >= this.schedule.length && this.enemies.length === 0) {
       this.outcome = 'victory';
+    }
+  }
+
+  /** Periodic/continuous enemy special behaviour. Deterministic — no RNG. */
+  private tickAbility(enemy: LiveEnemy, ability: EnemyAbility, dtSec: number): void {
+    if (ability.kind === 'heal_aura') {
+      for (const other of this.enemies) {
+        if (other === enemy || other.hp >= other.maxHp) continue;
+        if (Math.hypot(other.x - enemy.x, other.y - enemy.y) <= ability.radius) {
+          other.hp = Math.min(other.maxHp, other.hp + ability.healPerSec * dtSec);
+        }
+      }
+      return;
+    }
+    enemy.abilityTimerSec += dtSec;
+    if (enemy.abilityTimerSec < ability.periodSec) return;
+    enemy.abilityTimerSec -= ability.periodSec;
+    if (ability.kind === 'shield') {
+      enemy.shieldedUntilSec = this.elapsedSec + ability.durationSec;
+    } else if (ability.kind === 'summon') {
+      for (let i = 0; i < ability.count; i++) this.spawnEnemy(ability.enemyId);
+    } else if (ability.kind === 'stun_units') {
+      this.stunUnitsInRadius(enemy.x, enemy.y, ability.radius, ability.stunSec);
+    }
+  }
+
+  private stunUnitsInRadius(x: number, y: number, radius: number, stunSec: number): void {
+    for (const unit of this.units) {
+      if (Math.hypot(unit.col + 0.5 - x, unit.row + 0.5 - y) <= radius) {
+        unit.stunnedUntilSec = Math.max(unit.stunnedUntilSec ?? 0, this.elapsedSec + stunSec);
+        this.events.push({ type: 'stun', col: unit.col, row: unit.row });
+      }
     }
   }
 

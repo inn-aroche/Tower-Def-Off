@@ -178,3 +178,70 @@ describe('CombatSim outcomes', () => {
     expect(sim.snapshot()).toEqual(atDefeat);
   });
 });
+
+describe('CombatSim bestiary traits', () => {
+  const flyer: EnemyDef = { id: 'flyer', name: 'Flyer', hp: 10, speed: 1, damageToBase: 1, flying: true };
+  const summoner: EnemyDef = {
+    id: 'summoner',
+    name: 'Summoner',
+    hp: 100,
+    speed: 0.0001,
+    damageToBase: 1,
+    boss: true,
+    ability: { kind: 'summon', periodSec: 1, enemyId: 'weak', count: 2 },
+  };
+
+  function simWith(enemyId: string, defs: EnemyDef[], lvl?: LevelDef) {
+    const l = lvl ?? level({
+      playerStartLife: 100,
+      waves: [{ startDelaySec: 0, spawnGroups: [{ enemyId, count: 1, intervalSec: 0, startDelaySec: 0 }] }],
+    });
+    return new CombatSim({ economy, level: l, deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [...defs, weakEnemy] });
+  }
+
+  it('flyers travel straight from spawn to base, ignoring the winding path', () => {
+    // Path winds through column 1, but a flyer should track the straight spawn→base segment.
+    const sim = simWith('flyer', [flyer]);
+    sim.step(1 / 30);
+    const e = sim.snapshot().enemies[0];
+    // spawn (1.5, 0.5) → base (1.5, 3.5): straight line keeps x fixed at 1.5
+    expect(e.x).toBeCloseTo(1.5, 5);
+    expect(e.y).toBeGreaterThan(0.5);
+  });
+
+  it('a boss spawn emits a spawn event flagged boss', () => {
+    const sim = simWith('summoner', [summoner]);
+    sim.step(1 / 30);
+    expect(sim.consumeEvents().some((ev) => ev.type === 'spawn' && ev.boss)).toBe(true);
+  });
+
+  it('a summoner boss adds enemies to the field over time', () => {
+    const sim = simWith('summoner', [summoner]);
+    run(sim, 2.5); // > 2 periods
+    // 1 boss (nearly stationary) + at least 2 summoned minions still alive
+    expect(sim.snapshot().enemies.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('a regenerating enemy retains more HP than an identical non-regenerating one under the same fire', () => {
+    // Big HP so it survives the barrage; near-stationary so it stays in range the whole time.
+    const tanky: EnemyDef = { id: 'tanky', name: 'Tanky', hp: 5000, speed: 0.0001, damageToBase: 1 };
+    const tankyRegen: EnemyDef = { ...tanky, id: 'tankyRegen', regenPerSec: 50 };
+    const mk = (id: string, def: EnemyDef) => {
+      const l = level({
+        playerStartLife: 100,
+        waves: [{ startDelaySec: 0, spawnGroups: [{ enemyId: id, count: 1, intervalSec: 0, startDelaySec: 0 }] }],
+      });
+      const sim = new CombatSim({ economy, level: l, deck: ['strong'], unitDefs: [strongMelee], enemyDefs: [def, weakEnemy] });
+      sim.summon('strong', 0, 0); // adjacent to the spawn cell, well within range
+      return sim;
+    };
+    const plain = mk('tanky', tanky);
+    const healing = mk('tankyRegen', tankyRegen);
+    run(plain, 1.5);
+    run(healing, 1.5);
+    const plainHp = plain.snapshot().enemies[0]?.hp ?? 0;
+    const healHp = healing.snapshot().enemies[0]?.hp ?? 0;
+    expect(healHp).toBeGreaterThan(plainHp);
+    expect(healHp).toBeLessThanOrEqual(5000);
+  });
+});
