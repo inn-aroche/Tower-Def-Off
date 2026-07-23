@@ -1,4 +1,4 @@
-import type { EnemyDef, LiveEnemy, PlacedUnit, UnitDef } from './types';
+import type { CombatEvent, EnemyDef, LiveEnemy, PlacedUnit, UnitDef } from './types';
 
 export interface CombatDeps {
   unitDefs: Map<string, UnitDef>;
@@ -44,6 +44,7 @@ function findTarget(deps: CombatDeps, unit: PlacedUnit, enemies: LiveEnemy[]): L
 
 export interface AttackResult {
   killedEnemyInstanceIds: number[];
+  events: CombatEvent[];
 }
 
 /** Advances attack cooldowns and resolves damage for all damage-family units. Mutates unit cooldowns and enemy hp in place. */
@@ -54,6 +55,7 @@ export function resolveAttacks(
   dtSec: number,
 ): AttackResult {
   const killed: number[] = [];
+  const events: CombatEvent[] = [];
   for (const unit of units) {
     const { def, stats } = levelStats(deps, unit);
     if (def.family === 'gravity') continue;
@@ -63,7 +65,9 @@ export function resolveAttacks(
     if (!target) continue;
     target.hp -= stats.damage;
     unit.attackCooldownSec = stats.attackIntervalSec;
+    events.push({ type: 'attack', fromCol: unit.col, fromRow: unit.row, toX: target.x, toY: target.y, family: def.family });
+    events.push({ type: 'damage', enemyInstanceId: target.instanceId, x: target.x, y: target.y, amount: stats.damage });
     if (target.hp <= 0) killed.push(target.instanceId);
   }
-  return { killedEnemyInstanceIds: killed };
+  return { killedEnemyInstanceIds: killed, events };
 }

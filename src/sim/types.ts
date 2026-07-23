@@ -118,3 +118,16 @@ export interface CombatSnapshot {
   totalWaves: number;
   kills: number;
 }
+
+/**
+ * Transient, pure-data signals the sim emits so the render layer can play feedback (numbers,
+ * particles, shake, haptics) without the sim ever touching the DOM. Coordinates are in cell-centre
+ * units (x = col+0.5), matching LiveEnemy.x/y. Drained once per frame via CombatSim.consumeEvents.
+ */
+export type CombatEvent =
+  | { type: 'attack'; fromCol: number; fromRow: number; toX: number; toY: number; family: UnitFamily }
+  | { type: 'damage'; enemyInstanceId: number; x: number; y: number; amount: number }
+  | { type: 'kill'; x: number; y: number; enemyId: string }
+  | { type: 'merge'; col: number; row: number; newLevel: number }
+  | { type: 'summon'; col: number; row: number; family: UnitFamily }
+  | { type: 'baseHit'; amount: number };

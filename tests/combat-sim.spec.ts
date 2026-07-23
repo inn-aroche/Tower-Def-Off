@@ -127,6 +127,31 @@ describe('CombatSim outcomes', () => {
     expect(sim.snapshot().life).toBe(0);
   });
 
+  it('emits feedback events (summon, attack/damage, kill) drained by consumeEvents', () => {
+    const sim = makeSim();
+    sim.summon('strong', 0, 2);
+    expect(sim.consumeEvents().some((e) => e.type === 'summon')).toBe(true);
+    // events are cleared after draining
+    expect(sim.consumeEvents()).toEqual([]);
+    const types = new Set<string>();
+    for (let i = 0; i < 90; i++) {
+      sim.step(1 / 30);
+      for (const e of sim.consumeEvents()) types.add(e.type);
+    }
+    expect(types.has('attack')).toBe(true);
+    expect(types.has('damage')).toBe(true);
+    expect(types.has('kill')).toBe(true);
+  });
+
+  it('emits a merge event on a successful merge', () => {
+    const sim = makeSim();
+    sim.summon('strong', 0, 0);
+    sim.summon('strong', 0, 1);
+    sim.consumeEvents();
+    sim.merge({ col: 0, row: 0 }, { col: 0, row: 1 });
+    expect(sim.consumeEvents()).toEqual([{ type: 'merge', col: 0, row: 1, newLevel: 2 }]);
+  });
+
   it('counts an enemy once even when two units land the finishing blow in the same tick', () => {
     const sim = makeSim();
     sim.summon('strong', 0, 0); // both flank the spawn cell (1,0); both fire on the first tick

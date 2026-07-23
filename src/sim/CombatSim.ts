@@ -6,6 +6,7 @@ import type { ScheduledSpawn } from './Wave';
 import { buildSpawnSchedule } from './Wave';
 import type {
   Cell,
+  CombatEvent,
   CombatOutcome,
   CombatSnapshot,
   EconomyConfig,
@@ -52,6 +53,7 @@ export class CombatSim {
   private spawnCursor = 0;
   private nextInstanceId = 1;
   private lastSpawnedWaveIndex = 0;
+  private events: CombatEvent[] = [];
 
   constructor(config: CombatSimConfig, _seed = 0) {
     this.economy = config.economy;
@@ -101,7 +103,9 @@ export class CombatSim {
     const breached = this.enemies.filter((e) => e.pathProgress >= endProgress);
     if (breached.length > 0) {
       for (const enemy of breached) {
-        this.life -= this.enemyDefs.get(enemy.enemyId)?.damageToBase ?? 1;
+        const dmg = this.enemyDefs.get(enemy.enemyId)?.damageToBase ?? 1;
+        this.life -= dmg;
+        this.events.push({ type: 'baseHit', amount: dmg });
       }
       this.enemies = this.enemies.filter((e) => e.pathProgress < endProgress);
     }
@@ -112,11 +116,15 @@ export class CombatSim {
       return;
     }
 
-    const { killedEnemyInstanceIds } = resolveAttacks(deps, this.units, this.enemies, dtSec);
+    const { killedEnemyInstanceIds, events } = resolveAttacks(deps, this.units, this.enemies, dtSec);
+    for (const e of events) this.events.push(e);
     if (killedEnemyInstanceIds.length > 0) {
       // Dedupe: two units can land the finishing blow on the same enemy in one tick, so the raw
       // list may contain the same instanceId twice — count and remove each enemy once.
       const killedSet = new Set(killedEnemyInstanceIds);
+      for (const enemy of this.enemies) {
+        if (killedSet.has(enemy.instanceId)) this.events.push({ type: 'kill', x: enemy.x, y: enemy.y, enemyId: enemy.enemyId });
+      }
       this.enemies = this.enemies.filter((e) => !killedSet.has(e.instanceId));
       this.kills += killedSet.size;
     }
@@ -141,6 +149,7 @@ export class CombatSim {
 
     this.mana -= def.cost;
     this.units.push({ unitId, level: 1, col, row, attackCooldownSec: 0 });
+    this.events.push({ type: 'summon', col, row, family: def.family });
     return { ok: true, unitId };
   }
 
@@ -158,7 +167,16 @@ export class CombatSim {
     this.units = this.units.filter((u) => u !== unitA && u !== unitB);
     const newLevel = unitA.level + 1;
     this.units.push({ unitId: unitB.unitId, level: newLevel, col: b.col, row: b.row, attackCooldownSec: 0 });
+    this.events.push({ type: 'merge', col: b.col, row: b.row, newLevel });
     return { ok: true, newLevel };
+  }
+
+  /** Returns and clears the events accumulated since the last call (render/haptics feed). */
+  consumeEvents(): CombatEvent[] {
+    if (this.events.length === 0) return [];
+    const drained = this.events;
+    this.events = [];
+    return drained;
   }
 
   private hand(): HandCard[] {

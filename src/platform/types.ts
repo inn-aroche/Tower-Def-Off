@@ -36,3 +36,9 @@ export interface IapProvider {
 export interface AnalyticsProvider {
   track(event: string, props?: Record<string, unknown>): void;
 }
+
+export type HapticStyle = 'light' | 'medium' | 'heavy';
+
+export interface HapticsProvider {
+  impact(style: HapticStyle): void;
+}

@@ -9,6 +9,8 @@ import { computeRewards, starsFor } from '../../data/meta';
 import { computeBoardLayout, pixelToCell } from '../../render/BoardLayout';
 import { drawCombatFrame, type CombatUiState, type RenderContext } from '../../render/CombatRenderer';
 import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
+import { Effects } from '../../render/Effects';
+import { WebHapticsProvider } from '../../platform/Haptics';
 
 const TICK_SEC = 1 / 30;
 const MAX_TICKS_PER_FRAME = 5;
@@ -114,6 +116,8 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
   const onPointer = (e: PointerEvent) => handleTap(e.clientX, e.clientY);
   canvas.addEventListener('pointerdown', onPointer);
 
+  const effects = new Effects();
+  const haptics = new WebHapticsProvider();
   let raf = 0;
   let lastMs: number | null = null;
   let acc = 0;
@@ -134,7 +138,8 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
 
   const frame = (now: number) => {
     if (lastMs === null) lastMs = now;
-    acc += Math.min(0.25, (now - lastMs) / 1000);
+    const frameDt = Math.min(0.25, (now - lastMs) / 1000);
+    acc += frameDt;
     lastMs = now;
     let ticks = 0;
     while (acc >= TICK_SEC && ticks < MAX_TICKS_PER_FRAME) {
@@ -142,8 +147,25 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
       acc -= TICK_SEC;
       ticks++;
     }
+    for (const ev of sim.consumeEvents()) {
+      effects.emit(ev);
+      if (ev.type === 'merge') haptics.impact('medium');
+      else if (ev.type === 'baseHit') haptics.impact('heavy');
+    }
+    effects.update(frameDt);
     const snap = sim.snapshot();
-    drawCombatFrame(c, window.innerWidth, window.innerHeight, layout(), snap, ui, renderContext);
+
+    const shake = effects.shakeOffset();
+    c.save();
+    c.translate(shake.x, shake.y);
+    drawCombatFrame(c, window.innerWidth, window.innerHeight, layout(), snap, ui, renderContext, {
+      isFlashing: (id) => effects.isFlashing(id),
+      pulseSec: snap.elapsedSec,
+    });
+    effects.draw(c, layout());
+    c.restore();
+    effects.drawOverlay(c, window.innerWidth, window.innerHeight);
+
     if (snap.outcome !== 'ongoing' && !finished) finish(snap);
     raf = requestAnimationFrame(frame);
   };

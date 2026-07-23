@@ -71,6 +71,12 @@ function drawPictogram(ctx: CanvasRenderingContext2D, family: UnitFamily, cx: nu
   }
 }
 
+/** Optional juice hooks supplied by the Effects layer (see render/Effects.ts). */
+export interface CombatFx {
+  isFlashing?: (instanceId: number) => boolean;
+  pulseSec?: number;
+}
+
 export function drawCombatFrame(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
@@ -79,12 +85,13 @@ export function drawCombatFrame(
   snapshot: CombatSnapshot,
   ui: CombatUiState,
   render: RenderContext,
+  fx: CombatFx = {},
 ): void {
   ctx.fillStyle = '#efe8d6';
   ctx.fillRect(0, 0, canvasW, canvasH);
 
   drawTopBar(ctx, canvasW, snapshot, render.levelName);
-  drawBoard(ctx, layout, snapshot, ui, render);
+  drawBoard(ctx, layout, snapshot, ui, render, fx);
   drawManaBar(ctx, canvasW, canvasH, snapshot);
   drawHand(ctx, canvasW, canvasH, snapshot.hand, ui.selectedCardIndex);
 
@@ -139,6 +146,7 @@ function drawBoard(
   snapshot: CombatSnapshot,
   ui: CombatUiState,
   render: RenderContext,
+  fx: CombatFx,
 ): void {
   const cs = layout.cellSize;
   const cx = (col: number) => layout.originX + (col + 0.5) * cs;
@@ -208,6 +216,29 @@ function drawBoard(
     }
   }
 
+  // gravity fields (under units) — makes the differentiator legible; gentle pulse
+  const pulse = 0.5 + 0.5 * Math.sin((fx.pulseSec ?? 0) * 3);
+  for (const unit of snapshot.units) {
+    const def = render.unitDefs.get(unit.unitId);
+    if (!def || def.family !== 'gravity') continue;
+    const range = def.levels[unit.level - 1]?.range ?? 0;
+    const ucx = cx(unit.col);
+    const ucy = cy(unit.row);
+    const rad = range * cs;
+    const grad = ctx.createRadialGradient(ucx, ucy, rad * 0.2, ucx, ucy, rad);
+    grad.addColorStop(0, `rgba(26,163,154,${0.12 + 0.06 * pulse})`);
+    grad.addColorStop(1, 'rgba(26,163,154,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ucx, ucy, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(26,163,154,${0.3 + 0.25 * pulse})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ucx, ucy, rad, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   // units
   for (const unit of snapshot.units) {
     const def = render.unitDefs.get(unit.unitId);
@@ -263,6 +294,14 @@ function drawBoard(
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#fff';
     ctx.stroke();
+
+    // hit flash
+    if (fx.isFlashing?.(enemy.instanceId)) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.beginPath();
+      ctx.arc(ex, ey, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     const hpFrac = Math.max(0, Math.min(1, enemy.hp / def.hp));
     const barW = radius * 2;

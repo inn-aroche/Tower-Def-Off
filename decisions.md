@@ -506,3 +506,39 @@ décisive = Phase 3 (juice + FTUE + art) puis un vrai playtest** pour décider d
 **Décision — verrou Mission 6 : 🟢 vert** pour la préparation Capacitor et l'audit. Le pipeline
 M1-M6 « one-shot » est bouclé ; la suite (Phase 3 polish → soft launch) demande des itérations
 avec de vrais joueurs, comme prévu par le skill.
+
+---
+
+## Phase 3 (1/3) — Juice du combat
+
+Premier gros levier de « feel » attaqué (le plus gros rouge de l'audit). Objectif : rendre le
+combat nerveux et lisible **sans jamais casser la pureté déterministe de la sim**.
+
+### Décision d'archi — la sim émet des événements, le rendu joue le juice
+`src/sim` ne peut pas toucher au DOM/rendu. Solution : `CombatSim` accumule des **`CombatEvent`
+purs** (données seules — `attack` / `damage` / `kill` / `merge` / `summon` / `baseHit`, en
+coordonnées de cellule) drainés une fois par frame via `consumeEvents()`. La sim reste
+déterministe (les events n'influencent aucun état de jeu) — les 63 tests et les 2 simulations
+d'équilibrage passent inchangés. `src/render/Effects.ts` transforme ces events en feedbacks.
+
+### Feedbacks livrés (`Effects.ts`)
+- **Dégâts** : nombres flottants montants + **flash blanc** sur l'ennemi touché + micro-particules.
+- **Éclairs d'attaque** : trait bref unité→cible, couleur par famille.
+- **Mort** : éclatement de particules (couleur de l'ennemi) + anneau.
+- **Fusion (signature)** : anneau doré qui s'étend + gerbe de particules + texte **« Niv N ! »** +
+  léger screenshake — le merge est enfin satisfaisant.
+- **Invocation** : petit pop d'anneau.
+- **Fuite de base** : screenshake + **vignette rouge** pulsée.
+- **Champs de gravité visualisés** : disque + anneau teal pulsant au rayon d'effet de chaque unité
+  gravité → **le différenciateur devient enfin lisible sur le plateau** (rouge #2 de l'audit levé).
+- **Haptics web** (`platform/Haptics.ts`, `navigator.vibrate`, interface + `Null` par défaut) sur
+  fusion (medium) et fuite de base (heavy) ; swap `@capacitor/haptics` au wrapping.
+- **`prefers-reduced-motion`** respecté (pas de shake, moins de particules).
+
+Intégré dans le combat PvE **et** PvP (bot headless : ses events sont drainés puis ignorés, seul
+le plateau joueur est rendu). Tests ajoutés : émission `summon`/`attack`/`damage`/`kill` et
+`merge` via `consumeEvents`.
+
+**Reste Phase 3** : SFX (audio), FTUE/onboarding guidé, sprites (art final), perspective 3D du
+plateau, validation 60 fps device — puis playtests externes. La gravité « courbe/regroupe »
+(vs simple ralentissement) reste un chantier de design combat séparé.
