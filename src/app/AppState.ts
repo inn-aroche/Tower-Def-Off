@@ -1,10 +1,11 @@
-import type { AnalyticsProvider, SaveProvider } from '../platform/types';
+import type { AdProvider, AnalyticsProvider, IapProvider, SaveProvider } from '../platform/types';
 import type { UnitDef } from '../sim/types';
 import { UNITS, UNITS_BY_ID } from '../data/units';
 import { DECK_MAX, DECK_MIN, scaleUnitDef, upgradeCost, type OwnedUnit } from '../data/meta';
 import { CAMPAIGN } from '../data/campaign';
 import { leagueForTrophies, type League } from '../data/arena';
-import type { SaveData } from '../meta/SaveData';
+import { openChestReward, type ChestKind, type ChestReward } from '../data/shop';
+import { createDefaultSaveData, type SaveData } from '../meta/SaveData';
 
 /** Single source of truth for meta state. Screens read from it and call mutators, which persist. */
 export class AppState {
@@ -12,7 +13,16 @@ export class AppState {
     private data: SaveData,
     private readonly save: SaveProvider<SaveData>,
     readonly analytics: AnalyticsProvider,
+    readonly ads: AdProvider,
+    readonly iap: IapProvider,
   ) {}
+
+  /** Marks no-ads / pass as active after a (stubbed in v1) successful purchase. */
+  applyPurchase(kind: 'noads' | 'pass'): void {
+    if (kind === 'noads') this.data.shop.noAds = true;
+    else this.data.shop.passActive = true;
+    this.persist();
+  }
 
   private persist(): void {
     this.save.save(this.data);
@@ -32,6 +42,31 @@ export class AppState {
   addGems(n: number): void {
     this.data.currencies.gems += n;
     this.persist();
+  }
+  spendGems(n: number): boolean {
+    if (this.data.currencies.gems < n) return false;
+    this.data.currencies.gems -= n;
+    this.persist();
+    return true;
+  }
+
+  // ── Shop / monetization ──────────────────────────────────────────────────
+  get noAds(): boolean {
+    return this.data.shop.noAds;
+  }
+  get passActive(): boolean {
+    return this.data.shop.passActive;
+  }
+  /** Opens a chest deterministically (seeded by the chest counter), grants it, and returns the
+   * reward. Duplicates of not-yet-owned units unlock them (addDuplicates creates the entry). */
+  openChest(kind: ChestKind): ChestReward {
+    const reward = openChestReward(kind, this.data.shop.chestsOpened);
+    this.data.shop.chestsOpened += 1;
+    this.data.currencies.gold += reward.gold;
+    for (const d of reward.duplicates) this.addDuplicates(d.unitId, d.count);
+    this.persist();
+    this.analytics.track('chest_opened', { kind, gold: reward.gold });
+    return reward;
   }
 
   // ── Collection ──────────────────────────────────────────────────────────
@@ -163,6 +198,12 @@ export class AppState {
   }
   setSound(on: boolean): void {
     this.data.settings.soundOn = on;
+    this.persist();
+  }
+
+  /** Wipes progression back to a fresh starter save (Settings → reset). */
+  hardReset(): void {
+    this.data = createDefaultSaveData();
     this.persist();
   }
 }

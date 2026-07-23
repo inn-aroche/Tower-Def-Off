@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AppState } from '../src/app/AppState';
-import { NullAnalyticsProvider } from '../src/platform/NullProviders';
+import { NullAdProvider, NullAnalyticsProvider, NullIapProvider } from '../src/platform/NullProviders';
 import type { SaveProvider } from '../src/platform/types';
 import { createDefaultSaveData, type SaveData } from '../src/meta/SaveData';
 import { botUnitDefs, leagueForTrophies, LEAGUES } from '../src/data/arena';
@@ -10,7 +10,8 @@ function fakeSave(): SaveProvider<SaveData> {
   let stored: SaveData | null = null;
   return { load: () => stored, save: (d) => void (stored = structuredClone(d)), clear: () => void (stored = null) };
 }
-const makeApp = () => new AppState(createDefaultSaveData(), fakeSave(), new NullAnalyticsProvider());
+const makeApp = () =>
+  new AppState(createDefaultSaveData(), fakeSave(), new NullAnalyticsProvider(), new NullAdProvider(), new NullIapProvider());
 
 describe('leagueForTrophies', () => {
   it('maps trophy counts to the right league', () => {

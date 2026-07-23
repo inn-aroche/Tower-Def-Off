@@ -12,6 +12,12 @@ export function HubScreen(ctx: ScreenCtx): Screen {
   const top = el('div', { class: 'topbar' }, [
     el('div', { class: 'topbar__title', text: 'WARDENS' }),
     currencyPills(app),
+    el('button', {
+      class: 'topbar__back',
+      text: '⚙',
+      style: 'background:rgba(255,255,255,.14);color:#fff',
+      onclick: () => nav({ name: 'settings' }),
+    }),
   ]);
 
   // Event banner + deck / arena access
@@ -71,7 +77,7 @@ export function HubScreen(ctx: ScreenCtx): Screen {
   const nav_ = bottomNav('play', {
     onCollection: () => nav({ name: 'collection' }),
     onPlay: () => nav({ name: 'combat', nodeIndex: app.unlockedNode }),
-    onShop: () => toast(host, 'Boutique — arrive en M5'),
+    onShop: () => nav({ name: 'shop' }),
   });
 
   screen.append(top, header, scroll, nav_);

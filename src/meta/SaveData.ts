@@ -3,8 +3,7 @@ import type { OwnedUnit } from '../data/meta';
 import { STARTER_COLLECTION, STARTER_GEMS, STARTER_GOLD } from '../data/meta';
 import { DEFAULT_DECK } from '../data/units';
 
-/** v2 meta save (collection, currencies, campaign stars, active deck, league). Bump the version
- * and add a migration branch when the shape changes again. */
+/** v3 meta save. Bump the version and add a migration branch when the shape changes again. */
 export interface SaveData {
   settings: { soundOn: boolean };
   currencies: { gold: number; gems: number };
@@ -12,9 +11,11 @@ export interface SaveData {
   deck: string[];
   campaign: { unlockedNode: number; stars: Record<number, number> };
   league: { trophies: number };
+  /** M5 shop/monetization state. */
+  shop: { chestsOpened: number; noAds: boolean; passActive: boolean };
 }
 
-export const SAVE_SCHEMA_VERSION = 2;
+export const SAVE_SCHEMA_VERSION = 3;
 export const SAVE_KEY = 'wardens_save';
 
 export function createDefaultSaveData(): SaveData {
@@ -25,6 +26,7 @@ export function createDefaultSaveData(): SaveData {
     deck: [...DEFAULT_DECK],
     campaign: { unlockedNode: 0, stars: {} },
     league: { trophies: 0 },
+    shop: { chestsOpened: 0, noAds: false, passActive: false },
   };
 }
 
@@ -32,9 +34,15 @@ interface SaveDataV1 {
   settings?: { soundOn?: boolean };
   campaign?: { currentLevelIndex?: number };
 }
+type SaveDataV2 = Omit<SaveData, 'shop'>;
 
 export function migrateSaveData(envelope: SaveEnvelope<unknown>): SaveData {
   const fresh = createDefaultSaveData();
+  if (envelope.schemaVersion === 2) {
+    // v2 → v3: carry everything over, seed the new shop block.
+    const v2 = envelope.data as SaveDataV2;
+    return { ...v2, shop: fresh.shop };
+  }
   if (envelope.schemaVersion === 1) {
     const v1 = envelope.data as SaveDataV1;
     if (typeof v1.settings?.soundOn === 'boolean') fresh.settings.soundOn = v1.settings.soundOn;

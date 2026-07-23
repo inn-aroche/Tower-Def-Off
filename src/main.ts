@@ -10,6 +10,9 @@ import { ResultsScreen } from './app/screens/ResultsScreen';
 import { ArenaScreen } from './app/screens/ArenaScreen';
 import { PvpCombatScreen } from './app/screens/PvpCombatScreen';
 import { PvpResultsScreen } from './app/screens/PvpResultsScreen';
+import { ShopScreen } from './app/screens/ShopScreen';
+import { ChestScreen } from './app/screens/ChestScreen';
+import { SettingsScreen } from './app/screens/SettingsScreen';
 import { LocalStorageSaveProvider } from './platform/LocalStorageSave';
 import { NullAdProvider, NullAnalyticsProvider, NullIapProvider } from './platform/NullProviders';
 import { createDefaultSaveData, migrateSaveData, SAVE_KEY, SAVE_SCHEMA_VERSION, type SaveData } from './meta/SaveData';
@@ -20,12 +23,10 @@ ensureTheme();
 const analytics = new NullAnalyticsProvider();
 const ads = new NullAdProvider();
 const iap = new NullIapProvider();
-void ads;
-void iap; // wired for M5 monetization hooks
 
 const saveProvider = new LocalStorageSaveProvider<SaveData>(SAVE_KEY, SAVE_SCHEMA_VERSION, migrateSaveData);
 const save = saveProvider.load() ?? createDefaultSaveData();
-const app = new AppState(save, saveProvider, analytics);
+const app = new AppState(save, saveProvider, analytics, ads, iap);
 
 const host = document.getElementById('app')!;
 
@@ -39,6 +40,9 @@ const factories: Record<Route['name'], ScreenFactory> = {
   arena: ArenaScreen,
   pvp: PvpCombatScreen,
   pvpResults: PvpResultsScreen,
+  shop: ShopScreen,
+  chest: ChestScreen,
+  settings: SettingsScreen,
 };
 
 const router = new Router(host, app, factories);

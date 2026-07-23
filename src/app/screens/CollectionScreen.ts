@@ -75,7 +75,7 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
   const nav_ = bottomNav('collection', {
     onCollection: () => nav({ name: 'collection' }),
     onPlay: () => nav({ name: 'hub' }),
-    onShop: () => nav({ name: 'hub' }),
+    onShop: () => nav({ name: 'shop' }),
   });
 
   screen.append(top, countLabel, chips, grid, nav_);

@@ -396,3 +396,52 @@ bon marché aux decks Or/Platine pour lisser la rampe) :
   réel existera (M5+). La vraie cible « familles à 50±7 % » reste un chantier data ultérieur.
 
 **Décision — verrou Mission 4 : 🟢 vert** pour l'arène bots + ligues + résultats + calibrage.
+
+---
+
+## M5 — Boutique + coffres + passe + paramètres + hooks monétisation
+
+Dernier écran manquant de la maquette + la couche monétisation. Règle studio respectée : **aucun
+dark pattern** (pas d'énergie, coffres à **contenu affiché**, prix honnêtes, **jamais
+d'interstitiel**, rewarded **opt-in**).
+
+### Décision — monétisation en NullProvider, mais boutique jouable
+Les hooks `AdProvider`/`IapProvider` sont **injectés dans `AppState`** et réellement appelés par la
+boutique, mais restent des **NullProviders** en v1 (pas de facturation). Pour que la boutique soit
+néanmoins **jouable et démontre la boucle**, on sépare :
+- **Offres argent réel** (passe héroïque, packs de gemmes/or, no-ads) → passent par
+  `iap.purchase()` → NullIap renvoie « échec » → toast honnête « Paiements désactivés (démo v1) ».
+- **Échange en gemmes** (monnaie premium douce déjà en jeu) → **fonctionnel** : dépenser des
+  gemmes pour des **coffres** ou de l'or.
+- **Rewarded opt-in** (« coffre bonus – pub optionnelle ») → `ads.showRewarded()` → NullAd
+  « indisponible » → toast. Le hook est câblé, prêt pour AdMob (M6+).
+
+### Coffres = déblocage des unités verrouillées (boucle de progression)
+`data/shop.ts` : tables de coffres **déterministes** (RNG seedée par un compteur `chestsOpened`
+persistant — aucun aléa ambiant). Un coffre donne or + doublons pondérés par rareté ; **un doublon
+d'unité non possédée la débloque** (commun : rare occasionnel ; épique : bonnes chances de rare/
+épique). C'est le canal qui débloque les 5 unités verrouillées → referme la boucle
+collection→deck→combat. Écran **Ouverture de coffre** avec reveal (or + tuiles, badge « NOUVEAU »).
+
+### Écrans & save
+- **Boutique** (fidèle à la maquette : passe, packs, coffres, no-ads), **Ouverture de coffre**,
+  **Paramètres** (son persistant, restaurer les achats [stub], infos build, **réinitialiser la
+  progression** avec confirmation).
+- Accès : nav basse **Boutique** (câblée partout), **engrenage** sur le Hub → Paramètres.
+- **Sauvegarde v3** (`shop: { chestsOpened, noAds, passActive }`) + **migration v2→v3** (report
+  intégral + seed du bloc shop) et v1→v3, testées.
+
+### Tests
+- 61 tests verts. `shop.spec.ts` : déterminisme des coffres, épique > commun, `spendGems` (refus si
+  insuffisant), `openChest` (gain + avance compteur), déblocage d'une unité verrouillée via doublon,
+  `applyPurchase` (no-ads/pass). `meta.spec` : migration v2→v3.
+- Vérif navigateur (Playwright) : Boutique, ouverture de coffre (+330 or + unités), Paramètres.
+
+### Dette assumée
+- Achats réels non fonctionnels (NullProvider assumé v1) ; intégration store réelle = M6+.
+- Coffres/rewards toujours **farmables** (rejeu) — plafonds/quotas quotidiens à ajouter avec les
+  quêtes quotidiennes (non livrées : dailies/quêtes restent un chantier rétention post-M5).
+- Passe héroïque : piste de récompenses détaillée non construite (juste l'achat stub).
+
+**Décision — verrou Mission 5 : 🟢 vert** pour boutique + coffres + paramètres + hooks
+monétisation propres (NullProvider). Tous les écrans de la maquette sont désormais implémentés.

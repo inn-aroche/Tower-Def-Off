@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AppState } from '../src/app/AppState';
-import { NullAnalyticsProvider } from '../src/platform/NullProviders';
+import { NullAdProvider, NullAnalyticsProvider, NullIapProvider } from '../src/platform/NullProviders';
 import type { SaveProvider } from '../src/platform/types';
 import { createDefaultSaveData, migrateSaveData, SAVE_SCHEMA_VERSION, type SaveData } from '../src/meta/SaveData';
 import { metaScale, scaleUnitDef, starsFor, upgradeCost } from '../src/data/meta';
@@ -20,7 +20,7 @@ function fakeSave(): SaveProvider<SaveData> {
 }
 
 function makeApp(): AppState {
-  return new AppState(createDefaultSaveData(), fakeSave(), new NullAnalyticsProvider());
+  return new AppState(createDefaultSaveData(), fakeSave(), new NullAnalyticsProvider(), new NullAdProvider(), new NullIapProvider());
 }
 
 describe('save migration', () => {
@@ -34,7 +34,24 @@ describe('save migration', () => {
   });
 
   it('current default save declares the current schema version', () => {
-    expect(SAVE_SCHEMA_VERSION).toBe(2);
+    expect(SAVE_SCHEMA_VERSION).toBe(3);
+  });
+
+  it('migrates a v2 save: carries state over and seeds the shop block', () => {
+    const v2 = {
+      settings: { soundOn: true },
+      currencies: { gold: 1234, gems: 42 },
+      collection: { swordsman: { level: 4, duplicates: 9 } },
+      deck: ['swordsman', 'archer', 'lancer', 'catapult'],
+      campaign: { unlockedNode: 7, stars: { 0: 3 } },
+      league: { trophies: 640 },
+    };
+    const migrated = migrateSaveData({ schemaVersion: 2, data: v2 });
+    expect(migrated.currencies.gold).toBe(1234);
+    expect(migrated.collection.swordsman).toEqual({ level: 4, duplicates: 9 });
+    expect(migrated.campaign.unlockedNode).toBe(7);
+    expect(migrated.league.trophies).toBe(640);
+    expect(migrated.shop).toEqual({ chestsOpened: 0, noAds: false, passActive: false });
   });
 });
 

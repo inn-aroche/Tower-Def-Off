@@ -25,6 +25,9 @@ export type Route =
   | { name: 'results'; payload: ResultsPayload }
   | { name: 'arena' }
   | { name: 'pvp' }
-  | { name: 'pvpResults'; payload: PvpResultPayload };
+  | { name: 'pvpResults'; payload: PvpResultPayload }
+  | { name: 'shop' }
+  | { name: 'chest'; kind: 'common' | 'epic' }
+  | { name: 'settings' };
 
 export type RouteName = Route['name'];
