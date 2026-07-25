@@ -1,6 +1,7 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { el } from '../../ui/dom';
 import { CAMPAIGN } from '../../data/campaign';
+import { todayStr } from '../../data/progression';
 import { bottomNav, currencyPills, starRow, toast } from './common';
 
 export function HubScreen(ctx: ScreenCtx): Screen {
@@ -8,10 +9,24 @@ export function HubScreen(ctx: ScreenCtx): Screen {
 
   const screen = el('div', { class: 'screen' });
 
+  // Défis button — shows a red dot when a chest/quest/achievement can be claimed.
+  const challengesBtn = el('button', {
+    class: 'topbar__back',
+    text: '🎯',
+    style: 'background:rgba(255,255,255,.14);color:#fff;position:relative',
+    onclick: () => nav({ name: 'challenges' }),
+  });
+  if (app.hasClaimable(todayStr())) {
+    challengesBtn.append(
+      el('span', { style: 'position:absolute;top:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:#e74c3c;border:2px solid #2b1e14' }),
+    );
+  }
+
   // Top bar
   const top = el('div', { class: 'topbar' }, [
     el('div', { class: 'topbar__title', text: 'WARDENS' }),
     currencyPills(app),
+    challengesBtn,
     el('button', {
       class: 'topbar__back',
       text: '⚙',

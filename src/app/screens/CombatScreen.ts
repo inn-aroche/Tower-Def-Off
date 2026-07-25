@@ -13,6 +13,7 @@ import { Effects } from '../../render/Effects';
 import { WebHapticsProvider } from '../../platform/Haptics';
 import { WebAudioProvider } from '../../platform/Audio';
 import { TutorialCoach } from '../../ui/Tutorial';
+import { todayStr } from '../../data/progression';
 
 const TICK_SEC = 1 / 30;
 const MAX_TICKS_PER_FRAME = 5;
@@ -137,6 +138,7 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
   let lastMs: number | null = null;
   let acc = 0;
   let finished = false;
+  let mergeCount = 0;
 
   const finish = (snap: CombatSnapshot) => {
     finished = true;
@@ -146,6 +148,7 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     const rewards = win ? computeRewards(nodeIndex, stars, deck) : { gold: 0, gems: 0, duplicates: [] };
     app.analytics.track('combat_end', { nodeIndex, outcome, stars, life: snap.life, kills: snap.kills });
     if (win) app.recordVictory(nodeIndex, stars, rewards);
+    app.recordCombatEnd({ won: win, kills: snap.kills, merges: mergeCount, pvp: false, blitz: false }, todayStr());
     window.setTimeout(() => {
       nav({ name: 'results', payload: { nodeIndex, outcome, stars, lifeRemaining: snap.life, rewards } });
     }, 650);
@@ -165,6 +168,7 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     for (const ev of sim.consumeEvents()) {
       effects.emit(ev);
       if (ev.type === 'merge') {
+        mergeCount += 1;
         haptics.impact('medium');
         audio.play('merge');
       } else if (ev.type === 'baseHit') {

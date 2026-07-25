@@ -5,6 +5,15 @@ import { DECK_MAX, DECK_MIN, scaleUnitDef, upgradeCost, type OwnedUnit } from '.
 import { CAMPAIGN } from '../data/campaign';
 import { leagueForTrophies, type League } from '../data/arena';
 import { openChestReward, type ChestKind, type ChestReward } from '../data/shop';
+import {
+  ACHIEVEMENTS,
+  DAILY_CHEST_REWARD,
+  dailyQuestsFor,
+  type Achievement,
+  type AchievementMetric,
+  type DailyMetric,
+  type DailyQuest,
+} from '../data/progression';
 import { createDefaultSaveData, type SaveData } from '../meta/SaveData';
 
 /** Single source of truth for meta state. Screens read from it and call mutators, which persist. */
@@ -205,6 +214,114 @@ export class AppState {
     this.persist();
     this.analytics.track('survival_end', { wavesReached, isRecord });
     return isRecord;
+  }
+
+  // ── Progression : succès, quêtes journalières, coffre quotidien ───────────
+  /** Records the outcome of any combat into lifetime stats and today's daily counters. */
+  recordCombatEnd(r: { won: boolean; kills: number; merges: number; pvp: boolean; blitz: boolean }, today: string): void {
+    const p = this.data.progression;
+    if (r.won) p.stats.combatsWon += 1;
+    p.stats.enemiesKilled += r.kills;
+    p.stats.merges += r.merges;
+    if (r.pvp && r.won) p.stats.pvpWins += 1;
+    this.rollDaily(today);
+    if (r.won) p.daily.wins += 1;
+    p.daily.kills += r.kills;
+    if (r.blitz) p.daily.blitz += 1;
+    this.persist();
+  }
+
+  private rollDaily(today: string): void {
+    const d = this.data.progression.daily;
+    if (d.date !== today) {
+      this.data.progression.daily = { date: today, wins: 0, kills: 0, blitz: 0, claimed: [] };
+    }
+  }
+
+  private achievementValue(metric: AchievementMetric): number {
+    const s = this.data.progression.stats;
+    switch (metric) {
+      case 'combatsWon': return s.combatsWon;
+      case 'enemiesKilled': return s.enemiesKilled;
+      case 'pvpWins': return s.pvpWins;
+      case 'merges': return s.merges;
+      case 'survivalBest': return this.data.survival.bestWave;
+      case 'trophies': return this.data.league.trophies;
+      case 'unitsOwned': return this.ownedCount();
+    }
+  }
+
+  /** All achievements with current value + claim state (for the Défis screen). */
+  achievements(): Array<{ ach: Achievement; value: number; done: boolean; claimed: boolean }> {
+    return ACHIEVEMENTS.map((ach) => {
+      const value = this.achievementValue(ach.metric);
+      return { ach, value, done: value >= ach.target, claimed: this.data.progression.achievements.includes(ach.id) };
+    });
+  }
+
+  /** Grants an achievement reward if reached and not already claimed. */
+  claimAchievement(id: string): boolean {
+    const ach = ACHIEVEMENTS.find((a) => a.id === id);
+    if (!ach) return false;
+    const p = this.data.progression;
+    if (p.achievements.includes(id)) return false;
+    if (this.achievementValue(ach.metric) < ach.target) return false;
+    p.achievements.push(id);
+    this.data.currencies.gold += ach.reward.gold;
+    this.data.currencies.gems += ach.reward.gems;
+    this.persist();
+    this.analytics.track('achievement_claimed', { id });
+    return true;
+  }
+
+  private dailyValue(metric: DailyMetric): number {
+    const d = this.data.progression.daily;
+    return metric === 'wins' ? d.wins : metric === 'kills' ? d.kills : d.blitz;
+  }
+
+  /** Today's 3 quests with progress + claim state. */
+  dailyQuests(today: string): Array<{ quest: DailyQuest; value: number; done: boolean; claimed: boolean }> {
+    this.rollDaily(today);
+    return dailyQuestsFor(today).map((quest) => {
+      const value = this.dailyValue(quest.metric);
+      return { quest, value, done: value >= quest.target, claimed: this.data.progression.daily.claimed.includes(quest.id) };
+    });
+  }
+
+  claimDailyQuest(id: string, today: string): boolean {
+    this.rollDaily(today);
+    const quest = dailyQuestsFor(today).find((q) => q.id === id);
+    if (!quest) return false;
+    const d = this.data.progression.daily;
+    if (d.claimed.includes(id) || this.dailyValue(quest.metric) < quest.target) return false;
+    d.claimed.push(id);
+    this.data.currencies.gold += quest.reward.gold;
+    this.data.currencies.gems += quest.reward.gems;
+    this.persist();
+    this.analytics.track('daily_quest_claimed', { id });
+    return true;
+  }
+
+  dailyChestAvailable(today: string): boolean {
+    return this.data.progression.chestDate !== today;
+  }
+
+  /** Claims the free daily chest once per day; returns the reward or null if already taken. */
+  claimDailyChest(today: string): { gold: number; gems: number } | null {
+    if (!this.dailyChestAvailable(today)) return null;
+    this.data.progression.chestDate = today;
+    this.data.currencies.gold += DAILY_CHEST_REWARD.gold;
+    this.data.currencies.gems += DAILY_CHEST_REWARD.gems;
+    this.persist();
+    this.analytics.track('daily_chest_claimed', {});
+    return { ...DAILY_CHEST_REWARD };
+  }
+
+  /** True if anything (chest, a quest, an achievement) can be claimed right now — drives the hub badge. */
+  hasClaimable(today: string): boolean {
+    if (this.dailyChestAvailable(today)) return true;
+    if (this.dailyQuests(today).some((q) => q.done && !q.claimed)) return true;
+    return this.achievements().some((a) => a.done && !a.claimed);
   }
 
   // ── Settings ────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
   survivalRewards,
   survivalWave,
 } from '../../data/survival';
+import { todayStr } from '../../data/progression';
 import { computeBoardLayout, pixelToCell } from '../../render/BoardLayout';
 import { drawCombatFrame, type CombatUiState, type RenderContext } from '../../render/CombatRenderer';
 import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
@@ -140,6 +141,7 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
   let lastMs: number | null = null;
   let acc = 0;
   let finished = false;
+  let mergeCount = 0;
 
   const finish = (snap: CombatSnapshot) => {
     finished = true;
@@ -147,6 +149,7 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
     const wavesReached = snap.currentWaveIndex + 1;
     const rewards = survivalRewards(wavesReached);
     const isRecord = app.recordSurvival(wavesReached, rewards);
+    app.recordCombatEnd({ won: false, kills: snap.kills, merges: mergeCount, pvp: false, blitz: false }, todayStr());
     window.setTimeout(() => {
       nav({
         name: 'survivalResults',
@@ -169,6 +172,7 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
     for (const ev of sim.consumeEvents()) {
       effects.emit(ev);
       if (ev.type === 'merge') {
+        mergeCount += 1;
         haptics.impact('medium');
         audio.play('merge');
       } else if (ev.type === 'baseHit') {

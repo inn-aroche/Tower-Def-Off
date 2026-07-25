@@ -11,6 +11,7 @@ import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
 import { Effects } from '../../render/Effects';
 import { WebHapticsProvider } from '../../platform/Haptics';
 import { WebAudioProvider } from '../../platform/Audio';
+import { todayStr } from '../../data/progression';
 
 const TICK_SEC = 1 / 30;
 const MAX_TICKS_PER_FRAME = 5;
@@ -128,6 +129,7 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
   let lastMs: number | null = null;
   let acc = 0;
   let finished = false;
+  let mergeCount = 0;
 
   const finish = (playerLife: number, botLife: number) => {
     finished = true;
@@ -139,6 +141,7 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
 
     const delta = outcome === 'victory' ? WIN_TROPHIES : outcome === 'defeat' ? -LOSS_TROPHIES : 0;
     const total = app.addTrophies(delta);
+    app.recordCombatEnd({ won: outcome === 'victory', kills: playerSim.snapshot().kills, merges: mergeCount, pvp: true, blitz }, todayStr());
     app.analytics.track('pvp_end', { league: league.id, outcome, delta, blitz });
     window.setTimeout(() => {
       nav({
@@ -165,6 +168,7 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
     for (const ev of playerSim.consumeEvents()) {
       effects.emit(ev);
       if (ev.type === 'merge') {
+        mergeCount += 1;
         haptics.impact('medium');
         audio.play('merge');
       } else if (ev.type === 'baseHit') {

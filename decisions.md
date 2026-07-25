@@ -711,3 +711,29 @@ le joueur (`abilityLabel`).
 verts. `simulate` (campagne) OK et `simulate:pvp` OK sur les 2 modes : les capacités buffent les **deux
 camps** (le deck de départ a la Catapulte, les bots ont Catapulte/Chaman/Gardien), donc les rampes
 tiennent. Smoke navigateur : panneau de capacité rendu, combat sans erreur JS.
+
+## Phase 5 (3/3) — Quêtes journalières + succès + coffre quotidien
+
+**Brief** : la couche de rétention — donner une raison de revenir chaque jour, sans dark pattern
+(tout est gratuit, rien derrière un paywall ou un timer-à-skip).
+
+**Data (`data/progression.ts`)** : 8 **succès** à vie (paliers : victoires, éliminations, wins PvP,
+fusions, meilleure vague Survie, unités débloquées, trophées). **Quêtes du jour** : 3 tirées d'un
+pool par un **hash déterministe de la date** (stables dans la journée, variées d'un jour à l'autre,
+une par métrique). **Coffre quotidien** gratuit (or + gemmes). `todayStr()` = jour calendaire local
+(couche méta uniquement — jamais dans le sim déterministe).
+
+**Save v6** (`progression` : stats à vie, succès réclamés, compteurs du jour + date, date du dernier
+coffre) + **migration v5→v6** (et anciennes rebranchées), testée. **AppState** : `recordCombatEnd`
+(alimente stats à vie + compteurs du jour, reset au changement de date), `claimAchievement` /
+`claimDailyQuest` / `claimDailyChest`, `hasClaimable` (pilote la pastille du Hub). Les **3 écrans de
+combat** (Campagne, Survie, PvP) reportent leur issue (victoire, kills, fusions, pvp/blitz).
+
+**Écran Défis** (`ChallengesScreen`) : coffre + quêtes (barres de progression + réclamer) + succès,
+re-render en place. **Entrée Hub** : bouton 🎯 avec **pastille rouge** quand quelque chose est
+réclamable.
+
+**Verrous** : `typecheck` + **105 tests** (migration v6, déterminisme des quêtes, claim succès/quête/
+coffre, reset quotidien, `hasClaimable`) + `build` verts. Smoke navigateur : écran rendu, coffre
+réclamé, zéro erreur JS. Non-négos tenus : progression = data + méta, sim intacte, save versionnée
++ migration testée, économie honnête.
