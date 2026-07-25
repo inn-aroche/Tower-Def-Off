@@ -687,3 +687,27 @@ distinctes, entrée haut / base bas, herbe suffisante) + que la campagne utilise
 `typecheck` + **92 tests** + `build` verts. `simulate` re-passé : tous les nœuds restent gagnables
 (un tracé plus long donne plus de temps au défenseur ⇒ la difficulté ne peut qu'assouplir ; le boss
 final reste une vraie porte à ~13 %). Non-négos tenus : maps = pure data, sim inchangée.
+
+## Phase 5 (2/3) — Capacités d'unités
+
+**Brief** : donner de la profondeur au deck — sortir des unités « juste des stats ». **4 capacités
+signature**, toutes déterministes (géométrie + timers, zéro RNG), dans le sim pur :
+- **Éclaboussure** (Catapulte) : l'attaque touche aussi les ennemis autour de la cible.
+- **Chaîne** (Chaman des tempêtes) : l'éclair rebondit sur N ennemis proches (dégâts réduits).
+- **Givre** (Archère de givre) : ralentit l'ennemi touché — se **cumule** avec les champs de gravité.
+- **Ralliement** (Gardien) : aura passive, +25 % de dégâts aux unités alliées proches.
+
+**Sim** : `UnitAbility` sur `UnitDef` ; `resolveAttacks` calcule les dégâts effectifs via un
+`boostMultiplier` (auras alliées), puis applique les effets secondaires (`applyOnHit` : splash en
+rayon, chaîne aux plus proches, givre = `chilledUntilSec`/`chillFactor` sur l'ennemi). `LiveEnemy`
+gagne le givre ; `CombatSim` l'applique au déplacement (×chill, cumulé au ralentissement gravité).
+Les dégâts secondaires émettent des events `damage` ⇒ le juice (chiffres/flash) marche tout seul.
+
+**Rendu** : zone d'aura dorée sous le Gardien, teinte givre bleue sur les ennemis gelés. **Écran
+détail d'unité** : panneau de capacité (titre + description) — la profondeur devient **visible** pour
+le joueur (`abilityLabel`).
+
+**Verrous** : `typecheck` + **96 tests** (dont 4 nouveaux : splash, chaîne, givre, aura) + `build`
+verts. `simulate` (campagne) OK et `simulate:pvp` OK sur les 2 modes : les capacités buffent les **deux
+camps** (le deck de départ a la Catapulte, les bots ont Catapulte/Chaman/Gardien), donc les rampes
+tiennent. Smoke navigateur : panneau de capacité rendu, combat sans erreur JS.

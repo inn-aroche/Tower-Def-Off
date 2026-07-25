@@ -69,6 +69,8 @@ export const UNITS: UnitDef[] = [
     family: 'ranged',
     rarity: 'rare',
     cost: 5,
+    // Siege splash — the boulder also damages enemies bunched near the impact.
+    ability: { kind: 'splash', radius: 1.4, damageFactor: 0.6 },
     levels: [
       { damage: 18, attackIntervalSec: 1.5, range: 4.8, slowFactor: 1 },
       { damage: 30, attackIntervalSec: 1.4, range: 5.0, slowFactor: 1 },
@@ -81,6 +83,8 @@ export const UNITS: UnitDef[] = [
     family: 'melee',
     rarity: 'rare',
     cost: 4,
+    // Rallying tank — nearby friendly damage-units hit harder.
+    ability: { kind: 'boost_aura', radius: 1.6, damageBonus: 0.25 },
     levels: [
       { damage: 14, attackIntervalSec: 0.8, range: 1.6, slowFactor: 1 },
       { damage: 24, attackIntervalSec: 0.75, range: 1.7, slowFactor: 1 },
@@ -93,6 +97,8 @@ export const UNITS: UnitDef[] = [
     family: 'ranged',
     rarity: 'rare',
     cost: 4,
+    // Chills the struck enemy, slowing it (stacks with gravity fields).
+    ability: { kind: 'slow_on_hit', slowFactor: 0.6, durationSec: 1.2 },
     levels: [
       { damage: 9, attackIntervalSec: 0.7, range: 3.4, slowFactor: 1 },
       { damage: 15, attackIntervalSec: 0.65, range: 3.6, slowFactor: 1 },
@@ -142,6 +148,8 @@ export const UNITS: UnitDef[] = [
     family: 'ranged',
     rarity: 'epic',
     cost: 6,
+    // Lightning arcs to two more nearby enemies for reduced damage.
+    ability: { kind: 'chain', jumps: 2, range: 2.2, damageFactor: 0.5 },
     levels: [
       { damage: 16, attackIntervalSec: 0.55, range: 4.2, slowFactor: 1 },
       { damage: 27, attackIntervalSec: 0.5, range: 4.4, slowFactor: 1 },
@@ -163,6 +171,22 @@ export const UNITS: UnitDef[] = [
 ];
 
 export const UNITS_BY_ID = new Map(UNITS.map((u) => [u.id, u]));
+
+/** Player-facing description of a unit's signature ability (null if it has none). */
+export function abilityLabel(def: UnitDef): { title: string; text: string } | null {
+  const a = def.ability;
+  if (!a) return null;
+  switch (a.kind) {
+    case 'splash':
+      return { title: '💥 Éclaboussure', text: `Touche aussi les ennemis à ${a.radius} cases (${Math.round(a.damageFactor * 100)} % des dégâts).` };
+    case 'chain':
+      return { title: '⚡ Chaîne', text: `L'attaque rebondit sur ${a.jumps} ennemi(s) proche(s) (${Math.round(a.damageFactor * 100)} % des dégâts).` };
+    case 'slow_on_hit':
+      return { title: '❄ Givre', text: `Ralentit l'ennemi touché pendant ${a.durationSec} s (cumulable avec la gravité).` };
+    case 'boost_aura':
+      return { title: '🚩 Ralliement', text: `+${Math.round(a.damageBonus * 100)} % de dégâts aux unités alliées proches.` };
+  }
+}
 
 /** Starter deck (owned from the first launch) — a balanced, forgiving 5 the sim also validates. */
 export const DEFAULT_DECK: string[] = ['swordsman', 'archer', 'lancer', 'catapult', 'gravity_well'];

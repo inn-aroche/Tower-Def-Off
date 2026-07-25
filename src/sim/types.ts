@@ -31,7 +31,22 @@ export interface UnitDef {
   cost: number;
   /** Board-merge tiers 1..maxLevel (index 0 = tier 1). Scaled by the unit's meta-level at combat start. */
   levels: UnitLevelStats[];
+  /** Optional signature effect that fires on top of a normal attack (or, for boost_aura, passively). */
+  ability?: UnitAbility;
 }
+
+/**
+ * Signature unit effects, all deterministic (geometry + timers, no RNG):
+ *  - splash: the attack also damages other enemies within `radius` of the target
+ *  - chain: the attack arcs to up to `jumps` other enemies within `range` of the target
+ *  - slow_on_hit: the struck enemy is chilled (movement ×`slowFactor`) for `durationSec`
+ *  - boost_aura: passive — friendly damage-units within `radius` deal +`damageBonus` fraction
+ */
+export type UnitAbility =
+  | { kind: 'splash'; radius: number; damageFactor: number }
+  | { kind: 'chain'; jumps: number; range: number; damageFactor: number }
+  | { kind: 'slow_on_hit'; slowFactor: number; durationSec: number }
+  | { kind: 'boost_aura'; radius: number; damageBonus: number };
 
 export interface EnemyDef {
   id: string;
@@ -118,6 +133,10 @@ export interface LiveEnemy {
   shieldedUntilSec: number;
   /** Accumulates for periodic abilities. */
   abilityTimerSec: number;
+  /** Absolute elapsedSec until which this enemy is chilled (frost slow_on_hit). */
+  chilledUntilSec: number;
+  /** Movement multiplier applied while chilled (1 = none). */
+  chillFactor: number;
 }
 
 export type CombatOutcome = 'ongoing' | 'victory' | 'defeat';

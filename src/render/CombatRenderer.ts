@@ -250,6 +250,22 @@ function drawBoard(
     ctx.stroke();
   }
 
+  // boost-aura fields (gold radius under the rallying unit) — drawn like gravity fields
+  for (const unit of snapshot.units) {
+    const ability = render.unitDefs.get(unit.unitId)?.ability;
+    if (ability?.kind !== 'boost_aura') continue;
+    const ucx = cx(unit.col);
+    const ucy = cy(unit.row);
+    const rad = ability.radius * cs;
+    const grad = ctx.createRadialGradient(ucx, ucy, rad * 0.2, ucx, ucy, rad);
+    grad.addColorStop(0, `rgba(240,194,106,${0.1 + 0.05 * pulse})`);
+    grad.addColorStop(1, 'rgba(240,194,106,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ucx, ucy, rad, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // units
   for (const unit of snapshot.units) {
     const def = render.unitDefs.get(unit.unitId);
@@ -371,6 +387,14 @@ function drawBoard(
       ctx.fillStyle = `rgba(120,190,255,${0.12 + 0.06 * pulse})`;
       ctx.beginPath();
       ctx.arc(ex, ey, radius * 1.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // chilled: frost tint over the body
+    if (enemy.chilledUntilSec > snapshot.elapsedSec) {
+      ctx.fillStyle = 'rgba(150,205,255,0.45)';
+      ctx.beginPath();
+      ctx.arc(ex, ey, radius, 0, Math.PI * 2);
       ctx.fill();
     }
 

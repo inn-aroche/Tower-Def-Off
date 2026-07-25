@@ -109,6 +109,8 @@ export class CombatSim {
       maxHp: hp,
       shieldedUntilSec: 0,
       abilityTimerSec: 0,
+      chilledUntilSec: 0,
+      chillFactor: 1,
     });
     if (def?.boss) this.events.push({ type: 'spawn', x: this.spawnPos.x, y: this.spawnPos.y, boss: true });
   }
@@ -138,13 +140,15 @@ export class CombatSim {
     for (const enemy of this.enemies) {
       const def = this.enemyDefs.get(enemy.enemyId);
       const speed = def?.speed ?? 0;
+      // Frost chill stacks (multiplicatively) with gravity fields; flyers can still be chilled.
+      const chill = enemy.chilledUntilSec > this.elapsedSec ? enemy.chillFactor : 1;
       if (def?.flying) {
-        enemy.pathProgress += speed * this.flyFactor * dtSec;
+        enemy.pathProgress += speed * chill * this.flyFactor * dtSec;
         const t = Math.min(1, enemy.pathProgress / endProgress);
         enemy.x = this.spawnPos.x + (this.basePos.x - this.spawnPos.x) * t;
         enemy.y = this.spawnPos.y + (this.basePos.y - this.spawnPos.y) * t;
       } else {
-        const factor = gravitySlowFactor(deps, enemy, this.units);
+        const factor = gravitySlowFactor(deps, enemy, this.units) * chill;
         enemy.pathProgress += speed * factor * dtSec;
         const pos = pathPosition(this.path, enemy.pathProgress);
         enemy.x = pos.x;

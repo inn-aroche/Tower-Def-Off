@@ -1,7 +1,7 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { clear, el, pictogram } from '../../ui/dom';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
-import { UNITS_BY_ID } from '../../data/units';
+import { abilityLabel, UNITS_BY_ID } from '../../data/units';
 import { META_MAX_LEVEL, metaScale, RARITY_LABEL } from '../../data/meta';
 import { currencyPills } from './common';
 
@@ -127,7 +127,15 @@ export function UnitDetailScreen(ctx: ScreenCtx): Screen {
       },
     });
 
-    scroll.append(hero, statsPanel, upgradeBlock, deckBtn);
+    const ability = abilityLabel(def);
+    const abilityPanel = ability
+      ? el('div', { class: 'panel', style: 'margin-bottom:12px;border:1.5px solid var(--gold-edge)' }, [
+          el('div', { style: 'font:800 13px "Baloo 2";color:var(--gold-ink);margin-bottom:2px', text: ability.title }),
+          el('div', { style: 'font:600 12px "Nunito";color:var(--ink-soft)', text: ability.text }),
+        ])
+      : el('span', {});
+
+    scroll.append(hero, statsPanel, abilityPanel, upgradeBlock, deckBtn);
   };
 
   render();
