@@ -672,3 +672,18 @@ les deux modes. Blitz est un peu plus « swingy » (courbe plus étalée), ce qu
 verts, `simulate:pvp` OK (2 modes), smoke navigateur (Arène → ⚡ Blitz : combat rendu, **Nécromancien
 couronné**, spectres volants ailés, mana pleine, zéro erreur JS). Non-négos tenus : sim
 pure/déterministe, tout l'équilibrage en `data`.
+
+## Phase 5 (1/3) — Maps multiples
+
+**Brief** : lever la limite « une seule carte » — le plus visible des manques. **4 tracés** distincts
+pour le plateau 6×10 (`data/maps.ts`) : Serpent (l'original), Cascade (grand zig-zag pleine largeur),
+Creux (spirale gauche), Double-S. Tous 4-connectés, entrée en haut, base en bas, < moitié du plateau
+en chemin (assez d'herbe pour poser). La campagne **cycle les maps par nœud** (`mapForNode`), donc
+chaque combat change de tracé — le rendu et les règles de pose lisent déjà `level.path`, donc c'est
+transparent. `CampaignNode.mapName` exposé pour l'UI.
+
+**Verrous** : `tests/maps.spec.ts` valide exhaustivement chaque tracé (bornes, 4-connexité, cellules
+distinctes, entrée haut / base bas, herbe suffisante) + que la campagne utilise bien des maps variées.
+`typecheck` + **92 tests** + `build` verts. `simulate` re-passé : tous les nœuds restent gagnables
+(un tracé plus long donne plus de temps au défenseur ⇒ la difficulté ne peut qu'assouplir ; le boss
+final reste une vraie porte à ~13 %). Non-négos tenus : maps = pure data, sim inchangée.

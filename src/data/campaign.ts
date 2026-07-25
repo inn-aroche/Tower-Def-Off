@@ -1,5 +1,6 @@
 import type { EnemyDef, LevelDef, WaveDef } from '../sim/types';
 import { LEVELS } from './levels';
+import { mapForNode } from './maps';
 
 export interface CampaignNode {
   index: number;
@@ -8,6 +9,8 @@ export interface CampaignNode {
   /** Multiplier applied to every enemy's HP for this node (difficulty ramp across the 20 nodes). */
   enemyHpMult: number;
   isBoss: boolean;
+  /** Name of the map this node runs on (for the hub / combat header). */
+  mapName: string;
 }
 
 /** Boss at nodes 5/10/15/20 (0-indexed 4/9/14/19), escalating. */
@@ -43,6 +46,8 @@ function augmentLevel(base: LevelDef, index: number): LevelDef {
 
   return {
     ...base,
+    // Each node runs on a cycled map for variety (render + placement read level.path generically).
+    path: mapForNode(index).path,
     playerStartLife: base.playerStartLife + (bossId ? 4 : 0),
     waves,
   };
@@ -61,6 +66,7 @@ export const CAMPAIGN: CampaignNode[] = Array.from({ length: 20 }, (_, i) => {
     level: augmentLevel(template, i),
     enemyHpMult: +(1 + i * 0.09).toFixed(2),
     isBoss,
+    mapName: mapForNode(i).name,
   };
 });
 
