@@ -7,8 +7,7 @@ import { ECONOMY } from '../../data/economy';
 import { ENEMIES } from '../../data/enemies';
 import { CAMPAIGN, scaleEnemyDef } from '../../data/campaign';
 import { computeRewards, starsFor } from '../../data/meta';
-import { computeBoardLayout } from '../../render/BoardLayout';
-import { unprojectCell } from '../../render/BoardProjection';
+import { computeBoardLayout, pixelToCell } from '../../render/BoardLayout';
 import { drawCombatFrame, type CombatUiState, type RenderContext } from '../../render/CombatRenderer';
 import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
 import { Effects } from '../../render/Effects';
@@ -102,7 +101,7 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
       return;
     }
 
-    const cell = unprojectCell(layout(), x, y);
+    const cell = pixelToCell(layout(), x, y);
     if (!cell) return;
     const occupant = snap.units.find((u) => u.col === cell.col && u.row === cell.row);
 

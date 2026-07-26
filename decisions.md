@@ -863,3 +863,32 @@ espace-case, inchangée et déterministe.
 centrage) + `build` verts. Vérif navigateur (Playwright sur http) : board 2.5D en combat + pose
 d'unité tombant sur la bonne case + artefact auto-porté qui démarre sans erreur (hors polices CDN
 bloquées = fallback système attendu).
+
+## Phase 9 — Pivot vue : plat en relief (retour utilisateur, remplace la 2.5D)
+
+Retour utilisateur sur la Phase 8 : la perspective 2.5D **étire l'image et déforme les cases**.
+Décision : **abandonner la 2.5D**, revenir à une grille **plate à cases carrées**, et donner la
+profondeur par un **traitement en relief (diorama)** qui ne déforme jamais la grille.
+
+- **Supprimé** : `render/BoardProjection.ts` + son test ; l'input (`CombatScreen`/`Pvp`/`Survival`)
+  et `Effects.draw` reviennent au mapping case↔pixel **linéaire carré** (`pixelToCell`,
+  `originX + x·cs`).
+- **`drawBoard` réécrit à plat + relief** : dalle surélevée (ombre portée + épaisseur/bord de terre
+  sous l'avant), tuiles carrées **biseautées** (liseré clair haut-gauche, ombre bas-droite),
+  **vignette** douce qui simule une lumière zénithale, **jetons d'unité surélevés** (ombre portée +
+  liseré sombre = épaisseur), entités peintes ligne du fond → ligne de devant pour un chevauchement
+  correct. Les cases gardent leur forme, le toucher reste pixel-exact.
+- L'artefact partagé est réinliné (même chemin ⇒ même URL) ; toujours sans bandeau de build.
+
+**Périmètre** : rendu + input, **aucun changement `src/data`** ⇒ pas de re-simulation. **Verrous** :
+`typecheck` + **126 tests** + `build` verts, vérif navigateur (plateau plat en relief, pose d'unité
+sur la bonne case).
+
+### Assets — séparation des 10 planches ChatGPT (livré hors-repo)
+
+10 planches-collages reçues (unités ×3 variantes, ennemis/boss, tuiles/décor, FX/projectiles,
+branding, icônes UI, cadres, coffres/badges). Script de **segmentation** (`scratchpad/segment.py`,
+hors repo) : détection par contours encrés + composantes connexes / bandes de lignes → **114
+éléments** découpés (découpe avec fond + détourage alpha best-effort) + planches-contact. Livrés à
+l'utilisateur en zip. Intégration réelle dans le rendu (remplacer les primitives Canvas par les
+sprites) = chantier suivant, à cadrer.

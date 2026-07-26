@@ -1,5 +1,4 @@
 import type { BoardLayout } from './BoardLayout';
-import { boardCorners, projectPoint, type ProjectedPoint } from './BoardProjection';
 import { cardRects, manaBarRect, MANA_H, TOP_INSET } from './HudLayout';
 import type { Cell, CombatSnapshot, EnemyDef, HandCard, UnitDef, UnitFamily } from '../sim/types';
 import { abilityLabel } from '../data/units';
@@ -215,10 +214,11 @@ function drawTopBar(ctx: CanvasRenderingContext2D, canvasW: number, snapshot: Co
 }
 
 /**
- * Perspective (2.5D) board. The grid is tilted ~35° away from the camera: far rows recede toward a
- * hazy horizon, the road tapers, ground fields become ellipses and units/enemies stand up as
- * volumes. All geometry goes through the shared {@link projectPoint} so hit-testing never drifts.
- * Entities are painted back-to-front (painter's algorithm) so nearer volumes occlude farther ones.
+ * Flat top-down board with a relief (diorama) treatment: depth WITHOUT distorting the square grid.
+ * The board is a raised slab (thickness + cast shadow), tiles are gently bevelled, a soft vignette
+ * fakes overhead light, and units stand up as raised tokens with a cast shadow and a dark bottom
+ * lip. Cell↔pixel stays the linear square mapping, so cells keep their shape and hit-testing is
+ * exact. Entities are painted top-row → bottom-row so nearer tokens overlap farther ones.
  */
 function drawBoard(
   ctx: CanvasRenderingContext2D,
@@ -229,271 +229,198 @@ function drawBoard(
   fx: CombatFx,
 ): void {
   const cs = layout.cellSize;
+  const ox = layout.originX;
+  const oy = layout.originY;
   const boardW = cs * layout.cols;
-  const canvasW = layout.originX * 2 + boardW;
-  const proj = (col: number, row: number): ProjectedPoint => projectPoint(layout, col, row);
+  const boardH = cs * layout.rows;
+  const cx = (col: number) => ox + (col + 0.5) * cs;
+  const cy = (row: number) => oy + (row + 0.5) * cs;
   const pathSet = new Set(render.path.map((c) => `${c.col},${c.row}`));
   const pulse = 0.5 + 0.5 * Math.sin((fx.pulseSec ?? 0) * 3);
-  const [TL, TR, BR, BL] = boardCorners(layout);
 
-  // ---- sky / atmosphere behind the tilted plane (shows through the trapezoid's far corners) ----
-  const sky = ctx.createLinearGradient(0, TOP_INSET, 0, BL.y);
-  sky.addColorStop(0, '#b7d0e4');
-  sky.addColorStop(0.5, '#d4e2dc');
-  sky.addColorStop(1, '#e7e9d3');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, TOP_INSET, canvasW, BL.y - TOP_INSET);
-
-  // ---- board slab thickness: earthy rim extruded down from the outer edges ----
-  const wall = Math.max(8, cs * 0.34);
-  const rim = (a: ProjectedPoint, b: ProjectedPoint, shade: string) => {
-    ctx.fillStyle = shade;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.lineTo(b.x, b.y + wall);
-    ctx.lineTo(a.x, a.y + wall);
-    ctx.closePath();
-    ctx.fill();
-  };
-  // soft cast shadow under the near edge
-  ctx.fillStyle = 'rgba(30,26,18,0.16)';
-  ctx.beginPath();
-  ctx.ellipse((BL.x + BR.x) / 2, BR.y + wall + 6, boardW * 0.52, wall * 0.7, 0, 0, Math.PI * 2);
+  // ---- raised slab: cast shadow + earthy thickness under the front edge ----
+  const wall = Math.max(7, cs * 0.26);
+  ctx.fillStyle = 'rgba(24,20,14,0.26)';
+  roundRectPath(ctx, ox - 3, oy + 9, boardW + 6, boardH + wall, 14);
   ctx.fill();
-  rim(TL, BL, '#6d5334'); // left wall
-  rim(TR, BR, '#6d5334'); // right wall
-  rim(BL, BR, '#856741'); // front wall (lit)
+  ctx.fillStyle = '#6d5334';
+  ctx.fillRect(ox, oy + boardH, boardW, wall);
+  ctx.fillStyle = 'rgba(255,240,200,0.12)';
+  ctx.fillRect(ox, oy + boardH, boardW, 2);
 
-  // ---- ground tiles, far → near (checkerboard + atmospheric haze on distant rows) ----
+  // ---- tiles: square checker + a subtle bevel (top-left highlight, bottom-right shade) ----
   for (let row = 0; row < layout.rows; row++) {
-    const haze = (1 - row / layout.rows) * 0.24;
     for (let col = 0; col < layout.cols; col++) {
-      const a = proj(col, row);
-      const b = proj(col + 1, row);
-      const c = proj(col + 1, row + 1);
-      const d = proj(col, row + 1);
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.lineTo(c.x, c.y);
-      ctx.lineTo(d.x, d.y);
-      ctx.closePath();
+      const x = ox + col * cs;
+      const y = oy + row * cs;
       ctx.fillStyle = (row + col) % 2 === 0 ? '#c6dea3' : '#b6d38f';
-      ctx.fill();
-      if (haze > 0.003) {
-        ctx.fillStyle = `rgba(228,237,227,${haze})`;
-        ctx.fill();
-      }
-      ctx.strokeStyle = 'rgba(56,74,38,0.10)';
+      ctx.fillRect(x, y, cs, cs);
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
       ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, y + cs - 1);
+      ctx.lineTo(x + 0.5, y + 0.5);
+      ctx.lineTo(x + cs - 1, y + 0.5);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(42,60,26,0.15)';
+      ctx.beginPath();
+      ctx.moveTo(x + cs - 0.5, y + 0.5);
+      ctx.lineTo(x + cs - 0.5, y + cs - 0.5);
+      ctx.lineTo(x + 0.5, y + cs - 0.5);
       ctx.stroke();
     }
   }
 
-  // ---- road ribbon on top of the grass, tapering with depth ----
+  // ---- soft overhead-light vignette: darkens the board edges for a sense of depth ----
+  const vg = ctx.createRadialGradient(ox + boardW / 2, oy + boardH * 0.4, boardW * 0.25, ox + boardW / 2, oy + boardH * 0.5, boardH * 0.85);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(18,24,10,0.22)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(ox, oy, boardW, boardH);
+
+  // ---- road ribbon ----
   if (render.path.length >= 2) {
-    const centers = render.path.map((c) => proj(c.col + 0.5, c.row + 0.5));
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    const ribbon = (color: string, wf: number) => {
-      for (let i = 1; i < centers.length; i++) {
-        const p0 = centers[i - 1];
-        const p1 = centers[i];
-        ctx.strokeStyle = color;
-        ctx.lineWidth = cs * wf * ((p0.scale + p1.scale) / 2);
-        ctx.beginPath();
-        ctx.moveTo(p0.x, p0.y);
-        ctx.lineTo(p1.x, p1.y);
-        ctx.stroke();
-      }
-    };
-    ribbon('#b98f43', 0.6);
-    ribbon('#ecd497', 0.4);
+    ctx.beginPath();
+    ctx.moveTo(cx(render.path[0].col), cy(render.path[0].row));
+    for (let i = 1; i < render.path.length; i++) ctx.lineTo(cx(render.path[i].col), cy(render.path[i].row));
+    ctx.strokeStyle = '#b98f43';
+    ctx.lineWidth = cs * 0.66;
+    ctx.stroke();
+    ctx.strokeStyle = '#ecd497';
+    ctx.lineWidth = cs * 0.46;
+    ctx.stroke();
   }
 
   // ---- spawn portal + base keep ----
   const spawn = render.path[0];
   const base = render.path[render.path.length - 1];
   if (spawn) {
-    const p = proj(spawn.col + 0.5, spawn.row + 0.5);
-    ctx.fillStyle = 'rgba(150,60,44,0.9)';
+    ctx.fillStyle = 'rgba(150,60,44,0.88)';
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y, cs * 0.26 * p.scale, cs * 0.17 * p.scale, 0, 0, Math.PI * 2);
+    ctx.arc(cx(spawn.col), cy(spawn.row), cs * 0.22, 0, Math.PI * 2);
     ctx.fill();
   }
   if (base) {
-    const p = proj(base.col + 0.5, base.row + 0.5);
-    const w = cs * 0.52 * p.scale;
-    const h = cs * 0.52 * p.scale;
+    const bx = cx(base.col);
+    const by = cy(base.row);
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y + h * 0.35, w * 0.6, h * 0.22, 0, 0, Math.PI * 2);
+    ctx.ellipse(bx, by + cs * 0.2, cs * 0.3, cs * 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#276b2b';
-    roundRectPath(ctx, p.x - w / 2, p.y - h, w, h, h * 0.2);
+    roundRectPath(ctx, bx - cs * 0.28, by - cs * 0.3, cs * 0.56, cs * 0.56, cs * 0.12);
     ctx.fill();
     ctx.fillStyle = '#3a9440';
-    roundRectPath(ctx, p.x - w / 2, p.y - h, w, h * 0.42, h * 0.2);
+    roundRectPath(ctx, bx - cs * 0.28, by - cs * 0.3, cs * 0.56, cs * 0.24, cs * 0.12);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = `800 ${h * 0.6}px 'Nunito', sans-serif`;
+    ctx.font = `800 ${cs * 0.3}px 'Nunito', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('⌂', p.x, p.y - h * 0.46);
+    ctx.fillText('⌂', bx, by);
   }
 
-  // ---- valid-placement hints when a card is selected ----
+  // ---- valid-placement hints when a card is selected (square cells) ----
   if (ui.selectedCardIndex !== null) {
     const occupied = new Set(snapshot.units.map((u) => `${u.col},${u.row}`));
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 1;
     for (let row = 0; row < layout.rows; row++) {
       for (let col = 0; col < layout.cols; col++) {
         const key = `${col},${row}`;
         if (pathSet.has(key) || occupied.has(key)) continue;
-        const a = proj(col + 0.08, row + 0.08);
-        const b = proj(col + 0.92, row + 0.08);
-        const c = proj(col + 0.92, row + 0.92);
-        const d = proj(col + 0.08, row + 0.92);
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.lineTo(c.x, c.y);
-        ctx.lineTo(d.x, d.y);
-        ctx.closePath();
-        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(ox + col * cs + 1.5, oy + row * cs + 1.5, cs - 3, cs - 3);
       }
     }
   }
 
-  // ---- ground fields (gravity + boost auras) drawn on the tilted plane as ellipses ----
-  const groundDisc = (gx: number, gy: number, radCells: number, inner: string, outer: string, stroke?: string) => {
-    const N = 30;
-    const center = proj(gx, gy);
-    const pts: ProjectedPoint[] = [];
-    let maxR = 0;
-    for (let i = 0; i <= N; i++) {
-      const ang = (i / N) * Math.PI * 2;
-      const p = proj(gx + radCells * Math.cos(ang), gy + radCells * Math.sin(ang));
-      pts.push(p);
-      maxR = Math.max(maxR, Math.hypot(p.x - center.x, p.y - center.y));
-    }
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(center.x, center.y, maxR * 0.15, center.x, center.y, Math.max(1, maxR));
-    grad.addColorStop(0, inner);
-    grad.addColorStop(1, outer);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    if (stroke) {
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-  };
+  // ---- gravity fields (under units) — flat rings/discs, gentle pulse ----
   for (const unit of snapshot.units) {
     const def = render.unitDefs.get(unit.unitId);
     if (!def || def.family !== 'gravity') continue;
     const range = def.levels[unit.level - 1]?.range ?? 0;
-    groundDisc(
-      unit.col + 0.5,
-      unit.row + 0.5,
-      range,
-      `rgba(26,163,154,${0.12 + 0.06 * pulse})`,
-      'rgba(26,163,154,0)',
-      `rgba(26,163,154,${0.3 + 0.25 * pulse})`,
-    );
+    const ucx = cx(unit.col);
+    const ucy = cy(unit.row);
+    const rad = range * cs;
+    const grad = ctx.createRadialGradient(ucx, ucy, rad * 0.2, ucx, ucy, rad);
+    grad.addColorStop(0, `rgba(26,163,154,${0.12 + 0.06 * pulse})`);
+    grad.addColorStop(1, 'rgba(26,163,154,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ucx, ucy, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(26,163,154,${0.3 + 0.25 * pulse})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ucx, ucy, rad, 0, Math.PI * 2);
+    ctx.stroke();
   }
   for (const unit of snapshot.units) {
     const ability = render.unitDefs.get(unit.unitId)?.ability;
     if (ability?.kind !== 'boost_aura') continue;
-    groundDisc(
-      unit.col + 0.5,
-      unit.row + 0.5,
-      ability.radius,
-      `rgba(240,194,106,${0.1 + 0.05 * pulse})`,
-      'rgba(240,194,106,0)',
-    );
+    const ucx = cx(unit.col);
+    const ucy = cy(unit.row);
+    const rad = ability.radius * cs;
+    const grad = ctx.createRadialGradient(ucx, ucy, rad * 0.2, ucx, ucy, rad);
+    grad.addColorStop(0, `rgba(240,194,106,${0.1 + 0.05 * pulse})`);
+    grad.addColorStop(1, 'rgba(240,194,106,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ucx, ucy, rad, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  // ---- volumes (units, enemies, hero), painted back-to-front ----
-  interface Drawable {
-    depth: number;
-    draw: () => void;
-  }
-  const drawables: Drawable[] = [];
-
-  for (const unit of snapshot.units) {
+  // ---- units: raised square tokens (cast shadow + dark bottom lip), lower rows drawn last ----
+  const units = [...snapshot.units].sort((a, b) => a.row - b.row);
+  for (const unit of units) {
     const def = render.unitDefs.get(unit.unitId);
     if (!def) continue;
-    const feet = proj(unit.col + 0.5, unit.row + 0.82);
-    drawables.push({ depth: feet.y, draw: () => drawUnitToken(unit, def, feet) });
-  }
-  for (const enemy of snapshot.enemies) {
-    const def = render.enemyDefs.get(enemy.enemyId);
-    if (!def) continue;
-    const at = proj(enemy.x, enemy.y);
-    drawables.push({ depth: at.y, draw: () => drawEnemy(enemy, def, at) });
-  }
-  const hero = snapshot.hero;
-  if (hero.configured && hero.deployed) {
-    const at = proj(hero.x, hero.y);
-    drawables.push({ depth: at.y, draw: () => drawHero(hero, at) });
-  }
-
-  drawables.sort((a, b) => a.depth - b.depth);
-  for (const d of drawables) d.draw();
-
-  // A unit stands up as a bright rounded cap on a darker stem, rooted at its shadow.
-  function drawUnitToken(unit: CombatSnapshot['units'][number], def: UnitDef, feet: ProjectedPoint): void {
-    const s = feet.scale;
-    const cap = cs * 0.72 * s;
-    const lift = cs * 0.3 * s;
-    const capCx = feet.x;
-    const capCy = feet.y - lift - cap * 0.5;
+    const x = ox + unit.col * cs;
+    const y = oy + unit.row * cs;
+    const pad = cs * 0.1;
+    const size = cs - pad * 2;
+    const lift = cs * 0.08;
+    const r = size * 0.24;
     const selected = !!ui.selectedUnit && ui.selectedUnit.col === unit.col && ui.selectedUnit.row === unit.row;
 
-    // shadow
+    // cast shadow
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath();
-    ctx.ellipse(feet.x, feet.y, cap * 0.55, cap * 0.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + cs / 2, y + cs - pad * 0.6, size * 0.48, size * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // stem (side face)
+    // dark base (bottom lip → thickness)
+    roundRectPath(ctx, x + pad, y + pad + lift, size, size, r);
     ctx.fillStyle = FAMILY_BORDER[def.family];
-    const stemTop = capCy + cap * 0.16;
-    roundRectPath(ctx, capCx - cap * 0.42, stemTop, cap * 0.84, feet.y - stemTop, cap * 0.16);
     ctx.fill();
 
-    // bright cap (top face)
-    roundRectPath(ctx, capCx - cap / 2, capCy - cap / 2, cap, cap, cap * 0.24);
+    // bright top face
+    roundRectPath(ctx, x + pad, y + pad, size, size, r);
     ctx.fillStyle = FAMILY_COLOR[def.family];
     ctx.fill();
-    ctx.lineWidth = Math.max(2, 3 * s);
+    ctx.lineWidth = 3;
     ctx.strokeStyle = selected ? '#fff6d9' : FAMILY_BORDER[def.family];
     ctx.stroke();
 
-    drawPictogram(ctx, def.family, capCx, capCy, cap * 0.6);
+    drawPictogram(ctx, def.family, x + cs / 2, y + pad + size / 2, size * 0.6);
 
     // stunned overlay
     if ((unit.stunnedUntilSec ?? 0) > snapshot.elapsedSec) {
-      roundRectPath(ctx, capCx - cap / 2, capCy - cap / 2, cap, cap, cap * 0.24);
+      roundRectPath(ctx, x + pad, y + pad, size, size, r);
       ctx.fillStyle = 'rgba(40,44,52,0.55)';
       ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = `${cap * 0.5}px 'Baloo 2', sans-serif`;
+      ctx.font = `${size * 0.5}px 'Baloo 2', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('⚡', capCx, capCy + 1);
+      ctx.fillText('⚡', x + cs / 2, y + pad + size / 2 + 1);
     }
 
-    // level badge (top-right of the cap)
-    const br = cap * 0.2;
-    const bx = capCx + cap / 2 - br * 0.4;
-    const by = capCy - cap / 2 + br * 0.4;
+    // level badge
+    const br = size * 0.2;
+    const bx = x + cs - pad - br * 0.4;
+    const by = y + pad + br * 0.4;
     ctx.beginPath();
     ctx.arc(bx, by, br, 0, Math.PI * 2);
     ctx.fillStyle = '#fff';
@@ -505,22 +432,23 @@ function drawBoard(
     ctx.fillText(String(unit.level), bx, by + 0.5);
   }
 
-  function drawEnemy(enemy: CombatSnapshot['enemies'][number], def: EnemyDef, at: ProjectedPoint): void {
-    const s = at.scale;
+  // ---- enemies (lower rows last), with a soft ground shadow so they read as above the field ----
+  const enemies = [...snapshot.enemies].sort((a, b) => a.y - b.y);
+  for (const enemy of enemies) {
+    const def = render.enemyDefs.get(enemy.enemyId);
+    if (!def) continue;
     const boss = def.boss === true;
-    const radius = cs * (boss ? 0.42 : 0.3) * s;
-    const ex = at.x;
-    const groundY = at.y;
+    const radius = cs * (boss ? 0.42 : 0.3);
+    const ex = ox + enemy.x * cs;
     const hover = def.flying ? radius * (1.05 + 0.12 * Math.sin(snapshot.elapsedSec * 4 + enemy.instanceId)) : 0;
-    const ey = groundY - hover;
+    const ey = oy + enemy.y * cs - hover;
+    const groundY = oy + enemy.y * cs;
 
-    // ground shadow (stays on the field even when a flyer is lifted)
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath();
-    ctx.ellipse(ex, groundY + radius * 0.5, radius * (def.flying ? 0.7 : 0.95), radius * 0.32, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, groundY + radius * 0.7, radius * (def.flying ? 0.7 : 0.95), radius * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // flyer wings behind the body
     if (def.flying) {
       const flap = 0.5 + 0.5 * Math.abs(Math.sin(snapshot.elapsedSec * 8 + enemy.instanceId));
       ctx.fillStyle = 'rgba(127,143,208,0.55)';
@@ -539,7 +467,6 @@ function drawBoard(
     ctx.strokeStyle = boss ? '#ffd76a' : '#fff';
     ctx.stroke();
 
-    // armored: metallic bolt ring
     if (def.armor && def.armor > 0) {
       ctx.strokeStyle = 'rgba(220,225,235,0.9)';
       ctx.lineWidth = 2;
@@ -550,7 +477,6 @@ function drawBoard(
       ctx.setLineDash([]);
     }
 
-    // regenerator: soft green pulse
     if (def.regenPerSec && enemy.hp < enemy.maxHp) {
       ctx.strokeStyle = `rgba(120,220,120,${0.35 + 0.25 * pulse})`;
       ctx.lineWidth = 2.5;
@@ -559,7 +485,6 @@ function drawBoard(
       ctx.stroke();
     }
 
-    // hit flash
     if (fx.isFlashing?.(enemy.instanceId)) {
       ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.beginPath();
@@ -567,7 +492,6 @@ function drawBoard(
       ctx.fill();
     }
 
-    // active shield bubble
     if (enemy.shieldedUntilSec > snapshot.elapsedSec) {
       ctx.strokeStyle = `rgba(120,190,255,${0.55 + 0.3 * pulse})`;
       ctx.lineWidth = 3;
@@ -580,7 +504,6 @@ function drawBoard(
       ctx.fill();
     }
 
-    // chilled: frost tint over the body
     if (enemy.chilledUntilSec > snapshot.elapsedSec) {
       ctx.fillStyle = 'rgba(150,205,255,0.45)';
       ctx.beginPath();
@@ -588,7 +511,6 @@ function drawBoard(
       ctx.fill();
     }
 
-    // HP bar (uses live maxHp so scaled/boss enemies read correctly)
     const hpFrac = Math.max(0, Math.min(1, enemy.hp / Math.max(1, enemy.maxHp)));
     const barW = radius * 2;
     const barX = ex - radius;
@@ -598,7 +520,6 @@ function drawBoard(
     ctx.fillStyle = boss ? '#ffb347' : hpFrac > 0.4 ? '#4caf50' : '#e74c3c';
     ctx.fillRect(barX, barY, barW * hpFrac, boss ? 5 : 3.5);
 
-    // boss crown + name label
     if (boss) {
       ctx.fillStyle = '#fff';
       ctx.font = `${radius * 0.9}px 'Baloo 2', sans-serif`;
@@ -611,26 +532,23 @@ function drawBoard(
     }
   }
 
-  function drawHero(h: CombatSnapshot['hero'], at: ProjectedPoint): void {
-    const s = at.scale;
-    const hx = at.x;
-    const hy = at.y;
-    const hr = cs * 0.44 * s;
-    // aura ring
+  // ---- hero (raised token) drawn on top while it marches up the path ----
+  const hero = snapshot.hero;
+  if (hero.configured && hero.deployed) {
+    const hx = ox + hero.x * cs;
+    const hy = oy + hero.y * cs;
+    const hr = cs * 0.44;
     ctx.strokeStyle = `rgba(159,120,255,${0.5 + 0.3 * pulse})`;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(hx, hy, hr * 1.2, hr * 0.7, 0, 0, Math.PI * 2);
+    ctx.arc(hx, hy, hr * 1.2, 0, Math.PI * 2);
     ctx.stroke();
-    // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.beginPath();
-    ctx.ellipse(hx, hy, hr * 0.9, hr * 0.32, 0, 0, Math.PI * 2);
+    ctx.ellipse(hx, hy + hr * 0.7, hr * 0.9, hr * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
-    // body raised above the feet
-    const bodyCy = hy - hr;
     ctx.beginPath();
-    ctx.arc(hx, bodyCy, hr, 0, Math.PI * 2);
+    ctx.arc(hx, hy, hr, 0, Math.PI * 2);
     ctx.fillStyle = '#6a4a8c';
     ctx.fill();
     ctx.lineWidth = 3;
@@ -640,14 +558,13 @@ function drawBoard(
     ctx.font = `${hr * 1.1}px 'Baloo 2', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🦸', hx, bodyCy + 1);
-    // HP bar
-    const hpFrac = Math.max(0, Math.min(1, h.hp / Math.max(1, h.maxHp)));
+    ctx.fillText('🦸', hx, hy + 1);
+    const hpFrac = Math.max(0, Math.min(1, hero.hp / Math.max(1, hero.maxHp)));
     const bw = hr * 2;
     ctx.fillStyle = '#1f1610';
-    ctx.fillRect(hx - hr, bodyCy - hr - 8, bw, 5);
+    ctx.fillRect(hx - hr, hy - hr - 8, bw, 5);
     ctx.fillStyle = hpFrac > 0.4 ? '#4caf50' : '#e74c3c';
-    ctx.fillRect(hx - hr, bodyCy - hr - 8, bw * hpFrac, 5);
+    ctx.fillRect(hx - hr, hy - hr - 8, bw * hpFrac, 5);
   }
 }
 
