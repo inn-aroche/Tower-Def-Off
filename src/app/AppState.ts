@@ -1,7 +1,7 @@
 import type { AdProvider, AnalyticsProvider, IapProvider, SaveProvider } from '../platform/types';
 import type { UnitDef } from '../sim/types';
 import { UNITS, UNITS_BY_ID } from '../data/units';
-import { DECK_MAX, DECK_MIN, scaleUnitDef, upgradeCost, type OwnedUnit } from '../data/meta';
+import { baseBonusLife, baseUpgradeCost, DECK_MAX, DECK_MIN, scaleUnitDef, upgradeCost, type OwnedUnit, type UpgradeCost } from '../data/meta';
 import { CAMPAIGN } from '../data/campaign';
 import { leagueForTrophies, type League } from '../data/arena';
 import { openChestReward, type ChestKind, type ChestReward } from '../data/shop';
@@ -58,6 +58,13 @@ export class AppState {
     this.persist();
     return true;
   }
+  get shards(): number {
+    return this.data.currencies.shards;
+  }
+  addShards(n: number): void {
+    this.data.currencies.shards += n;
+    this.persist();
+  }
 
   // ── Shop / monetization ──────────────────────────────────────────────────
   get noAds(): boolean {
@@ -72,6 +79,8 @@ export class AppState {
     const reward = openChestReward(kind, this.data.shop.chestsOpened);
     this.data.shop.chestsOpened += 1;
     this.data.currencies.gold += reward.gold;
+    // Chests are the main Éclats source (epic chests give more).
+    this.data.currencies.shards += kind === 'epic' ? 3 : 1;
     for (const d of reward.duplicates) this.addDuplicates(d.unitId, d.count);
     this.persist();
     this.analytics.track('chest_opened', { kind, gold: reward.gold });
@@ -108,10 +117,15 @@ export class AppState {
     const def = UNITS_BY_ID.get(unitId);
     if (!owned || !def) return false;
     const cost = upgradeCost(def.rarity, owned.level);
-    return !!cost && owned.duplicates >= cost.duplicates && this.data.currencies.gold >= cost.gold;
+    return (
+      !!cost &&
+      owned.duplicates >= cost.duplicates &&
+      this.data.currencies.gold >= cost.gold &&
+      this.data.currencies.shards >= cost.shards
+    );
   }
 
-  /** Spend duplicates + gold to raise a unit's meta-level. Returns the new level or null if refused. */
+  /** Spend duplicates (cards) + gold + Éclats to raise a unit's meta-level. Returns the new level or null. */
   upgrade(unitId: string): number | null {
     if (!this.canUpgrade(unitId)) return null;
     const owned = this.data.collection[unitId]!;
@@ -119,17 +133,45 @@ export class AppState {
     const cost = upgradeCost(def.rarity, owned.level)!;
     owned.duplicates -= cost.duplicates;
     this.data.currencies.gold -= cost.gold;
+    this.data.currencies.shards -= cost.shards;
     owned.level += 1;
     this.persist();
     this.analytics.track('unit_upgraded', { unitId, level: owned.level, rarity: def.rarity });
     return owned.level;
   }
 
-  upgradeCostFor(unitId: string): { duplicates: number; gold: number } | null {
+  upgradeCostFor(unitId: string): UpgradeCost | null {
     const owned = this.data.collection[unitId];
     const def = UNITS_BY_ID.get(unitId);
     if (!owned || !def) return null;
     return upgradeCost(def.rarity, owned.level);
+  }
+
+  // ── Base (fortress) ───────────────────────────────────────────────────────
+  get baseLevel(): number {
+    return this.data.base.level;
+  }
+  /** Extra starting life the base grants in PvE (campaign + survival). */
+  baseBonusLife(): number {
+    return baseBonusLife(this.data.base.level);
+  }
+  baseUpgradeCostFor(): { gold: number; shards: number } | null {
+    return baseUpgradeCost(this.data.base.level);
+  }
+  canUpgradeBase(): boolean {
+    const cost = baseUpgradeCost(this.data.base.level);
+    return !!cost && this.data.currencies.gold >= cost.gold && this.data.currencies.shards >= cost.shards;
+  }
+  /** Spends gold (+ Éclats at higher tiers) to raise the base level. Returns the new level or null. */
+  upgradeBase(): number | null {
+    if (!this.canUpgradeBase()) return null;
+    const cost = baseUpgradeCost(this.data.base.level)!;
+    this.data.currencies.gold -= cost.gold;
+    this.data.currencies.shards -= cost.shards;
+    this.data.base.level += 1;
+    this.persist();
+    this.analytics.track('base_upgraded', { level: this.data.base.level });
+    return this.data.base.level;
   }
 
   // ── Deck ────────────────────────────────────────────────────────────────

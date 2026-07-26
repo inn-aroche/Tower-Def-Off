@@ -737,3 +737,25 @@ réclamable.
 coffre, reset quotidien, `hasClaimable`) + `build` verts. Smoke navigateur : écran rendu, coffre
 réclamé, zéro erreur JS. Non-négos tenus : progression = data + méta, sim intacte, save versionnée
 + migration testée, économie honnête.
+
+## Phase 6 (1/3) — Ressource Éclats ✦ + amélioration de la base
+
+**Brief (retour utilisateur)** : améliorer une unité ne doit pas coûter *que* de l'or — des **cartes**
+(doublons) et, à un certain palier, une **ressource plus rare**. Et pouvoir **améliorer la base**.
+
+**Éclats ✦** : nouvelle monnaie (`currencies.shards`). `upgradeCost` renvoie désormais `{duplicates,
+gold, shards}` — les Éclats rejoignent la recette aux **hauts niveaux** (4→5 : 3 ✦, 5→6 : 6 ✦). Source
+principale : **coffres** (épique +3, commun +1). Départ : 4 ✦. Libellé « Doublons » → **« Cartes »**.
+
+**Base** : `base.level` (1→8). `baseBonusLife(level)` = +2 PV de départ par niveau, **appliqué en PvE
+seulement** (campagne + survie ; l'arène reste symétrique et intouchée). `baseUpgradeCost` = or (+ ✦
+dès le niveau 4). `AppState` : `upgradeBase`, `canUpgradeBase`, `baseBonusLife`, `shards`/`addShards`.
+
+**Save v7** (`currencies.shards`, `base.level`) + **migration v6→v7** (et v5→v1 rebranchées via un
+helper `withV7` qui injecte shards + base sur les anciennes formes), testée.
+
+**Verrous** : `typecheck` + **107 tests** (coût avec Éclats, refus si ✦ manquants, amélioration base +
+bonus de vie, migration v7) + `build` verts. `simulate` / `simulate:pvp` / `simulate:survival` OK
+(le baseline des sims part d'une base niveau 1 ⇒ équilibrage inchangé ; le bonus est un power-up
+joueur). Le bouton d'amélioration de la base arrive avec l'écran fusionné (phase suivante).
+Non-négos : sim intacte, tout l'équilibrage en data, save versionnée + migration testée, éco honnête.

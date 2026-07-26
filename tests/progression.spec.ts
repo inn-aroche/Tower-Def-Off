@@ -16,7 +16,7 @@ const DAY = '2026-07-25';
 
 describe('progression save', () => {
   it('declares schema v6 and seeds a progression block', () => {
-    expect(SAVE_SCHEMA_VERSION).toBe(6);
+    expect(SAVE_SCHEMA_VERSION).toBe(7);
     expect(createDefaultSaveData().progression.stats.combatsWon).toBe(0);
   });
 

@@ -33,7 +33,7 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
   const level: LevelDef = {
     id: 'survival',
     name: 'Survie',
-    playerStartLife: SURVIVAL_START_LIFE,
+    playerStartLife: SURVIVAL_START_LIFE + app.baseBonusLife(),
     path: CAMPAIGN_PATH,
     waves: [],
   };

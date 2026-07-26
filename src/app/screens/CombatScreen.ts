@@ -22,7 +22,8 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
   const { app, host, nav, route } = ctx;
   const nodeIndex = route.name === 'combat' ? route.nodeIndex : 0;
   const node = CAMPAIGN[Math.max(0, Math.min(CAMPAIGN.length - 1, nodeIndex))];
-  const level = node.level;
+  // The base upgrade grants extra starting life in PvE.
+  const level = { ...node.level, playerStartLife: node.level.playerStartLife + app.baseBonusLife() };
 
   const scaledUnitDefs = app.scaledDeckDefs();
   const scaledEnemies: EnemyDef[] = ENEMIES.map((e) => scaleEnemyDef(e, node.enemyHpMult));

@@ -34,7 +34,7 @@ describe('save migration', () => {
   });
 
   it('current default save declares the current schema version', () => {
-    expect(SAVE_SCHEMA_VERSION).toBe(6);
+    expect(SAVE_SCHEMA_VERSION).toBe(7);
   });
 
   it('migrates a v2 save: carries state over and seeds the shop + progress blocks', () => {
@@ -72,8 +72,9 @@ describe('save migration', () => {
     delete (v4 as { survival?: unknown }).survival;
     const migrated = migrateSaveData({ schemaVersion: 4, data: v4 });
     expect(migrated.progress).toEqual({ tutorialSeen: true });
-    expect(migrated.currencies).toEqual({ gold: 500, gems: 20 });
+    expect(migrated.currencies).toEqual({ gold: 500, gems: 20, shards: 4 });
     expect(migrated.survival).toEqual({ bestWave: 0 });
+    expect(migrated.base).toEqual({ level: 1 });
   });
 });
 
@@ -104,8 +105,10 @@ describe('AppState FTUE', () => {
 
 describe('upgrade economy', () => {
   it('upgradeCost grows and caps at max level', () => {
-    expect(upgradeCost('common', 1)).toEqual({ duplicates: 2, gold: 100 });
-    expect(upgradeCost('epic', 1)).toEqual({ duplicates: 2, gold: 250 });
+    expect(upgradeCost('common', 1)).toEqual({ duplicates: 2, gold: 100, shards: 0 });
+    expect(upgradeCost('epic', 1)).toEqual({ duplicates: 2, gold: 250, shards: 0 });
+    // Éclats join the recipe at the high end.
+    expect(upgradeCost('common', 4)).toEqual({ duplicates: 14, gold: 1000, shards: 3 });
     expect(upgradeCost('common', 6)).toBeNull();
   });
 
@@ -164,6 +167,37 @@ describe('AppState', () => {
     expect(app.starsFor(0)).toBe(2);
     app.recordVictory(0, 1, { gold: 0, gems: 0, duplicates: [] });
     expect(app.starsFor(0)).toBe(2); // best kept
+  });
+});
+
+describe('base upgrade', () => {
+  it('grants extra PvE starting life per level and spends gold', () => {
+    const app = makeApp();
+    expect(app.baseLevel).toBe(1);
+    expect(app.baseBonusLife()).toBe(0);
+    const gold = app.gold;
+    expect(app.canUpgradeBase()).toBe(true);
+    expect(app.upgradeBase()).toBe(2);
+    expect(app.gold).toBe(gold - 200); // baseUpgradeCost(1).gold = 200
+    expect(app.baseBonusLife()).toBe(2);
+  });
+});
+
+describe('Éclats-gated unit upgrade', () => {
+  it('requires shards at high levels and blocks when short', () => {
+    const app = makeApp();
+    // Bring swordsman up to level 4 (needs no shards through level 3→4), stocking duplicates.
+    app.addDuplicates('swordsman', 100);
+    app.addGold(100000);
+    expect(app.upgrade('swordsman')).toBe(2);
+    expect(app.upgrade('swordsman')).toBe(3);
+    expect(app.upgrade('swordsman')).toBe(4);
+    // Level 4→5 needs 3 Éclats; drain them to force a refusal.
+    while (app.shards > 0) app.addShards(-1);
+    expect(app.canUpgrade('swordsman')).toBe(false);
+    expect(app.upgrade('swordsman')).toBeNull();
+    app.addShards(3);
+    expect(app.upgrade('swordsman')).toBe(5);
   });
 });
 

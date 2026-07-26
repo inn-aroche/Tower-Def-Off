@@ -8,15 +8,39 @@ export const RARITY_LABEL: Record<Rarity, string> = { common: 'Commune', rare: '
 export const RARITY_ORDER: Record<Rarity, number> = { common: 0, rare: 1, epic: 2 };
 
 const GOLD_BY_RARITY: Record<Rarity, number> = { common: 1, rare: 1.6, epic: 2.5 };
-/** Duplicates + gold needed to go from `level` to `level+1`. */
-const DUP_STEPS = [0, 2, 4, 8, 14, 22]; // index by target level-1 (level 1->2 uses DUP_STEPS[1])
+/** Duplicates ("cartes") + gold needed to go from `level` to `level+1` (indexed by currentLevel). */
+const DUP_STEPS = [0, 2, 4, 8, 14, 22];
 const GOLD_STEPS = [0, 100, 250, 500, 1000, 2000];
+/** Éclats ✦ join the recipe at the high end (levels 4→5 and 5→6) — a rarer, gated resource. */
+const SHARD_STEPS = [0, 0, 0, 0, 3, 6];
 
-export function upgradeCost(rarity: Rarity, currentLevel: number): { duplicates: number; gold: number } | null {
+export interface UpgradeCost {
+  duplicates: number;
+  gold: number;
+  /** Éclats required (0 at low levels). */
+  shards: number;
+}
+
+export function upgradeCost(rarity: Rarity, currentLevel: number): UpgradeCost | null {
   if (currentLevel >= META_MAX_LEVEL) return null;
   const duplicates = DUP_STEPS[currentLevel] ?? DUP_STEPS[DUP_STEPS.length - 1];
   const gold = Math.round((GOLD_STEPS[currentLevel] ?? GOLD_STEPS[GOLD_STEPS.length - 1]) * GOLD_BY_RARITY[rarity]);
-  return { duplicates, gold };
+  const shards = SHARD_STEPS[currentLevel] ?? SHARD_STEPS[SHARD_STEPS.length - 1];
+  return { duplicates, gold, shards };
+}
+
+// ── Base (fortress) upgrade ─────────────────────────────────────────────────
+export const BASE_MAX_LEVEL = 8;
+
+/** Extra starting life granted by the base at a given level (level 1 = no bonus). PvE only. */
+export function baseBonusLife(level: number): number {
+  return Math.max(0, (level - 1) * 2);
+}
+
+/** Gold (+ Éclats at higher tiers) to take the base from `level` to `level+1`, or null at max. */
+export function baseUpgradeCost(level: number): { gold: number; shards: number } | null {
+  if (level >= BASE_MAX_LEVEL) return null;
+  return { gold: 200 * level, shards: level >= 4 ? level - 3 : 0 };
 }
 
 /** Persistent meta-level scaling applied to a unit's base tier stats at combat start. */
@@ -53,6 +77,7 @@ export const STARTER_COLLECTION: Record<string, OwnedUnit> = {
 
 export const STARTER_GOLD = 800;
 export const STARTER_GEMS = 60;
+export const STARTER_SHARDS = 4;
 
 /** Stars from remaining life fraction (3 = flawless, 2 = >50%, 1 = any win). */
 export function starsFor(lifeRemaining: number, lifeStart: number): number {

@@ -83,19 +83,30 @@ export function UnitDetailScreen(ctx: ScreenCtx): Screen {
     const upgradeBlock = el('div', {});
     if (cost) {
       const canUp = app.canUpgrade(def.id);
+      const costRow = el('div', { style: 'display:flex;align-items:center;gap:14px;margin-top:8px;font:700 12px "Baloo 2"' }, [
+        el('div', { style: 'display:flex;align-items:center;gap:5px;color:var(--gold-ink)' }, [
+          el('span', { class: 'coin' }),
+          el('span', { text: `${cost.gold}`, style: app.gold >= cost.gold ? '' : 'color:#c0392b' }),
+        ]),
+      ]);
+      if (cost.shards > 0) {
+        costRow.append(
+          el('div', { style: 'display:flex;align-items:center;gap:5px;color:#12756e' }, [
+            el('span', { style: 'width:11px;height:11px;transform:rotate(45deg);border-radius:2px;background:linear-gradient(135deg,#7fe3da,#1aa39a);border:1px solid #12756e' }),
+            el('span', { text: `${cost.shards}`, style: app.shards >= cost.shards ? '' : 'color:#c0392b' }),
+          ]),
+        );
+      }
       upgradeBlock.append(
         el('div', { class: 'section-label', style: 'margin:4px 0 6px', text: `Améliorer vers niveau ${level + 1}` }),
         el('div', { class: 'panel', style: 'margin-bottom:12px' }, [
-          progressLine('Doublons', owned.duplicates, cost.duplicates, 'linear-gradient(90deg,#9b59b6,#d9b3f0)'),
-          el('div', { style: 'display:flex;align-items:center;gap:6px;margin-top:8px;font:700 12px "Baloo 2";color:var(--gold-ink)' }, [
-            el('span', { class: 'coin' }),
-            el('span', { text: `${cost.gold}`, style: app.gold >= cost.gold ? '' : 'color:#c0392b' }),
-          ]),
+          progressLine('Cartes', owned.duplicates, cost.duplicates, 'linear-gradient(90deg,#9b59b6,#d9b3f0)'),
+          costRow,
         ]),
         el('button', {
           class: `btn ${canUp ? 'btn--green' : ''}`,
           style: 'width:100%',
-          text: canUp ? 'Améliorer' : 'Doublons ou or manquants',
+          text: canUp ? 'Améliorer' : 'Ressources manquantes',
           onclick: () => {
             if (app.upgrade(def.id) !== null) render();
           },

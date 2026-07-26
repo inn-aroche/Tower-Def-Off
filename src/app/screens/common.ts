@@ -4,9 +4,21 @@ import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
 import type { UnitDef } from '../../sim/types';
 
 export function currencyPills(app: AppState): HTMLElement {
-  return el('div', { style: 'display:flex;gap:8px;align-items:center' }, [
+  return el('div', { style: 'display:flex;gap:6px;align-items:center' }, [
     el('div', { class: 'pill pill--gold' }, [el('span', { class: 'coin' }), el('span', { text: String(app.gold) })]),
     el('div', { class: 'pill pill--gem' }, [el('span', { class: 'gem' }), el('span', { text: String(app.gems) })]),
+    shardPill(app.shards),
+  ]);
+}
+
+/** Éclats ✦ pill — a teal faceted shard, the high-tier upgrade resource. */
+export function shardPill(count: number): HTMLElement {
+  return el('div', {
+    class: 'pill',
+    style: 'background:linear-gradient(135deg,#7fe3da,#1aa39a);border-bottom:3px solid #12756e;color:#08312e',
+  }, [
+    el('span', { style: 'width:11px;height:11px;flex:none;transform:rotate(45deg);border-radius:2px;background:#e8fffd;border:1px solid #12756e' }),
+    el('span', { text: String(count) }),
   ]);
 }
 
