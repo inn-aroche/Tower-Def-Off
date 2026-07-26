@@ -892,3 +892,25 @@ hors repo) : détection par contours encrés + composantes connexes / bandes de 
 éléments** découpés (découpe avec fond + détourage alpha best-effort) + planches-contact. Livrés à
 l'utilisateur en zip. Intégration réelle dans le rendu (remplacer les primitives Canvas par les
 sprites) = chantier suivant, à cadrer.
+
+## Phase 10 — Intégration des sprites (assets ChatGPT) : unités
+
+Première passe d'intégration des vrais assets dans le rendu de combat (demandée : commencer par
+les unités, le plus visible).
+
+- **Détourage propre** (`scratchpad/matte.py`, hors repo) : sur la planche d'unités (img1), matte par
+  **flood-fill du fond depuis les bords jusqu'aux contours encrés** → le halo/glow est retiré,
+  alpha net qui épouse le sprite. Rognage + downscale ~220 px + **webp q90** (~250 Ko les 12).
+- **`src/render/sprites.ts`** : 12 sprites en **data-URI webp base64**, mappés aux 12 unités cœur
+  (mapping éditable ; les doublons/gravité réutilisent un sprite). Inline ⇒ présents dans le bundle
+  et donc dans l'artefact auto-porté (pas d'asset externe, CSP-safe).
+- **`CombatRenderer`** : cache d'`Image` paresseux + garde headless ; le plateau dessine le **sprite**
+  (taille ~1.08 case, pieds en bas de case, ombre portée, halo si sélectionné) au lieu du jeton, et
+  **repli sur le jeton dessiné** pour les 88 unités générées (pas de sprite). Les **cartes en main**
+  affichent aussi le sprite (repli pictogramme).
+- Bundle : 138 Ko → **443 Ko** (251 Ko gzip) — acceptable pour l'aperçu (sprites inline).
+
+**Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (sprites unités sur le
+plateau + cartes, plateau plat cases carrées). Aucun changement `src/data` ⇒ pas de re-simulation.
+**Suite** : ennemis/boss (img4), tuiles/décor (img5), FX/projectiles (img6), icônes UI (img8),
+coffres/badges (img10) ; puis curation du mapping + détourage des variantes.

@@ -1,9 +1,31 @@
 import type { BoardLayout } from './BoardLayout';
 import { cardRects, manaBarRect, MANA_H, TOP_INSET } from './HudLayout';
+import { UNIT_SPRITES } from './sprites';
 import type { Cell, CombatSnapshot, EnemyDef, HandCard, UnitDef, UnitFamily } from '../sim/types';
 import { abilityLabel } from '../data/units';
 
 const FAMILY_LABEL: Record<UnitFamily, string> = { melee: 'Mêlée', ranged: 'Distance', gravity: 'Gravité' };
+
+/** Lazily-decoded unit sprites (data-URI webp from the art sheet). Core units only; generated
+ * roster units have no entry and fall back to the drawn token. Guarded for headless/test contexts. */
+const spriteCache = new Map<string, HTMLImageElement | null>();
+function getUnitSprite(unitId: string): HTMLImageElement | null {
+  if (typeof Image === 'undefined') return null;
+  const cached = spriteCache.get(unitId);
+  if (cached !== undefined) return cached;
+  const uri = UNIT_SPRITES[unitId];
+  if (!uri) {
+    spriteCache.set(unitId, null);
+    return null;
+  }
+  const img = new Image();
+  img.src = uri;
+  spriteCache.set(unitId, img);
+  return img;
+}
+function spriteReady(img: HTMLImageElement | null): img is HTMLImageElement {
+  return !!img && img.complete && img.naturalWidth > 0;
+}
 
 /** Family palette + pictograms follow docs/design/design-tokens.md: melee = circle, ranged =
  * triangle, gravity = ring (the WARDENS-specific shape, kept distinct from the maquette's
@@ -391,20 +413,39 @@ function drawBoard(
     ctx.ellipse(x + cs / 2, y + cs - pad * 0.6, size * 0.48, size * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // dark base (bottom lip → thickness)
-    roundRectPath(ctx, x + pad, y + pad + lift, size, size, r);
-    ctx.fillStyle = FAMILY_BORDER[def.family];
-    ctx.fill();
-
-    // bright top face
-    roundRectPath(ctx, x + pad, y + pad, size, size, r);
-    ctx.fillStyle = FAMILY_COLOR[def.family];
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = selected ? '#fff6d9' : FAMILY_BORDER[def.family];
-    ctx.stroke();
-
-    drawPictogram(ctx, def.family, x + cs / 2, y + pad + size / 2, size * 0.6);
+    const sprite = getUnitSprite(unit.unitId);
+    if (spriteReady(sprite)) {
+      // selected: glowing halo behind the sprite
+      if (selected) {
+        ctx.save();
+        ctx.shadowColor = '#ffe9a8';
+        ctx.shadowBlur = 14;
+        ctx.strokeStyle = 'rgba(255,246,217,0.9)';
+        ctx.lineWidth = 3;
+        roundRectPath(ctx, x + pad * 0.6, y + pad * 0.6, cs - pad * 1.2, cs - pad * 1.2, r);
+        ctx.stroke();
+        ctx.restore();
+      }
+      // draw the sprite a touch larger than the cell, feet near the bottom (raised mini look)
+      const targetH = cs * 1.08;
+      const scl = targetH / sprite.naturalHeight;
+      const w = sprite.naturalWidth * scl;
+      const dx = x + cs / 2 - w / 2;
+      const dy = y + cs - targetH - cs * 0.02;
+      ctx.drawImage(sprite, dx, dy, w, targetH);
+    } else {
+      // fallback: drawn token (dark base lip + bright face + pictogram)
+      roundRectPath(ctx, x + pad, y + pad + lift, size, size, r);
+      ctx.fillStyle = FAMILY_BORDER[def.family];
+      ctx.fill();
+      roundRectPath(ctx, x + pad, y + pad, size, size, r);
+      ctx.fillStyle = FAMILY_COLOR[def.family];
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = selected ? '#fff6d9' : FAMILY_BORDER[def.family];
+      ctx.stroke();
+      drawPictogram(ctx, def.family, x + cs / 2, y + pad + size / 2, size * 0.6);
+    }
 
     // stunned overlay
     if ((unit.stunnedUntilSec ?? 0) > snapshot.elapsedSec) {
@@ -615,11 +656,19 @@ function drawHand(
     const badgeR = Math.min(r.w, r.h) * 0.2;
     const bcx = r.x + r.w / 2;
     const bcy = r.y + r.h * 0.4;
-    ctx.beginPath();
-    ctx.arc(bcx, bcy, badgeR, 0, Math.PI * 2);
-    ctx.fillStyle = FAMILY_COLOR[card.family];
-    ctx.fill();
-    drawPictogram(ctx, card.family, bcx, bcy, badgeR * 1.4);
+    const cardSprite = getUnitSprite(card.unitId);
+    if (spriteReady(cardSprite)) {
+      const th = Math.min(r.w, r.h) * 0.62;
+      const scl = th / cardSprite.naturalHeight;
+      const cw = cardSprite.naturalWidth * scl;
+      ctx.drawImage(cardSprite, bcx - cw / 2, bcy - th * 0.55, cw, th);
+    } else {
+      ctx.beginPath();
+      ctx.arc(bcx, bcy, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = FAMILY_COLOR[card.family];
+      ctx.fill();
+      drawPictogram(ctx, card.family, bcx, bcy, badgeR * 1.4);
+    }
 
     ctx.fillStyle = '#3b2a1a';
     ctx.font = "700 10px 'Nunito', sans-serif";
