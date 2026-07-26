@@ -941,3 +941,17 @@ sur les formes dessinées). Cases toujours carrées, toucher inchangé. Bundle ~
 **Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (plateau texturé +
 portail + base, unités/ennemis en sprites par-dessus). Aucun changement `src/data`. **Suite** :
 FX/projectiles (img6), icônes UI/coffres/cadres (img8/9/10), Hub/Collection.
+
+## Phase 13 — Intégration sprites : FX & projectiles
+
+Ajout **additif** (les effets procéduraux existants restent) de sprites FX depuis img6 (matte, top-crop
+pour exclure les étiquettes texte des projectiles). `FX_SPRITES` : proj_arrow/boulder/ice + fx_hit/
+merge/death/summon. `Effects.ts` : deux nouveaux types — **projectiles** (sprite volant orienté le long
+de la trajectoire ; les tirs *à distance* lancent une flèche au lieu du beam, burst d'impact `fx_hit`
+à l'arrivée) et **bursts** (sprite d'impact qui grandit + s'estompe) sur kill (`fx_death`), summon
+(`fx_summon`), merge (`fx_merge`). Chargement d'`Image` paresseux + garde headless. Mêlée/gravité
+gardent leur beam procédural. Bundle ~640 → ~700 Ko.
+
+**Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (flèche en vol vers les
+gobelins + impacts). Aucun changement `src/data`. **Suite** : icônes UI/coffres/cadres (img8/9/10),
+Hub/Collection ; variété du sol ; projectile par sous-type (boulet catapulte, glace givre).

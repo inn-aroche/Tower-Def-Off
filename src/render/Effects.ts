@@ -1,5 +1,26 @@
 import type { BoardLayout } from './BoardLayout';
+import { FX_SPRITES } from './sprites';
 import type { CombatEvent, UnitFamily } from '../sim/types';
+
+/** Lazily-decoded FX sprites (projectiles + impact bursts), guarded for headless/test contexts. */
+const fxCache = new Map<string, HTMLImageElement | null>();
+function getFx(key: string): HTMLImageElement | null {
+  if (typeof Image === 'undefined') return null;
+  const cached = fxCache.get(key);
+  if (cached !== undefined) return cached;
+  const uri = FX_SPRITES[key];
+  if (!uri) {
+    fxCache.set(key, null);
+    return null;
+  }
+  const img = new Image();
+  img.src = uri;
+  fxCache.set(key, img);
+  return img;
+}
+function fxReady(img: HTMLImageElement | null): img is HTMLImageElement {
+  return !!img && img.complete && img.naturalWidth > 0;
+}
 
 /**
  * Render-only feedback layer. Consumes the sim's pure CombatEvents and plays juice — floating
@@ -13,6 +34,10 @@ interface Particle { x: number; y: number; vx: number; vy: number; life: number;
 interface FloatNum { x: number; y: number; vy: number; life: number; max: number; text: string; color: string; }
 interface Beam { x1: number; y1: number; x2: number; y2: number; life: number; max: number; color: string; width: number; }
 interface Ring { x: number; y: number; life: number; max: number; color: string; maxR: number; }
+/** A sprite projectile flying from a unit to its target; spawns a hit burst on arrival. */
+interface Projectile { x1: number; y1: number; x2: number; y2: number; t: number; dur: number; sprite: string; }
+/** A short-lived impact sprite that scales up + fades at a point. */
+interface Burst { x: number; y: number; life: number; max: number; sprite: string; size: number; }
 
 const FAMILY_COLOR: Record<UnitFamily, string> = { melee: '#8ecae6', ranged: '#a3e0a3', gravity: '#8fe0da' };
 const ENEMY_COLOR: Record<string, string> = {
@@ -26,6 +51,8 @@ export class Effects {
   private numbers: FloatNum[] = [];
   private beams: Beam[] = [];
   private rings: Ring[] = [];
+  private projectiles: Projectile[] = [];
+  private bursts: Burst[] = [];
   private flash = new Map<number, number>();
   private shakeT = 0;
   private shakeMag = 0;
@@ -49,16 +76,29 @@ export class Effects {
   emit(e: CombatEvent): void {
     switch (e.type) {
       case 'attack': {
-        this.beams.push({
-          x1: e.fromCol + 0.5,
-          y1: e.fromRow + 0.5,
-          x2: e.toX,
-          y2: e.toY,
-          life: 0.12,
-          max: 0.12,
-          color: FAMILY_COLOR[e.family],
-          width: e.family === 'gravity' ? 0 : 2,
-        });
+        if (e.family === 'ranged') {
+          // flying projectile sprite (arrow) instead of a beam; hit burst spawns on arrival
+          this.projectiles.push({
+            x1: e.fromCol + 0.5,
+            y1: e.fromRow + 0.5,
+            x2: e.toX,
+            y2: e.toY,
+            t: 0,
+            dur: 0.16,
+            sprite: 'proj_arrow',
+          });
+        } else {
+          this.beams.push({
+            x1: e.fromCol + 0.5,
+            y1: e.fromRow + 0.5,
+            x2: e.toX,
+            y2: e.toY,
+            life: 0.12,
+            max: 0.12,
+            color: FAMILY_COLOR[e.family],
+            width: e.family === 'gravity' ? 0 : 2,
+          });
+        }
         break;
       }
       case 'damage': {
@@ -70,18 +110,21 @@ export class Effects {
       case 'kill': {
         this.spawnParticles(e.x, e.y, this.reduced ? 3 : 8, ENEMY_COLOR[e.enemyId] ?? '#ccc', 2.2);
         this.rings.push({ x: e.x, y: e.y, life: 0.35, max: 0.35, color: 'rgba(255,255,255,0.7)', maxR: 0.6 });
+        this.bursts.push({ x: e.x, y: e.y, life: 0.4, max: 0.4, sprite: 'fx_death', size: 1.1 });
         break;
       }
       case 'merge': {
         const gold = '#ffe08a';
         this.rings.push({ x: e.col + 0.5, y: e.row + 0.5, life: 0.5, max: 0.5, color: gold, maxR: 1.1 });
         this.spawnParticles(e.col + 0.5, e.row + 0.5, this.reduced ? 5 : 14, gold, 3);
+        this.bursts.push({ x: e.col + 0.5, y: e.row + 0.5, life: 0.5, max: 0.5, sprite: 'fx_merge', size: 1.3 });
         this.numbers.push({ x: e.col + 0.5, y: e.row + 0.3, vy: -1.3, life: 0.9, max: 0.9, text: `Niv ${e.newLevel}!`, color: '#ffe08a' });
         this.addShake(0.28, 0.14);
         break;
       }
       case 'summon': {
         this.rings.push({ x: e.col + 0.5, y: e.row + 0.5, life: 0.3, max: 0.3, color: FAMILY_COLOR[e.family], maxR: 0.7 });
+        this.bursts.push({ x: e.col + 0.5, y: e.row + 0.5, life: 0.4, max: 0.4, sprite: 'fx_summon', size: 1.1 });
         break;
       }
       case 'baseHit': {
@@ -156,6 +199,14 @@ export class Effects {
     this.beams = this.beams.filter((b) => b.life > 0);
     for (const r of this.rings) r.life -= dt;
     this.rings = this.rings.filter((r) => r.life > 0);
+    for (const p of this.projectiles) p.t += dt;
+    // arrived projectiles pop a hit burst at the target, then are removed
+    for (const p of this.projectiles) {
+      if (p.t >= p.dur) this.bursts.push({ x: p.x2, y: p.y2, life: 0.28, max: 0.28, sprite: 'fx_hit', size: 0.8 });
+    }
+    this.projectiles = this.projectiles.filter((p) => p.t < p.dur);
+    for (const b of this.bursts) b.life -= dt;
+    this.bursts = this.bursts.filter((b) => b.life > 0);
     for (const [id, t] of this.flash) {
       const nt = t - dt;
       if (nt <= 0) this.flash.delete(id);
@@ -178,6 +229,7 @@ export class Effects {
   /** Draws particles/numbers/beams/rings. Call after the board, in the same (shaken) transform.
    * Cell-space positions map linearly to pixels (flat square grid). */
   draw(ctx: CanvasRenderingContext2D, layout: BoardLayout): void {
+    const cs = layout.cellSize;
     const px = (x: number) => layout.originX + x * layout.cellSize;
     const py = (y: number) => layout.originY + y * layout.cellSize;
 
@@ -200,6 +252,40 @@ export class Effects {
       ctx.arc(px(r.x), py(r.y), r.maxR * layout.cellSize * t, 0, Math.PI * 2);
       ctx.stroke();
     }
+    // flying projectiles (sprite, oriented along travel)
+    for (const p of this.projectiles) {
+      const img = getFx(p.sprite);
+      const k = Math.min(1, p.t / p.dur);
+      const x = px(p.x1 + (p.x2 - p.x1) * k);
+      const y = py(p.y1 + (p.y2 - p.y1) * k);
+      const ang = Math.atan2(py(p.y2) - py(p.y1), px(p.x2) - px(p.x1));
+      ctx.globalAlpha = 1;
+      if (fxReady(img)) {
+        const h = cs * 0.42;
+        const w = (img.naturalWidth / img.naturalHeight) * h;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(ang);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#f2e2b0';
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // impact bursts (sprite, scaling up + fading)
+    for (const b of this.bursts) {
+      const img = getFx(b.sprite);
+      if (!fxReady(img)) continue;
+      const frac = b.life / b.max;
+      ctx.globalAlpha = Math.max(0, frac);
+      const scale = b.size * cs * (1.15 - 0.35 * frac);
+      const w = (img.naturalWidth / img.naturalHeight) * scale;
+      ctx.drawImage(img, px(b.x) - w / 2, py(b.y) - scale / 2, w, scale);
+    }
+    ctx.globalAlpha = 1;
     for (const p of this.particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
       ctx.fillStyle = p.color;
