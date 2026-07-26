@@ -38,6 +38,51 @@ export function toast(host: HTMLElement, message: string): void {
   }, 1400);
 }
 
+/** Lightweight centered confirm modal (scrim + two buttons). Resolves via the callbacks. */
+export function confirmDialog(
+  host: HTMLElement,
+  message: string,
+  onConfirm: () => void,
+  opts: { confirmLabel?: string; cancelLabel?: string } = {},
+): void {
+  const scrim = el('div', {
+    style:
+      'position:absolute;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(20,12,6,.6)',
+  });
+  const close = () => scrim.remove();
+  const panel = el('div', {
+    class: 'panel',
+    style: 'width:82%;max-width:320px;padding:18px 16px;text-align:center',
+  }, [
+    el('div', { style: 'font:800 15px "Baloo 2",sans-serif;color:var(--ink);margin-bottom:14px', text: message }),
+    el('div', { style: 'display:flex;gap:10px' }, [
+      el('button', {
+        style:
+          'flex:1;padding:11px;border:none;border-radius:11px;cursor:pointer;font:800 13px "Baloo 2",sans-serif;' +
+          'background:rgba(0,0,0,.12);color:var(--ink)',
+        text: opts.cancelLabel ?? 'Annuler',
+        onclick: close,
+      }),
+      el('button', {
+        style:
+          'flex:1;padding:11px;border:none;border-radius:11px;cursor:pointer;font:800 13px "Baloo 2",sans-serif;' +
+          'background:linear-gradient(180deg,#e57373,#c0392b);color:#fff',
+        text: opts.confirmLabel ?? 'Quitter',
+        onclick: () => {
+          close();
+          onConfirm();
+        },
+      }),
+    ]),
+  ]);
+  scrim.addEventListener('click', (e) => {
+    if (e.target === scrim) close();
+  });
+  scrim.append(panel);
+  host.append(scrim);
+}
+
 export type Tab = 'collection' | 'play' | 'shop';
 
 export function bottomNav(active: Tab, handlers: { onCollection: () => void; onPlay: () => void; onShop: () => void }): HTMLElement {

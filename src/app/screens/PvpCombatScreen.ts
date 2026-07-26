@@ -1,5 +1,6 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { el } from '../../ui/dom';
+import { confirmDialog } from './common';
 import { CombatSim } from '../../sim/CombatSim';
 import { BotDriver } from '../../sim/BotPolicy';
 import { ECONOMY } from '../../data/economy';
@@ -54,9 +55,20 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
     el('div', { style: 'height:6px;background:#1f1610;border-radius:5px;overflow:hidden;margin-top:3px' }, [oppLifeBar]),
   ]);
   const back = el('button', {
-    text: '‹',
-    style: 'position:absolute;top:52px;left:12px;z-index:20;width:32px;height:32px;border:none;border-radius:9px;background:rgba(0,0,0,.35);color:#f0c26a;font-size:20px;cursor:pointer',
-    onclick: () => nav({ name: 'arena' }),
+    text: '✕ Quitter',
+    style:
+      'position:absolute;top:48px;left:12px;z-index:20;height:30px;padding:0 12px;border:1.5px solid #f0c26a;border-radius:15px;' +
+      'background:rgba(0,0,0,.42);color:#f0c26a;font:800 12px "Baloo 2",sans-serif;cursor:pointer',
+    onclick: () => {
+      if (finished) {
+        nav({ name: 'arena' });
+        return;
+      }
+      confirmDialog(host, 'Abandonner le combat ? Ce sera une défaite.', () => {
+        app.analytics.track('pvp_quit', { league: league.id, blitz });
+        nav({ name: 'arena' });
+      }, { confirmLabel: 'Abandonner' });
+    },
   });
   screen.append(canvas, oppChip, back);
   host.append(screen);

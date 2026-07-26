@@ -1,6 +1,6 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { el } from '../../ui/dom';
-import { toast } from './common';
+import { confirmDialog, toast } from './common';
 import { CombatSim } from '../../sim/CombatSim';
 import type { CombatSnapshot, LevelDef } from '../../sim/types';
 import { ECONOMY } from '../../data/economy';
@@ -65,11 +65,19 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
   const screen = el('div', { class: 'screen', style: 'background:#efe8d6' });
   const canvas = el('canvas', { style: 'display:block;touch-action:none' });
   const back = el('button', {
-    text: '‹',
+    text: '✕ Quitter',
     style:
-      'position:absolute;top:52px;left:12px;z-index:20;width:32px;height:32px;border:none;border-radius:9px;' +
-      'background:rgba(0,0,0,.35);color:#f0c26a;font-size:20px;cursor:pointer',
-    onclick: () => nav({ name: 'hub' }),
+      'position:absolute;top:48px;left:12px;z-index:20;height:30px;padding:0 12px;border:1.5px solid #f0c26a;border-radius:15px;' +
+      'background:rgba(0,0,0,.42);color:#f0c26a;font:800 12px "Baloo 2",sans-serif;cursor:pointer',
+    onclick: () => {
+      if (finished) {
+        nav({ name: 'hub' });
+        return;
+      }
+      confirmDialog(host, 'Quitter la Survie ? La partie en cours sera perdue.', () => {
+        nav({ name: 'hub' });
+      });
+    },
   });
   screen.append(canvas, back);
 

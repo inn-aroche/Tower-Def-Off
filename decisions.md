@@ -955,3 +955,16 @@ gardent leur beam procédural. Bundle ~640 → ~700 Ko.
 **Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (flèche en vol vers les
 gobelins + impacts). Aucun changement `src/data`. **Suite** : icônes UI/coffres/cadres (img8/9/10),
 Hub/Collection ; variété du sol ; projectile par sous-type (boulet catapulte, glace givre).
+
+## Phase 14 — Bouton Quitter en combat (retour utilisateur)
+
+Retour : « pas de bouton pour quitter la partie ». Le retour (`‹`) existait mais était minuscule,
+sans libellé et **recouvert par le texte “VAGUE x/y”** du canvas → invisible. Corrigé sur les 3
+écrans de combat (campagne, PvP, Survie) : bouton **« ✕ Quitter »** lisible (pilule bordée d'or) +
+**confirmation** (`confirmDialog` dans `common.ts` : scrim + Annuler/Quitter) pour éviter l'abandon
+accidentel ; après la fin de partie, il quitte directement. Titre du canvas décalé (`x=96`) pour ne
+plus masquer le bouton. Messages adaptés par mode (campagne/survie : « progression perdue » ; PvP :
+« défaite »).
+
+**Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (bouton visible +
+dialogue de confirmation). Aucun changement `src/data`.
