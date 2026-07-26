@@ -30,6 +30,43 @@ function spriteReady(img: HTMLImageElement | null): img is HTMLImageElement {
   return !!img && img.complete && img.naturalWidth > 0;
 }
 
+/**
+ * Cached continuous grass field. The grass art has a painted stone frame; we sample only its inner
+ * grass area and tile that with per-cell mirroring, so the board reads as ONE field (like the art
+ * direction) instead of a grid of individually framed tiles. Rebuilt only when the board size
+ * changes, so it costs one drawImage per frame.
+ */
+let fieldCache: { key: string; canvas: HTMLCanvasElement } | null = null;
+function getField(grass: HTMLImageElement, cs: number, cols: number, rows: number): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  const key = `${cs}:${cols}:${rows}`;
+  if (fieldCache && fieldCache.key === key) return fieldCache.canvas;
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.ceil(cs * cols));
+  cv.height = Math.max(1, Math.ceil(cs * rows));
+  const g = cv.getContext('2d');
+  if (!g) return null;
+  // inner grass area only — crops the tile's painted stone border away
+  const sx = grass.naturalWidth * 0.2;
+  const sy = grass.naturalHeight * 0.2;
+  const sw = grass.naturalWidth * 0.6;
+  const sh = grass.naturalHeight * 0.6;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const fx = (col + row) % 2 === 0 ? 1 : -1;
+      const fy = (col * 2 + row) % 3 === 0 ? -1 : 1;
+      g.save();
+      g.translate(col * cs + cs / 2, row * cs + cs / 2);
+      g.scale(fx, fy);
+      // 1px overdraw so neighbouring crops never leave a seam
+      g.drawImage(grass, sx, sy, sw, sh, -cs / 2 - 1, -cs / 2 - 1, cs + 2, cs + 2);
+      g.restore();
+    }
+  }
+  fieldCache = { key, canvas: cv };
+  return cv;
+}
+
 /** Family palette + pictograms follow docs/design/design-tokens.md: melee = circle, ranged =
  * triangle, gravity = ring (the WARDENS-specific shape, kept distinct from the maquette's
  * diamond/square). Still a placeholder pass — no sprites, but token-faithful colours and shapes. */
@@ -211,31 +248,49 @@ function drawTopBar(ctx: CanvasRenderingContext2D, canvasW: number, snapshot: Co
   ctx.font = "800 17px 'Baloo 2', 'Nunito', sans-serif";
   ctx.fillText(levelName, 96, 42);
 
-  ctx.font = "800 12px 'Baloo 2', 'Nunito', sans-serif";
-  ctx.fillStyle = '#f0c26a';
+  // wave pill (under the title)
   const waveText = snapshot.endless
     ? `VAGUE ${snapshot.currentWaveIndex + 1} · ∞`
     : `VAGUE ${Math.min(snapshot.currentWaveIndex + 1, snapshot.totalWaves)}/${snapshot.totalWaves}`;
-  ctx.fillText(waveText, 96, 64);
+  ctx.font = "800 11px 'Baloo 2', 'Nunito', sans-serif";
+  const ww = ctx.measureText(waveText).width + 18;
+  roundRectPath(ctx, 96, 54, ww, 20, 10);
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.fill();
+  ctx.fillStyle = '#f0c26a';
+  ctx.textAlign = 'center';
+  ctx.fillText(waveText, 96 + ww / 2, 64.5);
 
-  // timer pill (right)
-  ctx.textAlign = 'right';
-  ctx.font = "800 15px 'Baloo 2', 'Nunito', sans-serif";
+  // life pill (top-right)
+  ctx.font = "800 13px 'Baloo 2', 'Nunito', sans-serif";
+  const lifeText = `❤ ${snapshot.life}`;
+  const lw = ctx.measureText(lifeText).width + 20;
+  const lx = canvasW - 16 - lw;
+  roundRectPath(ctx, lx, 14, lw, 24, 12);
+  const lg = ctx.createLinearGradient(lx, 14, lx, 38);
+  lg.addColorStop(0, '#e8695c');
+  lg.addColorStop(1, '#b3312a');
+  ctx.fillStyle = lg;
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(lifeText, lx + lw / 2, 26.5);
+
+  // timer pill — same row, left of the life pill (keeps clear of the FTUE "Passer" link below)
+  ctx.font = "800 13px 'Baloo 2', 'Nunito', sans-serif";
   const timeStr = formatTime(snapshot.elapsedSec);
-  ctx.fillStyle = '#2b1e14';
   const tw = ctx.measureText(timeStr).width + 20;
-  roundRectPath(ctx, canvasW - 16 - tw, 30, tw, 26, 13);
+  const tx = lx - 8 - tw;
+  roundRectPath(ctx, tx, 14, tw, 24, 12);
+  ctx.fillStyle = 'rgba(0,0,0,0.42)';
   ctx.fill();
   ctx.strokeStyle = '#f0c26a';
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.fillStyle = '#f0c26a';
-  ctx.fillText(timeStr, canvasW - 26, 44);
-
-  // lives (right, above timer)
-  ctx.fillStyle = '#e74c3c';
-  ctx.font = "800 15px 'Nunito', sans-serif";
-  ctx.fillText(`❤ ${snapshot.life}`, canvasW - 16, 16);
+  ctx.fillText(timeStr, tx + tw / 2, 26.5);
 }
 
 /**
@@ -273,34 +328,25 @@ function drawBoard(
   ctx.fillStyle = 'rgba(255,240,200,0.12)';
   ctx.fillRect(ox, oy + boardH, boardW, 2);
 
-  // ---- ground: illustrated grass tile per cell (falls back to a bevelled checker) ----
+  // ---- ground: one continuous grass field + faint cell lines (art direction: a field, not tiles) ----
+  ctx.fillStyle = '#b9d693';
+  ctx.fillRect(ox, oy, boardW, boardH);
   const grass = getTile('grass');
-  for (let row = 0; row < layout.rows; row++) {
-    for (let col = 0; col < layout.cols; col++) {
-      const x = ox + col * cs;
-      const y = oy + row * cs;
-      // base fill so tile-corner transparency never shows the slab through
-      ctx.fillStyle = (row + col) % 2 === 0 ? '#c6dea3' : '#b6d38f';
-      ctx.fillRect(x, y, cs, cs);
-      if (spriteReady(grass)) {
-        ctx.drawImage(grass, x, y, cs + 1, cs + 1);
-      } else {
-        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x + 0.5, y + cs - 1);
-        ctx.lineTo(x + 0.5, y + 0.5);
-        ctx.lineTo(x + cs - 1, y + 0.5);
-        ctx.stroke();
-        ctx.strokeStyle = 'rgba(42,60,26,0.15)';
-        ctx.beginPath();
-        ctx.moveTo(x + cs - 0.5, y + 0.5);
-        ctx.lineTo(x + cs - 0.5, y + cs - 0.5);
-        ctx.lineTo(x + 0.5, y + cs - 0.5);
-        ctx.stroke();
-      }
-    }
+  const field = spriteReady(grass) ? getField(grass, cs, layout.cols, layout.rows) : null;
+  if (field) ctx.drawImage(field, ox, oy);
+  // cells stay readable for placement, without framing each one
+  ctx.strokeStyle = 'rgba(28,44,16,0.10)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let col = 1; col < layout.cols; col++) {
+    ctx.moveTo(ox + col * cs + 0.5, oy);
+    ctx.lineTo(ox + col * cs + 0.5, oy + boardH);
   }
+  for (let row = 1; row < layout.rows; row++) {
+    ctx.moveTo(ox, oy + row * cs + 0.5);
+    ctx.lineTo(ox + boardW, oy + row * cs + 0.5);
+  }
+  ctx.stroke();
 
   // ---- soft overhead-light vignette: darkens the board edges for a sense of depth ----
   const vg = ctx.createRadialGradient(ox + boardW / 2, oy + boardH * 0.4, boardW * 0.25, ox + boardW / 2, oy + boardH * 0.5, boardH * 0.85);
@@ -656,26 +702,61 @@ function drawBoard(
 
 function drawManaBar(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number, snapshot: CombatSnapshot): void {
   const r = manaBarRect(canvasW, canvasH);
+  // dark track
   roundRectPath(ctx, r.x, r.y, r.w, r.h, MANA_H / 2);
-  ctx.fillStyle = '#1f1610';
+  ctx.fillStyle = '#191325';
   ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.stroke();
+
   const frac = Math.max(0, Math.min(1, snapshot.mana / 10));
   if (frac > 0) {
     ctx.save();
     roundRectPath(ctx, r.x, r.y, r.w, r.h, MANA_H / 2);
     ctx.clip();
-    const grad = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0);
-    grad.addColorStop(0, '#9b59b6');
-    grad.addColorStop(1, '#c39bd3');
+    const grad = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+    grad.addColorStop(0, '#c78be8');
+    grad.addColorStop(0.5, '#9b59b6');
+    grad.addColorStop(1, '#6d3a8c');
     ctx.fillStyle = grad;
     ctx.fillRect(r.x, r.y, r.w * frac, r.h);
+    // top gloss
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(r.x, r.y + 2, r.w * frac, r.h * 0.34);
     ctx.restore();
   }
+
+  // 10 mana slots — ticks make the fill readable at a glance
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 1; i < 10; i++) {
+    const x = r.x + (r.w * i) / 10;
+    ctx.moveTo(x, r.y + 3);
+    ctx.lineTo(x, r.y + r.h - 3);
+  }
+  ctx.stroke();
+
+  // round mana badge at the left end
+  const br = r.h * 0.82;
+  const bx = r.x + br * 0.85;
+  const by = r.y + r.h / 2;
+  const bg = ctx.createLinearGradient(bx, by - br, bx, by + br);
+  bg.addColorStop(0, '#e0b5f5');
+  bg.addColorStop(1, '#7d3fa0');
+  ctx.beginPath();
+  ctx.arc(bx, by, br, 0, Math.PI * 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#fff';
+  ctx.stroke();
   ctx.fillStyle = '#fff';
-  ctx.font = "800 12px 'Baloo 2', sans-serif";
+  ctx.font = "800 13px 'Baloo 2', sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${snapshot.mana.toFixed(1)} / 10`, r.x + r.w / 2, r.y + r.h / 2 + 0.5);
+  ctx.fillText(String(Math.floor(snapshot.mana)), bx, by + 0.5);
 }
 
 function drawHand(
@@ -691,23 +772,43 @@ function drawHand(
     const selected = selectedIndex === i;
     ctx.globalAlpha = card.affordable ? 1 : 0.45;
 
-    roundRectPath(ctx, r.x, r.y, r.w, r.h, 10);
-    ctx.fillStyle = '#f5ecd7';
+    // dark slate frame with a gold rim (art direction: card frames, not parchment)
+    if (selected) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,220,130,0.85)';
+      ctx.shadowBlur = 14;
+    }
+    roundRectPath(ctx, r.x, r.y, r.w, r.h, 12);
+    const frame = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+    frame.addColorStop(0, '#46536e');
+    frame.addColorStop(1, '#212a3b');
+    ctx.fillStyle = frame;
     ctx.fill();
-    ctx.lineWidth = selected ? 3.5 : 2;
-    ctx.strokeStyle = selected ? '#f0c26a' : '#8b5a2b';
+    ctx.lineWidth = selected ? 3 : 2;
+    ctx.strokeStyle = selected ? '#ffe9a8' : '#c9a15f';
     ctx.stroke();
+    if (selected) ctx.restore();
 
-    const badgeR = Math.min(r.w, r.h) * 0.2;
+    // inner art well
+    const pad = 4;
+    const wellH = r.h - 18 - pad;
+    roundRectPath(ctx, r.x + pad, r.y + pad, r.w - pad * 2, wellH, 9);
+    const well = ctx.createLinearGradient(r.x, r.y, r.x, r.y + wellH);
+    well.addColorStop(0, 'rgba(255,255,255,0.14)');
+    well.addColorStop(1, 'rgba(0,0,0,0.22)');
+    ctx.fillStyle = well;
+    ctx.fill();
+
     const bcx = r.x + r.w / 2;
-    const bcy = r.y + r.h * 0.4;
+    const bcy = r.y + pad + wellH * 0.52;
     const cardSprite = getUnitSprite(card.unitId);
     if (spriteReady(cardSprite)) {
-      const th = Math.min(r.w, r.h) * 0.62;
+      const th = wellH * 0.94;
       const scl = th / cardSprite.naturalHeight;
       const cw = cardSprite.naturalWidth * scl;
-      ctx.drawImage(cardSprite, bcx - cw / 2, bcy - th * 0.55, cw, th);
+      ctx.drawImage(cardSprite, bcx - cw / 2, r.y + pad + wellH - th, cw, th);
     } else {
+      const badgeR = Math.min(r.w, wellH) * 0.28;
       ctx.beginPath();
       ctx.arc(bcx, bcy, badgeR, 0, Math.PI * 2);
       ctx.fillStyle = FAMILY_COLOR[card.family];
@@ -715,17 +816,21 @@ function drawHand(
       drawPictogram(ctx, card.family, bcx, bcy, badgeR * 1.4);
     }
 
-    ctx.fillStyle = '#3b2a1a';
-    ctx.font = "700 10px 'Nunito', sans-serif";
+    // name strip
+    ctx.fillStyle = '#f0e6cf';
+    ctx.font = "800 9px 'Nunito', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(card.name, r.x + r.w / 2, r.y + r.h - 14);
+    ctx.fillText(fitText(ctx, card.name, r.w - 8), bcx, r.y + r.h - 9);
 
     // cost badge (top-left, mana violet)
     const cr = 11;
+    const cgrad = ctx.createLinearGradient(r.x + cr, r.y, r.x + cr, r.y + cr * 2);
+    cgrad.addColorStop(0, '#d9a7f0');
+    cgrad.addColorStop(1, '#7d3fa0');
     ctx.beginPath();
     ctx.arc(r.x + cr, r.y + cr, cr, 0, Math.PI * 2);
-    ctx.fillStyle = '#9b59b6';
+    ctx.fillStyle = cgrad;
     ctx.fill();
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#fff';

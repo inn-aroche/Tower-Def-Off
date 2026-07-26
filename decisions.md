@@ -968,3 +968,30 @@ plus masquer le bouton. Messages adaptés par mode (campagne/survie : « progres
 
 **Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (bouton visible +
 dialogue de confirmation). Aucun changement `src/data`.
+
+## Phase 15 — Passe de style du mode jeu (nouvelle planche de référence)
+
+Nouvelle planche de style reçue (logo, icônes app, key art, roster, 5 maquettes d'écran). Demande :
+« voici à quoi ça doit ressembler, je fais surtout référence au **mode jeu** ». Le fichier image
+n'étant pas arrivé sur le disque de la session, il est **documenté** dans
+`docs/design/style-reference-battle.md` (prescriptions + écarts restants) plutôt qu'archivé.
+
+Écarts corrigés dans `CombatRenderer` (rendu seul, aucun changement `src/data`) :
+
+- **Sol** : la grille de tuiles encadrées de pierre devient un **champ vert continu**. La tuile
+  d'herbe est échantillonnée sur sa **zone intérieure** (le cadre de pierre peint est rogné) puis
+  répétée avec **miroir par case** pour casser la répétition, dans un **canvas hors-écran mis en
+  cache** (reconstruit seulement si la taille du plateau change ⇒ 1 seul `drawImage` par frame).
+  Les cases restent lisibles via des **lignes très discrètes** au lieu d'un cadre par tuile.
+- **Cartes** : cadres **ardoise arrondis** à liseré or, puits d'art interne, portrait plein cadre,
+  **badge de coût violet** dégradé, nom sur bandeau bas, **halo doré** sur la sélection.
+- **Mana** : piste sombre, remplissage dégradé + reflet, **10 créneaux** marqués, **badge rond
+  chiffré** à gauche.
+- **HUD haut** : **pastilles** — timer et vies côte à côte en haut à droite (déplacés pour ne plus
+  chevaucher le lien « Passer » de la FTUE), pastille de vague sous le titre.
+
+`HudLayout` (rects de hit-testing) **inchangé** ⇒ aucun risque de dérive du toucher.
+
+**Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (champ continu, cartes,
+mana, HUD sans collision). **Reste** (documenté) : DA des personnages plus proche de la planche,
+écrans hors-combat, décor de bord d'arène.
