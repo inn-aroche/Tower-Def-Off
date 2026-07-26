@@ -6,8 +6,9 @@ import { HEROES_BY_ID } from '../../data/heroes';
 import { BASE_MAX_LEVEL, DECK_MAX } from '../../data/meta';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
 import { bottomNav, currencyPills, toast, unitTile } from './common';
+import { heroRosterCards } from './heroRoster';
 
-type Tab = 'units' | 'base' | 'resources';
+type Tab = 'units' | 'base' | 'heroes';
 type Filter = 'all' | Rarity;
 
 /**
@@ -85,7 +86,7 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
     const items: Array<{ id: Tab; label: string }> = [
       { id: 'units', label: 'Unités' },
       { id: 'base', label: 'Base' },
-      { id: 'resources', label: 'Ressources' },
+      { id: 'heroes', label: 'Héros' },
     ];
     for (const it of items) {
       tabsBar.append(
@@ -109,7 +110,7 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
     content.replaceChildren();
     if (tab === 'units') renderUnits();
     else if (tab === 'base') renderBase();
-    else renderResources();
+    else renderHeroes();
   }
 
   function renderUnits(): void {
@@ -178,13 +179,16 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
           ]),
         );
       }
+      const missing: string[] = [];
+      if (app.gold < cost.gold) missing.push('or');
+      if (cost.shards > 0 && app.shards < cost.shards) missing.push('éclats');
       card.append(
         el('div', { style: 'font:700 11px "Nunito";color:var(--ink-soft)', text: `Améliorer vers niveau ${level + 1} (+2 PV)` }),
         costRow,
         el('button', {
           class: `btn ${canUp ? 'btn--green' : ''}`,
           style: 'width:100%',
-          text: canUp ? 'Améliorer la base' : 'Ressources manquantes',
+          text: canUp ? 'Améliorer la base' : `Manque : ${missing.join(', ')}`,
           ...(canUp ? {} : { disabled: true }),
           onclick: () => {
             if (app.upgradeBase() !== null) {
@@ -200,24 +204,13 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
     content.append(card);
   }
 
-  function renderResources(): void {
-    const row = (icon: HTMLElement, name: string, value: number, where: string) =>
-      el('div', { class: 'panel', style: 'display:flex;align-items:center;gap:12px' }, [
-        icon,
-        el('div', { style: 'flex:1' }, [
-          el('div', { style: 'font:800 14px "Baloo 2";color:var(--ink)', text: `${name} · ${value}` }),
-          el('div', { style: 'font:600 11px "Nunito";color:var(--ink-soft)', text: where }),
-        ]),
-      ]);
-    const coin = el('div', { class: 'coin', style: 'width:26px;height:26px' });
-    const gem = el('div', { class: 'gem', style: 'width:20px;height:20px' });
-    const shard = el('div', { style: 'width:20px;height:20px;transform:rotate(45deg);border-radius:3px;background:linear-gradient(135deg,#7fe3da,#1aa39a);border:1px solid #12756e' });
+  function renderHeroes(): void {
+    // Re-render the whole screen on change so the loadout hero slot + currencies stay in sync.
     content.append(
-      el('div', { style: 'display:flex;flex-direction:column;gap:10px' }, [
-        row(coin, 'Or', app.gold, 'Gagné en combat, coffres et défis. Sert aux améliorations.'),
-        row(gem, 'Gemmes', app.gems, 'Monnaie premium — coffres et boutique.'),
-        row(shard, 'Éclats', app.shards, 'Ressource rare des coffres — requise pour les hauts niveaux.'),
-      ]),
+      el('div', { style: 'display:flex;flex-direction:column;gap:14px' }, heroRosterCards(app, host, () => {
+        renderLoadout();
+        renderContent();
+      })),
     );
   }
 

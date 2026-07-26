@@ -35,7 +35,7 @@ export function HubScreen(ctx: ScreenCtx): Screen {
     }),
   ]);
 
-  // Event banner + survival / deck / arena access
+  // Event banner + survival / arena access
   const best = app.survivalBest;
   const header = el('div', { style: 'padding:12px 14px 4px;display:flex;gap:10px;align-items:stretch' }, [
     el('button', {
@@ -51,13 +51,9 @@ export function HubScreen(ctx: ScreenCtx): Screen {
         text: best > 0 ? `Record : vague ${best}` : 'Jusqu’où tiendras-tu ?',
       }),
     ]),
-    el('div', { style: 'display:flex;flex-direction:column;gap:6px' }, [
-      el('button', { class: 'btn btn--purple', style: 'padding:8px 14px;font-size:12px', onclick: () => nav({ name: 'deck' }) }, [
-        el('div', { text: '🃏 Deck' }),
-      ]),
-      el('button', { class: 'btn btn--gold', style: 'padding:8px 14px;font-size:12px', onclick: () => nav({ name: 'arena' }) }, [
-        el('div', { text: `⚔ Arène · ${app.trophies}🏆` }),
-      ]),
+    el('button', { class: 'btn btn--gold', style: 'flex:0 0 120px;padding:8px 14px;font-size:13px', onclick: () => nav({ name: 'arena' }) }, [
+      el('div', { text: '⚔ Arène' }),
+      el('div', { style: 'font:800 11px "Baloo 2";margin-top:2px', text: `${app.trophies} 🏆` }),
     ]),
   ]);
 

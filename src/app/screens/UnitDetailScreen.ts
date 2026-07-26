@@ -97,6 +97,10 @@ export function UnitDetailScreen(ctx: ScreenCtx): Screen {
           ]),
         );
       }
+      const missing: string[] = [];
+      if (owned.duplicates < cost.duplicates) missing.push('cartes');
+      if (app.gold < cost.gold) missing.push('or');
+      if (cost.shards > 0 && app.shards < cost.shards) missing.push('éclats');
       upgradeBlock.append(
         el('div', { class: 'section-label', style: 'margin:4px 0 6px', text: `Améliorer vers niveau ${level + 1}` }),
         el('div', { class: 'panel', style: 'margin-bottom:12px' }, [
@@ -106,7 +110,7 @@ export function UnitDetailScreen(ctx: ScreenCtx): Screen {
         el('button', {
           class: `btn ${canUp ? 'btn--green' : ''}`,
           style: 'width:100%',
-          text: canUp ? 'Améliorer' : 'Ressources manquantes',
+          text: canUp ? 'Améliorer' : `Manque : ${missing.join(', ')}`,
           onclick: () => {
             if (app.upgrade(def.id) !== null) render();
           },
