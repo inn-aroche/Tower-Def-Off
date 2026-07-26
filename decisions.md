@@ -828,3 +828,38 @@ Héros rendu, **héros déployé sur le plateau** (aura + PV), zéro erreur JS.
 **Verrous** (sur l'ensemble de la phase) : `typecheck` + **126 tests** + `build` verts, 3 sims OK.
 Note : les 88 unités et une partie des 20 héros sont du contenu de largeur, non équilibré par
 simulation (playtests + curation à venir) — assumé et documenté.
+
+## Phase 8 — Vue perspective 2.5D du plateau (retour utilisateur)
+
+Demande : « améliorer la vue pour donner une vision type 3D ». Choix validé avec l'utilisateur :
+**perspective inclinée (2.5D)** plutôt que diorama à plat ou isométrique complet. C'était déjà au
+design (asset-brief l.16 « board tilted ~35° toward the camera » ; Phase 3 « reste : perspective 3D
+du plateau »).
+
+- **`render/BoardProjection.ts`** (pur, déterministe, dérivé du seul `BoardLayout`) : projection
+  perspective fermée et **inversible**. Profondeur `v=row/rows` (0 = fond, 1 = premier plan),
+  `scale(v)=MIN+(1-MIN)v` (foreshortening horizontal + taille), `g(v)=A·v+(1-A)v²` (rangées qui se
+  resserrent vers l'horizon). `unprojectCell` résout la quadratique ⇒ **le toucher retombe pile sur
+  la case** (round-trip exact sur les centres, testé). Un seul point de vérité partagé par le rendu,
+  les effets et le hit-testing ⇒ aucune dérive possible.
+- **`render/CombatRenderer.ts`** : `drawBoard` réécrit — ciel/brume derrière le trapèze, dalle avec
+  épaisseur (rim extrudé), tuiles-trapèzes en damier avec brume atmosphérique sur les rangées
+  lointaines, **route effilée** (largeur ∝ profondeur), auras gravité/ralliement en **ellipses au
+  sol** (polygone projeté + dégradé radial), portail/base projetés. **Unités = jetons surélevés**
+  (cap clair sur socle sombre + ombre), ennemis/héros foreshortés, le tout **peint de l'arrière vers
+  l'avant** (algorithme du peintre) pour une occlusion correcte.
+- **`render/Effects.ts`** : particules/nombres/faisceaux/anneaux passent par la même projection
+  (tailles mises à l'échelle par la profondeur, anneaux d'impact en ellipses).
+- **Input** : `CombatScreen` / `PvpCombatScreen` / `SurvivalScreen` passent de `pixelToCell` (repère
+  plat, conservé pour le HUD et son test) à `unprojectCell`.
+- **Artefact partagé** : bandeau de build « WARDENS · 100 unités · … » **retiré** (demande
+  utilisateur) ; bundle réinliné, même chemin de fichier ⇒ même URL.
+
+**Périmètre** : rendu + input + tests uniquement, **aucun changement `src/data`** ⇒ pas de
+re-simulation requise (la règle ne s'applique qu'aux constantes d'équilibrage). La sim reste en
+espace-case, inchangée et déterministe.
+
+**Verrous** : `typecheck` + **130 tests** (+4 : round-trip projection, foreshortening, bornes,
+centrage) + `build` verts. Vérif navigateur (Playwright sur http) : board 2.5D en combat + pose
+d'unité tombant sur la bonne case + artefact auto-porté qui démarre sans erreur (hors polices CDN
+bloquées = fallback système attendu).

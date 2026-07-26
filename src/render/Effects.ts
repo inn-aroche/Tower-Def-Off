@@ -1,4 +1,5 @@
 import type { BoardLayout } from './BoardLayout';
+import { projectPoint } from './BoardProjection';
 import type { CombatEvent, UnitFamily } from '../sim/types';
 
 /**
@@ -175,47 +176,53 @@ export class Effects {
     return { x: (this.rand() * 2 - 1) * amp, y: (this.rand() * 2 - 1) * amp };
   }
 
-  /** Draws particles/numbers/beams/rings. Call after the board, in the same (shaken) transform. */
+  /** Draws particles/numbers/beams/rings. Call after the board, in the same (shaken) transform.
+   * Positions go through the same perspective projection as the board so FX sit on the tilted
+   * plane, with sizes foreshortened by the depth scale. */
   draw(ctx: CanvasRenderingContext2D, layout: BoardLayout): void {
-    const px = (x: number) => layout.originX + x * layout.cellSize;
-    const py = (y: number) => layout.originY + y * layout.cellSize;
+    const cs = layout.cellSize;
 
     for (const b of this.beams) {
       if (b.width <= 0) continue;
+      const p1 = projectPoint(layout, b.x1, b.y1);
+      const p2 = projectPoint(layout, b.x2, b.y2);
       ctx.globalAlpha = Math.max(0, b.life / b.max);
       ctx.strokeStyle = b.color;
-      ctx.lineWidth = b.width;
+      ctx.lineWidth = b.width * ((p1.scale + p2.scale) / 2);
       ctx.beginPath();
-      ctx.moveTo(px(b.x1), py(b.y1));
-      ctx.lineTo(px(b.x2), py(b.y2));
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
       ctx.stroke();
     }
     for (const r of this.rings) {
       const t = 1 - r.life / r.max;
+      const p = projectPoint(layout, r.x, r.y);
       ctx.globalAlpha = Math.max(0, r.life / r.max);
       ctx.strokeStyle = r.color;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(px(r.x), py(r.y), r.maxR * layout.cellSize * t, 0, Math.PI * 2);
+      ctx.ellipse(p.x, p.y, r.maxR * cs * t * p.scale, r.maxR * cs * t * p.scale * 0.62, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
     for (const p of this.particles) {
+      const pp = projectPoint(layout, p.x, p.y);
       ctx.globalAlpha = Math.max(0, p.life / p.max);
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(px(p.x), py(p.y), p.size, 0, Math.PI * 2);
+      ctx.arc(pp.x, pp.y, p.size * pp.scale, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const n of this.numbers) {
+      const pn = projectPoint(layout, n.x, n.y);
       ctx.globalAlpha = Math.max(0, n.life / n.max);
       ctx.font = `800 ${n.text.startsWith('Niv') ? 15 : 13}px 'Baloo 2', sans-serif`;
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillText(n.text, px(n.x) + 1, py(n.y) + 1);
+      ctx.fillText(n.text, pn.x + 1, pn.y + 1);
       ctx.fillStyle = n.color;
-      ctx.fillText(n.text, px(n.x), py(n.y));
+      ctx.fillText(n.text, pn.x, pn.y);
     }
     ctx.globalAlpha = 1;
   }

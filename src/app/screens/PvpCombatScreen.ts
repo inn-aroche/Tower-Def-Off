@@ -5,7 +5,8 @@ import { BotDriver } from '../../sim/BotPolicy';
 import { ECONOMY } from '../../data/economy';
 import { ENEMIES } from '../../data/enemies';
 import { ARENA_LEVEL, BLITZ_ARENA_LEVEL, BLITZ_ECONOMY, botUnitDefs, LOSS_TROPHIES, WIN_TROPHIES } from '../../data/arena';
-import { computeBoardLayout, pixelToCell } from '../../render/BoardLayout';
+import { computeBoardLayout } from '../../render/BoardLayout';
+import { unprojectCell } from '../../render/BoardProjection';
 import { drawCombatFrame, type CombatUiState, type RenderContext } from '../../render/CombatRenderer';
 import { BOTTOM_INSET, hitCard, TOP_INSET } from '../../render/HudLayout';
 import { Effects } from '../../render/Effects';
@@ -85,7 +86,7 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
       else if (snap.hand[cardIndex].affordable) ui.selectedCardIndex = cardIndex;
       return;
     }
-    const cell = pixelToCell(layout(), x, y);
+    const cell = unprojectCell(layout(), x, y);
     if (!cell) return;
     const occupant = snap.units.find((u) => u.col === cell.col && u.row === cell.row);
     if (ui.selectedCardIndex !== null) {
