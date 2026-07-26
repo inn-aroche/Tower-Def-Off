@@ -678,6 +678,42 @@ function drawBoard(
     }
   }
 
+  // ---- marching allies (offensive cards) — same treatment as the hero, no level badge ----
+  for (const ally of snapshot.allies) {
+    const ax = ox + ally.x * cs;
+    const ay = oy + ally.y * cs;
+    const ar = cs * 0.4;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(ax, ay + ar * 0.55, ar * 0.8, ar * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // red banner ring marks "this one is attacking, not holding ground"
+    ctx.strokeStyle = `rgba(231,110,80,${0.5 + 0.3 * pulse})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(ax, ay, ar * 1.15, 0, Math.PI * 2);
+    ctx.stroke();
+    const sprite = getUnitSprite(ally.unitId);
+    if (spriteReady(sprite)) {
+      const th = cs * 1.0;
+      const w = (sprite.naturalWidth / sprite.naturalHeight) * th;
+      ctx.drawImage(sprite, ax - w / 2, ay - th * 0.72, w, th);
+    } else {
+      ctx.beginPath();
+      ctx.arc(ax, ay - ar * 0.2, ar, 0, Math.PI * 2);
+      ctx.fillStyle = '#b3462a';
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#ffd76a';
+      ctx.stroke();
+    }
+    const frac = Math.max(0, Math.min(1, ally.hp / Math.max(1, ally.maxHp)));
+    ctx.fillStyle = '#1f1610';
+    ctx.fillRect(ax - ar, ay - ar * 1.6, ar * 2, 4);
+    ctx.fillStyle = frac > 0.4 ? '#4caf50' : '#e74c3c';
+    ctx.fillRect(ax - ar, ay - ar * 1.6, ar * 2 * frac, 4);
+  }
+
   // ---- hero (raised token) drawn on top while it marches up the path ----
   const hero = snapshot.hero;
   if (hero.configured && hero.deployed) {
@@ -799,7 +835,7 @@ function drawHand(
     ctx.fillStyle = frame;
     ctx.fill();
     ctx.lineWidth = selected ? 3 : 2;
-    ctx.strokeStyle = selected ? '#ffe9a8' : '#c9a15f';
+    ctx.strokeStyle = selected ? '#ffe9a8' : card.role === 'offense' ? '#e07a4a' : '#c9a15f';
     ctx.stroke();
     if (selected) ctx.restore();
 
@@ -836,6 +872,23 @@ function drawHand(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(fitText(ctx, card.name, r.w - 8), bcx, r.y + r.h - 9);
+
+    // offense marker (top-right): this card charges up the path instead of taking a cell
+    if (card.role === 'offense') {
+      const mr = 9;
+      const mx = r.x + r.w - mr - 2;
+      const my = r.y + mr + 2;
+      ctx.beginPath();
+      ctx.arc(mx, my, mr, 0, Math.PI * 2);
+      ctx.fillStyle = '#c0392b';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = "800 10px 'Baloo 2', sans-serif";
+      ctx.fillText('⚔', mx, my + 0.5);
+    }
 
     // cost badge (top-left, mana violet)
     const cr = 11;

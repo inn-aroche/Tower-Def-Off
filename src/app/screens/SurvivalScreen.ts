@@ -145,8 +145,18 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
     const cardIndex = hitCard(window.innerWidth, window.innerHeight, snap.hand.length, x, y);
     if (cardIndex !== null) {
       ui.selectedUnit = null;
+      const card = snap.hand[cardIndex];
+      if (card.role === 'offense') {
+        ui.selectedCardIndex = null;
+        if (card.affordable && sim.launchOffense(card.unitId).ok) {
+          audio.play('summon');
+          haptics.impact('medium');
+          toast(host, `${card.name} charge !`);
+        }
+        return;
+      }
       if (ui.selectedCardIndex === cardIndex) ui.selectedCardIndex = null;
-      else if (snap.hand[cardIndex].affordable) ui.selectedCardIndex = cardIndex;
+      else if (card.affordable) ui.selectedCardIndex = cardIndex;
       return;
     }
 

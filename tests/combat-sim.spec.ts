@@ -82,7 +82,9 @@ describe('CombatSim summon', () => {
 
   it('exposes affordability per card in the hand', () => {
     const sim = makeSim(level(), { ...economy, manaStartValue: 1, manaRegenPerSec: 0 });
-    expect(sim.snapshot().hand).toEqual([{ unitId: 'strong', name: 'Strong', family: 'melee', cost: 2, affordable: false }]);
+    expect(sim.snapshot().hand).toEqual([
+      { unitId: 'strong', name: 'Strong', family: 'melee', cost: 2, affordable: false, role: 'defense' },
+    ]);
   });
 });
 

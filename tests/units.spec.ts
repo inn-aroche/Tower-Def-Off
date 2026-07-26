@@ -7,7 +7,8 @@ describe('unit roster', () => {
     expect(new Set(UNITS.map((u) => u.id)).size).toBe(100);
     for (const u of UNITS) {
       expect(u.name.length).toBeGreaterThan(0);
-      expect(u.levels).toHaveLength(3);
+      // Defenses merge across 3 board tiers; offensive units never merge, so they carry a single tier.
+      expect(u.levels).toHaveLength(u.role === 'offense' ? 1 : 3);
       expect(['common', 'rare', 'epic']).toContain(u.rarity);
     }
   });

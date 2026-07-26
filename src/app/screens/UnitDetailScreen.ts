@@ -61,6 +61,15 @@ export function UnitDetailScreen(ctx: ScreenCtx): Screen {
       }, [pictogram(def.family, 52)]),
       el('div', { style: 'display:flex;gap:5px' }, pipRow(level)),
       el('div', { style: 'font:800 14px "Baloo 2";color:var(--ink)', text: `Niveau ${level} · ${RARITY_LABEL[def.rarity]}` }),
+      // Role is the first thing that changes how you play the card, so it sits right under the title.
+      el('div', {
+        style:
+          `margin-top:6px;display:inline-block;padding:4px 10px;border-radius:10px;font:800 11px "Baloo 2";` +
+          (def.role === 'offense'
+            ? 'background:#c0392b;color:#fff'
+            : 'background:rgba(0,0,0,.10);color:var(--ink-soft)'),
+        text: def.role === 'offense' ? '⚔ Offensive — remonte le chemin' : '⛨ Défensive — se pose sur une case',
+      }),
     ]);
 
     // Stats

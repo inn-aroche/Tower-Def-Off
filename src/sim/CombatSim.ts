@@ -51,6 +51,20 @@ export type SummonResult =
   | { ok: true; unitId: string }
   | { ok: false; reason: 'not-ongoing' | 'cell-occupied' | 'out-of-bounds' | 'on-path' | 'not-enough-mana' | 'unknown-card' | 'no-slot' };
 
+/** Runtime state of an offensive unit marching up the path (internal; `MarchingAlly` is exposed). */
+interface LiveAlly {
+  instanceId: number;
+  unitId: string;
+  /** Position along the path (endProgress = base, 0 = spawn). */
+  progress: number;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  attackCd: number;
+  expiresAtSec: number;
+}
+
 export type MergeResult =
   | { ok: true; newLevel: number }
   | { ok: false; reason: 'not-ongoing' | 'missing-unit' | 'mismatch' | 'max-level' | 'same-cell' };
@@ -60,6 +74,9 @@ export class CombatSim {
   private readonly level: LevelDef;
   /** Cap on simultaneous placed defenses for this combat (null = unlimited). Data-driven. */
   private readonly maxSlots: number | null;
+  /** Offensive units currently marching up the path (no emplacement slot, they are tempo). */
+  private allies: LiveAlly[] = [];
+  private nextAllyId = 1;
   private readonly path: Cell[];
   private readonly deck: string[];
   private readonly unitDefs: Map<string, UnitDef>;
@@ -204,7 +221,9 @@ export class CombatSim {
     const { killedEnemyInstanceIds, events } = resolveAttacks(deps, this.units, this.enemies, dtSec, this.elapsedSec);
     for (const e of events) this.events.push(e);
     const heroKills = this.heroConfig ? this.tickHero(dtSec, deps) : [];
-    const allKilled = heroKills.length > 0 ? [...killedEnemyInstanceIds, ...heroKills] : killedEnemyInstanceIds;
+    const allyKills = this.tickAllies(dtSec, deps);
+    const extra = heroKills.length + allyKills.length;
+    const allKilled = extra > 0 ? [...killedEnemyInstanceIds, ...heroKills, ...allyKills] : killedEnemyInstanceIds;
     if (allKilled.length > 0) {
       // Dedupe: two units can land the finishing blow on the same enemy in one tick, so the raw
       // list may contain the same instanceId twice — count and remove each enemy once.
@@ -410,6 +429,80 @@ export class CombatSim {
     return { ok: true, unitId };
   }
 
+  /**
+   * Plays an offensive card: the unit enters at the base and marches UP the path, fighting what it
+   * meets, until it dies / expires / reaches the spawn. It costs mana but NO emplacement slot —
+   * that's the whole trade against a defense.
+   */
+  launchOffense(unitId: string): SummonResult {
+    if (this.outcome !== 'ongoing') return { ok: false, reason: 'not-ongoing' };
+    const def = this.unitDefs.get(unitId);
+    if (!def || !this.deck.includes(unitId)) return { ok: false, reason: 'unknown-card' };
+    if (def.role !== 'offense' || !def.march) return { ok: false, reason: 'unknown-card' };
+    if (this.mana < def.cost) return { ok: false, reason: 'not-enough-mana' };
+
+    this.mana -= def.cost;
+    const pos = pathPosition(this.path, this.endProgress);
+    this.allies.push({
+      instanceId: this.nextAllyId++,
+      unitId,
+      progress: this.endProgress,
+      x: pos.x,
+      y: pos.y,
+      hp: def.march.maxHp,
+      maxHp: def.march.maxHp,
+      attackCd: 0,
+      expiresAtSec: this.elapsedSec + def.march.durationSec,
+    });
+    this.events.push({ type: 'heroDeploy', x: pos.x, y: pos.y });
+    return { ok: true, unitId };
+  }
+
+  /** Advances every marching ally: move up the path, shoot the most advanced enemy in range, take
+   * contact damage, then leave on death / timeout / reaching the spawn. Returns killed instanceIds. */
+  private tickAllies(dtSec: number, deps: { enemyDefs: Map<string, EnemyDef> }): number[] {
+    if (this.allies.length === 0) return [];
+    const killed: number[] = [];
+    for (const ally of this.allies) {
+      const march = this.unitDefs.get(ally.unitId)?.march;
+      if (!march) continue;
+      ally.progress = Math.max(0, ally.progress - march.marchSpeed * dtSec);
+      const pos = pathPosition(this.path, ally.progress);
+      ally.x = pos.x;
+      ally.y = pos.y;
+
+      ally.attackCd = Math.max(0, ally.attackCd - dtSec);
+      if (ally.attackCd <= 0) {
+        let best: LiveEnemy | undefined;
+        for (const e of this.enemies) {
+          if (e.shieldedUntilSec > this.elapsedSec) continue;
+          if (Math.hypot(ally.x - e.x, ally.y - e.y) > march.range) continue;
+          if (!best || e.pathProgress > best.pathProgress) best = e;
+        }
+        if (best) {
+          const armor = deps.enemyDefs.get(best.enemyId)?.armor ?? 0;
+          const dealt = Math.max(1, Math.round(march.damage) - armor);
+          best.hp -= dealt;
+          this.events.push({ type: 'damage', enemyInstanceId: best.instanceId, x: best.x, y: best.y, amount: dealt });
+          if (best.hp <= 0 && !killed.includes(best.instanceId)) killed.push(best.instanceId);
+          ally.attackCd = march.attackIntervalSec;
+        }
+      }
+
+      // Contact damage — enemies it walks into wear it down (same 1.15 reach as the hero).
+      for (const e of this.enemies) {
+        if (Math.hypot(ally.x - e.x, ally.y - e.y) <= 1.15) {
+          ally.hp -= (this.enemyDefs.get(e.enemyId)?.damageToBase ?? 1) * dtSec;
+        }
+      }
+    }
+
+    const gone = this.allies.filter((a) => a.hp <= 0 || a.progress <= 0 || this.elapsedSec >= a.expiresAtSec);
+    for (const a of gone) this.events.push({ type: 'heroDeath', x: a.x, y: a.y });
+    if (gone.length > 0) this.allies = this.allies.filter((a) => !gone.includes(a));
+    return killed;
+  }
+
   merge(a: { col: number; row: number }, b: { col: number; row: number }): MergeResult {
     if (this.outcome !== 'ongoing') return { ok: false, reason: 'not-ongoing' };
     if (a.col === b.col && a.row === b.row) return { ok: false, reason: 'same-cell' };
@@ -452,7 +545,14 @@ export class CombatSim {
   private hand(): HandCard[] {
     return this.deck.map((unitId) => {
       const def = this.unitDefs.get(unitId)!;
-      return { unitId, name: def.name, family: def.family, cost: def.cost, affordable: this.mana >= def.cost };
+      return {
+        unitId,
+        name: def.name,
+        family: def.family,
+        cost: def.cost,
+        affordable: this.mana >= def.cost,
+        role: def.role ?? 'defense',
+      };
     });
   }
 
@@ -471,6 +571,14 @@ export class CombatSim {
       endless: this.survival !== undefined,
       slotsUsed: this.units.length,
       maxSlots: this.maxSlots,
+      allies: this.allies.map((a) => ({
+        instanceId: a.instanceId,
+        unitId: a.unitId,
+        x: a.x,
+        y: a.y,
+        hp: Math.max(0, a.hp),
+        maxHp: a.maxHp,
+      })),
       hero: this.heroSnapshot(),
     };
   }

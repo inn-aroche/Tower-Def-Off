@@ -48,6 +48,7 @@ export function tryGreedyMerge(sim: CombatSim, snapshot: CombatSnapshot): boolea
 export class BotDriver {
   private readonly grass: Cell[];
   private readonly cost: Map<string, number>;
+  private readonly offense: Set<string>;
   private nextActAt = 0;
 
   constructor(
@@ -61,6 +62,7 @@ export class BotDriver {
   ) {
     this.grass = rankedGrassCells(path, cols, rows);
     this.cost = new Map(unitDefs.map((u) => [u.id, u.cost]));
+    this.offense = new Set(unitDefs.filter((u) => u.role === 'offense').map((u) => u.id));
   }
 
   /** Call once per tick with the sim's current elapsed time. */
@@ -75,6 +77,11 @@ export class BotDriver {
     snap = this.sim.snapshot();
     const unitId = chooseCard(snap);
     if (unitId === null || snap.mana < (this.cost.get(unitId) ?? Infinity)) return;
+    // Offensive cards need no cell — they charge up the path from the base.
+    if (this.offense.has(unitId)) {
+      this.sim.launchOffense(unitId);
+      return;
+    }
     const occupied = new Set(snap.units.map((u) => `${u.col},${u.row}`));
     const cell = this.grass.find((g) => !occupied.has(`${g.col},${g.row}`));
     if (cell) this.sim.summon(unitId, cell.col, cell.row);

@@ -172,6 +172,48 @@ const CORE_UNITS: UnitDef[] = [
 ];
 
 /**
+ * Offensive units — the other half of a deck. They are NOT placed: playing one launches it from
+ * the base to march UP the path, fighting what it meets until it dies, expires, or reaches the
+ * spawn. They cost mana but take **no emplacement slot**, so they are the pressure-release valve
+ * when the board is full — the deliberate counterpart to the defense cap.
+ *
+ * `levels` is unused for them (they never merge) but kept as a single tier so every UnitDef stays
+ * uniform for the collection/upgrade screens. All marching stats live in `march`.
+ */
+const OFFENSE_UNITS: UnitDef[] = [
+  {
+    id: 'raider',
+    name: 'Pillard',
+    family: 'melee',
+    rarity: 'common',
+    cost: 3,
+    role: 'offense',
+    march: { maxHp: 95, damage: 13, attackIntervalSec: 0.7, range: 1.5, marchSpeed: 1.15, durationSec: 13 },
+    levels: [{ damage: 13, attackIntervalSec: 0.7, range: 1.5, slowFactor: 1 }],
+  },
+  {
+    id: 'skirmisher',
+    name: 'Tirailleuse',
+    family: 'ranged',
+    rarity: 'rare',
+    cost: 4,
+    role: 'offense',
+    march: { maxHp: 70, damage: 15, attackIntervalSec: 0.6, range: 2.7, marchSpeed: 1.0, durationSec: 12 },
+    levels: [{ damage: 15, attackIntervalSec: 0.6, range: 2.7, slowFactor: 1 }],
+  },
+  {
+    id: 'champion',
+    name: 'Champion',
+    family: 'melee',
+    rarity: 'epic',
+    cost: 6,
+    role: 'offense',
+    march: { maxHp: 210, damage: 24, attackIntervalSec: 0.75, range: 1.7, marchSpeed: 0.85, durationSec: 16 },
+    levels: [{ damage: 24, attackIntervalSec: 0.75, range: 1.7, slowFactor: 1 }],
+  },
+];
+
+/**
  * The collection is expanded to 100 units. Beyond the 12 hand-tuned core units above, the rest are
  * generated deterministically (stat curves by family + rarity + tier, thematic names, sparse
  * signature abilities) for collection breadth. They're locked at start and none sit in the default
@@ -240,9 +282,10 @@ function genAbility(family: UnitFamily, i: number): UnitAbility | undefined {
 
 function generatedUnits(): UnitDef[] {
   const plan: Array<{ family: UnitFamily; count: number }> = [
-    { family: 'melee', count: 30 },
-    { family: 'ranged', count: 30 },
-    { family: 'gravity', count: 28 },
+    // 85 generated + 12 core + 3 offensive = the 100-unit collection.
+    { family: 'melee', count: 29 },
+    { family: 'ranged', count: 29 },
+    { family: 'gravity', count: 27 },
   ];
   const out: UnitDef[] = [];
   for (const { family, count } of plan) {
@@ -265,7 +308,9 @@ function generatedUnits(): UnitDef[] {
   return out;
 }
 
-export const UNITS: UnitDef[] = [...CORE_UNITS, ...generatedUnits()];
+export const OFFENSE_UNIT_IDS = OFFENSE_UNITS.map((u) => u.id);
+
+export const UNITS: UnitDef[] = [...CORE_UNITS, ...OFFENSE_UNITS, ...generatedUnits()];
 
 export const UNITS_BY_ID = new Map(UNITS.map((u) => [u.id, u]));
 

@@ -1026,3 +1026,35 @@ Survie OK (skill ramp préservé).
 dépassent rarement 8 unités). Il contraint le *joueur humain* qui, lui, inonde le plateau. Rendre
 la campagne réellement plus dure demande un second levier (montée des PV/vagues ennemies) — à
 décider séparément, hors de cette demande.
+
+## Phase 17 — Deck offensif / défensif
+
+Arbitrage utilisateur : **une seule main mixte, une seule jauge de mana**. Chaque tour on choisit :
+fortifier (défense) ou attaquer (offense).
+
+- **`sim`** : `UnitDef.role` (`'defense' | 'offense'`) + `march` (PV, dégâts, cadence, portée,
+  vitesse, durée). Nouvelle action **`launchOffense(unitId)`** : l'unité entre **à la base** et
+  **remonte le chemin** en combattant, puis se retire (mort / durée écoulée / spawn atteint) —
+  `tickAllies()` réutilise la mécanique déjà éprouvée du héros. Le snapshot expose `allies[]`, et
+  `HandCard.role` permet à l'UI de **ne pas demander de case**.
+- **Interaction clé avec la Phase 16** : une unité offensive **ne consomme aucun emplacement**.
+  C'est la soupape quand le plateau est plein — le contrepoids délibéré du plafond de défenses.
+- **`data`** : 3 unités offensives — **Pillard** (3 mana, rapide), **Tirailleuse** (4, à distance),
+  **Champion** (6, tank). Elles **ne fusionnent pas** (1 seul palier). Le roster reste à **100**
+  unités (les générées passent de 88 à 85). Pillard + Tirailleuse sont **possédées au départ** pour
+  qu'un deck mixte soit composable dès la 1ʳᵉ session. Le **deck par défaut reste 100 % défensif**,
+  donc les simulations d'équilibrage sont inchangées (vérifié).
+- **UI** : carte à liseré rouge + pastille **⚔** (le tap la lance immédiatement, sans sélection de
+  case) ; allié en marche rendu avec anneau rouge, sprite et barre de PV ; tuile de collection
+  marquée **⚔** ; fiche d'unité annonçant « ⚔ Offensive — remonte le chemin » ou « ⛨ Défensive ».
+  Le `BotDriver` sait aussi lancer les offensives (donc PvP et sims les gèrent).
+
+**Verrous** : `typecheck` + **137 tests** (+6 offensives, +5 emplacements) + `build` verts ; les
+**3 simulations** re-jouées et vertes (campagne, PvP, survie), inchangées puisque le deck par défaut
+n'a pas bougé.
+
+**Limites assumées** : (1) le deck reste plafonné à **5 cartes**, donc glisser une offensive impose
+d'enlever une défense — c'est le dilemme voulu, mais à surveiller en playtest ; (2) les 3 unités
+offensives ne sont **pas équilibrées par simulation** (le deck par défaut ne les contient pas) —
+il faudra une passe dédiée quand elles entreront dans les decks de référence ; (3) elles réutilisent
+les sprites d'unités existantes (éclaireuse / archère / gardien) faute d'art dédié.

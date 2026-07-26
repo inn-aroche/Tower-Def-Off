@@ -79,6 +79,9 @@ export const STARTER_COLLECTION: Record<string, OwnedUnit> = {
   catapult: { level: 1, duplicates: 2 },
   guardian: { level: 1, duplicates: 1 },
   gravity_well: { level: 1, duplicates: 2 },
+  // Offensive starters, so a mixed defense/offense deck is buildable from the very first session.
+  raider: { level: 1, duplicates: 2 },
+  skirmisher: { level: 1, duplicates: 1 },
 };
 
 export const STARTER_GOLD = 800;

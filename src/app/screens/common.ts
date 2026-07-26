@@ -127,6 +127,19 @@ export function unitTile(def: UnitDef, opts: { level?: number; locked?: boolean;
   const pic = pictogram(def.family, 28);
   tile.append(pic);
   tile.append(el('span', { class: 'tile__name', text: def.name }));
+  // Offensive units don't hold ground — they charge up the path. Mark them so a deck reads at a glance.
+  if (def.role === 'offense') {
+    tile.append(
+      el('span', {
+        text: '⚔',
+        title: 'Offensive — remonte le chemin',
+        style:
+          'position:absolute;top:4px;left:4px;background:#c0392b;color:#fff;border:1.5px solid #fff;' +
+          'border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;' +
+          'font:800 10px "Baloo 2",sans-serif',
+      }),
+    );
+  }
   if (opts.level !== undefined && !opts.locked) {
     tile.append(el('span', { class: 'tile__lv', text: `Niv ${opts.level}`, style: `color:${RARITY_EDGE[def.rarity]}` }));
   }

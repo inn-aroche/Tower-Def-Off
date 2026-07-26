@@ -110,8 +110,22 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     const cardIndex = hitCard(window.innerWidth, window.innerHeight, snap.hand.length, x, y);
     if (cardIndex !== null) {
       ui.selectedUnit = null;
+      const card = snap.hand[cardIndex];
+      // Offensive cards need no cell: they charge up the path straight from the base.
+      if (card.role === 'offense') {
+        ui.selectedCardIndex = null;
+        if (!card.affordable) return;
+        const res = sim.launchOffense(card.unitId);
+        if (res.ok) {
+          audio.play('summon');
+          haptics.impact('medium');
+          app.analytics.track('offense_launched', { unitId: card.unitId });
+          toast(host, `${card.name} charge !`);
+        }
+        return;
+      }
       if (ui.selectedCardIndex === cardIndex) ui.selectedCardIndex = null;
-      else if (snap.hand[cardIndex].affordable) ui.selectedCardIndex = cardIndex;
+      else if (card.affordable) ui.selectedCardIndex = cardIndex;
       return;
     }
 

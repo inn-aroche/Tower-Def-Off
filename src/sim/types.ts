@@ -33,6 +33,41 @@ export interface UnitDef {
   levels: UnitLevelStats[];
   /** Optional signature effect that fires on top of a normal attack (or, for boost_aura, passively). */
   ability?: UnitAbility;
+  /** How the unit enters play. Defaults to 'defense' when absent. */
+  role?: UnitRole;
+  /** Required when `role === 'offense'`: the marching profile used once launched from the base. */
+  march?: MarchStats;
+}
+
+/**
+ * Two ways to spend mana, so a deck is a mix of both:
+ *  - 'defense' — placed on a grass cell, holds ground, can be merged (the classic play)
+ *  - 'offense' — launched from the base, marches UP the path fighting what it meets, then expires
+ * Offensive units take no emplacement slot: they are a tempo play, not board presence.
+ */
+export type UnitRole = 'defense' | 'offense';
+
+/** Marching profile for an offensive unit (same shape the hero uses). */
+export interface MarchStats {
+  maxHp: number;
+  damage: number;
+  attackIntervalSec: number;
+  range: number;
+  /** Path progress per second, toward the spawn. */
+  marchSpeed: number;
+  /** Seconds it stays out before withdrawing, if it survives that long. */
+  durationSec: number;
+}
+
+/** A friendly unit currently marching up the path (offensive card, or the hero — hero has its own). */
+export interface MarchingAlly {
+  instanceId: number;
+  unitId: string;
+  /** Cell-centre position along the path (x = col+0.5). */
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
 }
 
 /**
@@ -189,6 +224,8 @@ export interface HandCard {
   family: UnitFamily;
   cost: number;
   affordable: boolean;
+  /** 'offense' cards deploy straight from the base — the UI must not ask for a cell. */
+  role: UnitRole;
 }
 
 export interface CombatSnapshot {
@@ -207,6 +244,8 @@ export interface CombatSnapshot {
   /** Defenses currently on the board, and the cap for this combat (null = unlimited). */
   slotsUsed: number;
   maxSlots: number | null;
+  /** Offensive units currently marching up the path. */
+  allies: MarchingAlly[];
   /** Active hero state (configured=false when this combat has no hero). */
   hero: HeroSnapshot;
 }
