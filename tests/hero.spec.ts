@@ -41,6 +41,7 @@ const hero: HeroConfig = {
   range: 4,
   rechargeSec: 2,
   durationSec: 3,
+  marchSpeed: 1,
   power: { kind: 'nova', periodSec: 1, radius: 2, damage: 25 },
 };
 
@@ -63,56 +64,70 @@ describe('CombatSim hero', () => {
     expect(sim.snapshot().hero.ready).toBe(true);
   });
 
-  it('refuses to deploy before ready, then deploys onto a grass cell', () => {
+  it('refuses to activate before ready, then launches (and refuses a second launch)', () => {
     const sim = makeSim();
-    expect(sim.deployHero(0, 1)).toEqual({ ok: false, reason: 'not-ready' });
+    expect(sim.activateHero()).toEqual({ ok: false, reason: 'not-ready' });
     step(sim, 2.1);
-    expect(sim.deployHero(1, 0)).toEqual({ ok: false, reason: 'on-path' });
-    expect(sim.deployHero(0, 1)).toEqual({ ok: true });
+    expect(sim.activateHero()).toEqual({ ok: true });
     expect(sim.snapshot().hero.deployed).toBe(true);
+    expect(sim.activateHero()).toEqual({ ok: false, reason: 'already-out' });
   });
 
-  it('deals damage to enemies in range once deployed', () => {
+  it('enters at the base and marches up the path toward the spawn', () => {
     const sim = makeSim();
     step(sim, 2.1);
-    sim.deployHero(0, 1); // beside the path at (0.5,1.5); the weak enemy sits near (1.5,~0.5→) in range
-    const before = sim.snapshot().enemies[0]?.hp ?? 0;
+    sim.activateHero();
+    const y0 = sim.snapshot().hero.y; // near the base (bottom, high y)
     step(sim, 1);
+    const y1 = sim.snapshot().hero.y; // moved up (lower y) along the straight column path
+    expect(y1).toBeLessThan(y0);
+  });
+
+  it('damages enemies it meets while marching', () => {
+    const mover: EnemyDef = { id: 'mover', name: 'M', hp: 1000, speed: 1, damageToBase: 1 };
+    const sim = new CombatSim({
+      economy,
+      level: { ...level(), waves: [{ startDelaySec: 0, spawnGroups: [{ enemyId: 'mover', count: 1, intervalSec: 0, startDelaySec: 0 }] }] },
+      deck: ['u'],
+      unitDefs: [dummyUnit],
+      enemyDefs: [mover],
+      hero,
+    });
+    step(sim, 2.1);
+    sim.activateHero();
+    const before = sim.snapshot().enemies[0].hp;
+    step(sim, 2); // hero (up) and enemy (down) converge; hero attacks in range
     const after = sim.snapshot().enemies[0]?.hp ?? 0;
-    // either damaged or already killed (hp gone)
     expect(after < before || sim.snapshot().enemies.length === 0).toBe(true);
   });
 
-  it('takes contact damage from an adjacent enemy and eventually leaves', () => {
-    // Slow, hard-hitting enemy parked next to the hero drains its HP.
-    const bruiser: EnemyDef = { id: 'bruiser', name: 'B', hp: 100000, speed: 0.0001, damageToBase: 30 };
+  it('takes contact damage from enemies in its path', () => {
+    const bruiser: EnemyDef = { id: 'bruiser', name: 'B', hp: 100000, speed: 0.5, damageToBase: 30 };
     const sim = new CombatSim({
       economy,
       level: { ...level(), waves: [{ startDelaySec: 0, spawnGroups: [{ enemyId: 'bruiser', count: 1, intervalSec: 0, startDelaySec: 0 }] }] },
       deck: ['u'],
       unitDefs: [dummyUnit],
       enemyDefs: [bruiser],
-      hero: { ...hero, damage: 0, power: { kind: 'nova', periodSec: 100, radius: 0, damage: 0 }, durationSec: 100 },
+      hero: { ...hero, damage: 0, durationSec: 100, power: { kind: 'nova', periodSec: 100, radius: 0, damage: 0 } },
     });
     step(sim, 2.1);
-    // Enemy spawns at (1.5,0.5) and barely moves; deploy the hero adjacent at col 1? path — use (0,0)? dist to (1.5,0.5) ~1.1
-    sim.deployHero(0, 0); // (0.5,0.5), enemy near (1.5,0.5) → within contact 1.15
+    sim.activateHero();
     const hp0 = sim.snapshot().hero.hp;
-    step(sim, 1);
-    const hp1 = sim.snapshot().hero.hp;
-    expect(hp1).toBeLessThan(hp0); // chipped by contact
+    step(sim, 2.5); // the hero marches through the descending bruiser
+    expect(sim.snapshot().hero.hp).toBeLessThan(hp0);
   });
 
-  it('expires after its duration and resets its energy to recharge', () => {
-    // Non-damaging hero so the lone enemy survives and the combat stays ongoing to observe expiry.
-    const sim = makeSim({ ...hero, damage: 0, durationSec: 1, power: { kind: 'nova', periodSec: 100, radius: 0, damage: 0 } });
+  it('leaves after its duration and recharges', () => {
+    // Slow march + non-damaging so it neither reaches the top nor wins before the duration lapses.
+    const sim = makeSim({ ...hero, damage: 0, durationSec: 1, marchSpeed: 0.2, power: { kind: 'nova', periodSec: 100, radius: 0, damage: 0 } });
     step(sim, 2.1);
-    sim.deployHero(0, 1);
+    sim.activateHero();
     expect(sim.snapshot().hero.deployed).toBe(true);
     step(sim, 1.1);
     const h = sim.snapshot().hero;
     expect(h.deployed).toBe(false);
-    expect(h.energy).toBeLessThan(1); // recharging again
+    expect(h.energy).toBeLessThan(1);
   });
 
   it('is deterministic across two identical runs', () => {
@@ -120,8 +135,8 @@ describe('CombatSim hero', () => {
     const b = makeSim();
     step(a, 2.1);
     step(b, 2.1);
-    a.deployHero(0, 1);
-    b.deployHero(0, 1);
+    a.activateHero();
+    b.activateHero();
     step(a, 2);
     step(b, 2);
     expect(a.snapshot()).toEqual(b.snapshot());

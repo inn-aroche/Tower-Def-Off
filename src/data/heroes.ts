@@ -18,6 +18,7 @@ export interface HeroDef {
     range: number;
     rechargeSec: number;
     durationSec: number;
+    marchSpeed: number;
   };
   power: HeroPower;
 }
@@ -28,7 +29,7 @@ export const HEROES: HeroDef[] = [
     name: 'Pyromancien',
     rarity: 'rare',
     powerText: 'Nova de feu : explosion de zone périodique.',
-    base: { maxHp: 120, damage: 20, attackIntervalSec: 0.7, range: 2.6, rechargeSec: 22, durationSec: 12 },
+    base: { maxHp: 120, damage: 20, attackIntervalSec: 0.7, range: 2.6, rechargeSec: 22, durationSec: 12, marchSpeed: 1 },
     power: { kind: 'nova', periodSec: 2.5, radius: 1.8, damage: 30 },
   },
   {
@@ -36,7 +37,7 @@ export const HEROES: HeroDef[] = [
     name: 'Roi de givre',
     rarity: 'epic',
     powerText: 'Nova de givre : gèle et ralentit les ennemis proches.',
-    base: { maxHp: 150, damage: 12, attackIntervalSec: 0.8, range: 2.3, rechargeSec: 24, durationSec: 12 },
+    base: { maxHp: 150, damage: 12, attackIntervalSec: 0.8, range: 2.3, rechargeSec: 24, durationSec: 12, marchSpeed: 0.9 },
     power: { kind: 'frost_nova', periodSec: 3, radius: 2.2, slowFactor: 0.5, durationSec: 2 },
   },
   {
@@ -44,7 +45,7 @@ export const HEROES: HeroDef[] = [
     name: 'Paladin',
     rarity: 'epic',
     powerText: 'Cri de ralliement : soigne la base et encaisse.',
-    base: { maxHp: 230, damage: 14, attackIntervalSec: 0.8, range: 1.9, rechargeSec: 26, durationSec: 14 },
+    base: { maxHp: 230, damage: 14, attackIntervalSec: 0.8, range: 1.9, rechargeSec: 26, durationSec: 14, marchSpeed: 0.75 },
     power: { kind: 'rally', periodSec: 4, radius: 0, healBase: 1 },
   },
 ];
@@ -79,6 +80,7 @@ export function scaleHeroConfig(def: HeroDef, level: number): HeroConfig {
     range: def.base.range,
     rechargeSec: def.base.rechargeSec,
     durationSec: def.base.durationSec,
+    marchSpeed: def.base.marchSpeed,
     power,
   };
 }

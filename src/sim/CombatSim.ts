@@ -43,9 +43,9 @@ export interface CombatSimConfig {
   hero?: HeroConfig;
 }
 
-export type HeroDeployResult =
+export type HeroActivateResult =
   | { ok: true }
-  | { ok: false; reason: 'no-hero' | 'not-ready' | 'already-out' | 'not-ongoing' | 'cell-occupied' | 'out-of-bounds' | 'on-path' };
+  | { ok: false; reason: 'no-hero' | 'not-ready' | 'already-out' | 'not-ongoing' };
 
 export type SummonResult =
   | { ok: true; unitId: string }
@@ -68,11 +68,12 @@ export class CombatSim {
   private survivalCursor = 0;
   private survivalNextAtSec = 0;
 
-  // Hero runtime.
+  // Hero runtime. The hero marches UP the path (from base toward spawn) rather than being placed.
   private readonly heroConfig?: HeroConfig;
   private heroDeployed = false;
-  private heroCol = 0;
-  private heroRow = 0;
+  private heroProgress = 0;
+  private heroX = 0;
+  private heroY = 0;
   private heroHp = 0;
   private heroEnergy = 0;
   private heroAttackCd = 0;
@@ -274,39 +275,42 @@ export class CombatSim {
     }
   }
 
-  /** Deploys the active hero onto a grass cell once its energy bar is full. */
-  deployHero(col: number, row: number): HeroDeployResult {
+  /** Launches the active hero once its energy bar is full — it enters at the base and marches up the path. */
+  activateHero(): HeroActivateResult {
     if (this.outcome !== 'ongoing') return { ok: false, reason: 'not-ongoing' };
     if (!this.heroConfig) return { ok: false, reason: 'no-hero' };
     if (this.heroDeployed) return { ok: false, reason: 'already-out' };
     if (this.heroEnergy < 1) return { ok: false, reason: 'not-ready' };
-    if (!isInBounds(col, row, this.economy.gridCols, this.economy.gridRows)) return { ok: false, reason: 'out-of-bounds' };
-    if (isPathCell(this.path, col, row)) return { ok: false, reason: 'on-path' };
-    const grid = new Grid(this.economy.gridCols, this.economy.gridRows, this.units);
-    if (!grid.isEmpty(col, row)) return { ok: false, reason: 'cell-occupied' };
 
     this.heroDeployed = true;
-    this.heroCol = col;
-    this.heroRow = row;
+    this.heroProgress = this.endProgress; // start at the base end
+    const pos = pathPosition(this.path, this.heroProgress);
+    this.heroX = pos.x;
+    this.heroY = pos.y;
     this.heroHp = this.heroConfig.maxHp;
     this.heroActiveUntil = this.elapsedSec + this.heroConfig.durationSec;
     this.heroPowerTimer = 0;
     this.heroAttackCd = 0;
-    this.events.push({ type: 'heroDeploy', col, row });
+    this.events.push({ type: 'heroDeploy', x: this.heroX, y: this.heroY });
     return { ok: true };
   }
 
-  /** Advances the hero: energy recharge when off-field; when deployed, attack + power + take contact
-   * damage, then expire on timeout or death. Returns enemy instanceIds it killed this tick. */
+  /** Advances the hero: energy recharge when off-field; when out, march up the path + attack + power +
+   * take contact damage, then leave on timeout / reaching the top / death. Returns killed instanceIds. */
   private tickHero(dtSec: number, deps: { unitDefs: Map<string, UnitDef>; enemyDefs: Map<string, EnemyDef> }): number[] {
     const cfg = this.heroConfig!;
     if (!this.heroDeployed) {
       this.heroEnergy = Math.min(1, this.heroEnergy + dtSec / cfg.rechargeSec);
       return [];
     }
+    // March up the path (progress decreases toward the spawn).
+    this.heroProgress = Math.max(0, this.heroProgress - cfg.marchSpeed * dtSec);
+    const pos = pathPosition(this.path, this.heroProgress);
+    this.heroX = pos.x;
+    this.heroY = pos.y;
     const killed: number[] = [];
-    const hx = this.heroCol + 0.5;
-    const hy = this.heroRow + 0.5;
+    const hx = this.heroX;
+    const hy = this.heroY;
     const damageEnemy = (target: LiveEnemy, amount: number) => {
       if (target.shieldedUntilSec > this.elapsedSec) return;
       const armor = deps.enemyDefs.get(target.enemyId)?.armor ?? 0;
@@ -335,7 +339,7 @@ export class CombatSim {
     if (this.heroPowerTimer >= cfg.power.periodSec) {
       this.heroPowerTimer -= cfg.power.periodSec;
       const p = cfg.power;
-      this.events.push({ type: 'heroPower', col: this.heroCol, row: this.heroRow, radius: p.kind === 'rally' ? 0 : p.radius });
+      this.events.push({ type: 'heroPower', x: hx, y: hy, radius: p.kind === 'rally' ? 0 : p.radius });
       if (p.kind === 'nova') {
         for (const e of this.enemies) if (Math.hypot(hx - e.x, hy - e.y) <= p.radius) damageEnemy(e, p.damage);
       } else if (p.kind === 'frost_nova') {
@@ -358,10 +362,10 @@ export class CombatSim {
       }
     }
 
-    if (this.heroHp <= 0 || this.elapsedSec >= this.heroActiveUntil) {
+    if (this.heroHp <= 0 || this.heroProgress <= 0 || this.elapsedSec >= this.heroActiveUntil) {
       this.heroDeployed = false;
       this.heroEnergy = 0;
-      this.events.push({ type: 'heroDeath', col: this.heroCol, row: this.heroRow });
+      this.events.push({ type: 'heroDeath', x: hx, y: hy });
     }
     return killed;
   }
@@ -415,8 +419,8 @@ export class CombatSim {
     return {
       configured: this.heroConfig !== undefined,
       deployed: this.heroDeployed,
-      col: this.heroCol,
-      row: this.heroRow,
+      x: this.heroX,
+      y: this.heroY,
       hp: Math.max(0, this.heroHp),
       maxHp: this.heroConfig?.maxHp ?? 0,
       energy: this.heroEnergy,

@@ -73,7 +73,6 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
   });
   screen.append(canvas, back);
 
-  let placingHero = false;
   const heroBtn = heroConfig
     ? el('button', {
         style:
@@ -81,11 +80,14 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
           'background:radial-gradient(circle at 50% 35%,#5a3b6e,#2b1e14);color:#fff;font:800 10px "Baloo 2",sans-serif;' +
           'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 4px 10px rgba(0,0,0,.4)',
         onclick: () => {
-          const h = sim.snapshot().hero;
-          if (h.deployed) return;
-          if (!h.ready) return toast(host, 'Héros pas encore prêt');
-          placingHero = !placingHero;
-          toast(host, placingHero ? 'Touche une case pour déployer le héros' : 'Déploiement annulé');
+          const res = sim.activateHero();
+          if (res.ok) {
+            audio.play('summon');
+            haptics.impact('medium');
+            toast(host, `${heroConfig.name} entre en jeu !`);
+          } else if (res.reason === 'not-ready') {
+            toast(host, 'Héros pas encore prêt');
+          }
         },
       }, [el('div', { style: 'font-size:22px', text: '🦸' }), el('div', { text: 'HÉROS' })])
     : null;
@@ -103,9 +105,9 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
       label.textContent = 'ACTIF';
     } else if (h.ready) {
       heroBtn.style.opacity = '1';
-      heroBtn.style.borderColor = placingHero ? '#8fe0da' : '#8ee06a';
+      heroBtn.style.borderColor = '#8ee06a';
       heroBtn.style.boxShadow = '0 0 0 4px rgba(120,220,120,.45),0 4px 10px rgba(0,0,0,.4)';
-      label.textContent = placingHero ? 'POSE' : 'PRÊT';
+      label.textContent = 'PRÊT';
     } else {
       heroBtn.style.opacity = '0.9';
       heroBtn.style.borderColor = '#f0c26a';
@@ -131,21 +133,6 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
   function handleTap(x: number, y: number): void {
     const snap = sim.snapshot();
     if (snap.outcome !== 'ongoing') return;
-
-    if (placingHero) {
-      const cell = pixelToCell(layout(), x, y);
-      if (cell) {
-        const r = sim.deployHero(cell.col, cell.row);
-        if (r.ok) {
-          placingHero = false;
-          audio.play('summon');
-          haptics.impact('medium');
-        } else if (r.reason === 'cell-occupied' || r.reason === 'on-path' || r.reason === 'out-of-bounds') {
-          toast(host, 'Case invalide pour le héros');
-        }
-      }
-      return;
-    }
 
     const cardIndex = hitCard(window.innerWidth, window.innerHeight, snap.hand.length, x, y);
     if (cardIndex !== null) {

@@ -154,8 +154,10 @@ export interface HeroConfig {
   range: number;
   /** Seconds for the energy bar to fill from empty to ready. */
   rechargeSec: number;
-  /** How long the hero stays on the field once deployed. */
+  /** How long the hero stays on the field once activated (also leaves early if it reaches the top or dies). */
   durationSec: number;
+  /** Cells/sec the hero marches UP the path (from the base toward the spawn). */
+  marchSpeed: number;
   power: HeroPower;
 }
 
@@ -163,11 +165,12 @@ export interface HeroConfig {
 export interface HeroSnapshot {
   configured: boolean;
   deployed: boolean;
-  col: number;
-  row: number;
+  /** Cell-centre position along the path while marching (x = col+0.5). */
+  x: number;
+  y: number;
   hp: number;
   maxHp: number;
-  /** 0..1 energy toward the next deployment. */
+  /** 0..1 energy toward the next activation. */
   energy: number;
   ready: boolean;
 }
@@ -214,6 +217,6 @@ export type CombatEvent =
   | { type: 'baseHit'; amount: number }
   | { type: 'stun'; col: number; row: number }
   | { type: 'spawn'; x: number; y: number; boss: boolean }
-  | { type: 'heroDeploy'; col: number; row: number }
-  | { type: 'heroPower'; col: number; row: number; radius: number }
-  | { type: 'heroDeath'; col: number; row: number };
+  | { type: 'heroDeploy'; x: number; y: number }
+  | { type: 'heroPower'; x: number; y: number; radius: number }
+  | { type: 'heroDeath'; x: number; y: number };

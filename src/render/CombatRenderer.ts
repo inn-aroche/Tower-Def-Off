@@ -420,11 +420,11 @@ function drawBoard(
     }
   }
 
-  // hero (drawn on top of the field when deployed)
+  // hero (drawn on top of the field while it marches up the path)
   const hero = snapshot.hero;
   if (hero.configured && hero.deployed) {
-    const hx = layout.originX + (hero.col + 0.5) * cs;
-    const hy = layout.originY + (hero.row + 0.5) * cs;
+    const hx = layout.originX + hero.x * cs;
+    const hy = layout.originY + hero.y * cs;
     const hr = cs * 0.44;
     // aura ring
     ctx.strokeStyle = `rgba(159,120,255,${0.5 + 0.3 * pulse})`;

@@ -106,19 +106,19 @@ export class Effects {
         break;
       }
       case 'heroDeploy': {
-        this.rings.push({ x: e.col + 0.5, y: e.row + 0.5, life: 0.5, max: 0.5, color: 'rgba(159,120,255,0.9)', maxR: 1.4 });
-        this.spawnParticles(e.col + 0.5, e.row + 0.5, this.reduced ? 6 : 18, '#c9a0ff', 3);
+        this.rings.push({ x: e.x, y: e.y, life: 0.5, max: 0.5, color: 'rgba(159,120,255,0.9)', maxR: 1.4 });
+        this.spawnParticles(e.x, e.y, this.reduced ? 6 : 18, '#c9a0ff', 3);
         this.addShake(0.3, 0.14);
         break;
       }
       case 'heroPower': {
-        this.rings.push({ x: e.col + 0.5, y: e.row + 0.5, life: 0.45, max: 0.45, color: 'rgba(255,120,80,0.9)', maxR: Math.max(1, e.radius) });
-        this.spawnParticles(e.col + 0.5, e.row + 0.5, this.reduced ? 6 : 20, '#ff9a5a', 3.6);
+        this.rings.push({ x: e.x, y: e.y, life: 0.45, max: 0.45, color: 'rgba(255,120,80,0.9)', maxR: Math.max(1, e.radius) });
+        this.spawnParticles(e.x, e.y, this.reduced ? 6 : 20, '#ff9a5a', 3.6);
         this.addShake(0.35, 0.16);
         break;
       }
       case 'heroDeath': {
-        this.spawnParticles(e.col + 0.5, e.row + 0.5, this.reduced ? 4 : 12, '#9f78ff', 2.4);
+        this.spawnParticles(e.x, e.y, this.reduced ? 4 : 12, '#9f78ff', 2.4);
         break;
       }
     }
