@@ -1,6 +1,6 @@
 import type { BoardLayout } from './BoardLayout';
 import { cardRects, manaBarRect, MANA_H, TOP_INSET } from './HudLayout';
-import { UNIT_SPRITES } from './sprites';
+import { ENEMY_SPRITES, UNIT_SPRITES } from './sprites';
 import type { Cell, CombatSnapshot, EnemyDef, HandCard, UnitDef, UnitFamily } from '../sim/types';
 import { abilityLabel } from '../data/units';
 
@@ -9,20 +9,22 @@ const FAMILY_LABEL: Record<UnitFamily, string> = { melee: 'Mêlée', ranged: 'Di
 /** Lazily-decoded unit sprites (data-URI webp from the art sheet). Core units only; generated
  * roster units have no entry and fall back to the drawn token. Guarded for headless/test contexts. */
 const spriteCache = new Map<string, HTMLImageElement | null>();
-function getUnitSprite(unitId: string): HTMLImageElement | null {
+function getSprite(table: Record<string, string>, key: string, cacheKey: string): HTMLImageElement | null {
   if (typeof Image === 'undefined') return null;
-  const cached = spriteCache.get(unitId);
+  const cached = spriteCache.get(cacheKey);
   if (cached !== undefined) return cached;
-  const uri = UNIT_SPRITES[unitId];
+  const uri = table[key];
   if (!uri) {
-    spriteCache.set(unitId, null);
+    spriteCache.set(cacheKey, null);
     return null;
   }
   const img = new Image();
   img.src = uri;
-  spriteCache.set(unitId, img);
+  spriteCache.set(cacheKey, img);
   return img;
 }
+const getUnitSprite = (unitId: string) => getSprite(UNIT_SPRITES, unitId, 'u:' + unitId);
+const getEnemySprite = (enemyId: string) => getSprite(ENEMY_SPRITES, enemyId, 'e:' + enemyId);
 function spriteReady(img: HTMLImageElement | null): img is HTMLImageElement {
   return !!img && img.complete && img.naturalWidth > 0;
 }
@@ -500,13 +502,29 @@ function drawBoard(
       }
     }
 
-    ctx.beginPath();
-    ctx.arc(ex, ey, radius, 0, Math.PI * 2);
-    ctx.fillStyle = ENEMY_COLOR[enemy.enemyId] ?? '#555';
-    ctx.fill();
-    ctx.lineWidth = boss ? 3 : 2;
-    ctx.strokeStyle = boss ? '#ffd76a' : '#fff';
-    ctx.stroke();
+    const eSprite = getEnemySprite(enemy.enemyId);
+    if (spriteReady(eSprite)) {
+      // sprite sized to the enemy footprint, centred on the body
+      const targetH = radius * 2.5;
+      const scl = targetH / eSprite.naturalHeight;
+      const w = eSprite.naturalWidth * scl;
+      ctx.drawImage(eSprite, ex - w / 2, ey - targetH * 0.58, w, targetH);
+      if (boss) {
+        ctx.strokeStyle = '#ffd76a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ex, ey, radius * 1.05, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else {
+      ctx.beginPath();
+      ctx.arc(ex, ey, radius, 0, Math.PI * 2);
+      ctx.fillStyle = ENEMY_COLOR[enemy.enemyId] ?? '#555';
+      ctx.fill();
+      ctx.lineWidth = boss ? 3 : 2;
+      ctx.strokeStyle = boss ? '#ffd76a' : '#fff';
+      ctx.stroke();
+    }
 
     if (def.armor && def.armor > 0) {
       ctx.strokeStyle = 'rgba(220,225,235,0.9)';

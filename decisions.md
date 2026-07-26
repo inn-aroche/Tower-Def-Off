@@ -914,3 +914,17 @@ les unités, le plus visible).
 plateau + cartes, plateau plat cases carrées). Aucun changement `src/data` ⇒ pas de re-simulation.
 **Suite** : ennemis/boss (img4), tuiles/décor (img5), FX/projectiles (img6), icônes UI (img8),
 coffres/badges (img10) ; puis curation du mapping + détourage des variantes.
+
+## Phase 11 — Intégration sprites : ennemis + boss
+
+Suite de l'intégration (après les unités). Planche img4 recoupée en **grille 5×3** (avec retrait
+haut pour éviter les ombres de la rangée du dessus), matte flood-fill, downscale ~200 px webp
+(~250 Ko les 15). Mapping vers les ids ennemis/boss (`ENEMY_SPRITES` dans `sprites.ts`) : goblin,
+runner, ogre, wraith, saboteur, juggernaut + boss warlord/necromancer/stone_colossus/high_priestess ;
+brute & troll réutilisent le sprite d'ogre (éditable). `CombatRenderer` dessine le **sprite** à la
+place du cercle (ombre/barre de vie/statuts armure-bouclier-givre/couronne+nom de boss conservés) ;
+repli sur le cercle coloré si pas de sprite. Bundle ~443 → ~560 Ko.
+
+**Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (gobelins qui descendent
+le chemin + unités en sprites). Aucun changement `src/data`. **Suite** : tuiles/décor (img5),
+FX/projectiles (img6), icônes UI/coffres/cadres (img8/9/10), collection/hub.
