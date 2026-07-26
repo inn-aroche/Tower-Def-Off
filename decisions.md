@@ -928,3 +928,16 @@ repli sur le cercle coloré si pas de sprite. Bundle ~443 → ~560 Ko.
 **Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (gobelins qui descendent
 le chemin + unités en sprites). Aucun changement `src/data`. **Suite** : tuiles/décor (img5),
 FX/projectiles (img6), icônes UI/coffres/cadres (img8/9/10), collection/hub.
+
+## Phase 12 — Intégration sprites : tuiles & décor (plateau)
+
+Suite de l'intégration. Planche img5 → 4 sprites mattés (`TILE_SPRITES`) : **herbe** (tuile carrée
+bordée), **base/fontaine**, **portail de spawn** (chemin non utilisé pour l'instant — tuiles
+directionnelles). `CombatRenderer` : la **tuile d'herbe est dessinée par case** (fond de secours
+dessous, repli sur le damier biseauté si pas chargée) → plateau-jardin illustré ; la **route** (ruban)
+reste dessinée par-dessus ; **spawn = portail violet** et **base = fontaine bleue** en sprites (repli
+sur les formes dessinées). Cases toujours carrées, toucher inchangé. Bundle ~560 → ~640 Ko.
+
+**Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (plateau texturé +
+portail + base, unités/ennemis en sprites par-dessus). Aucun changement `src/data`. **Suite** :
+FX/projectiles (img6), icônes UI/coffres/cadres (img8/9/10), Hub/Collection.

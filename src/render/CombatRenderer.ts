@@ -1,6 +1,6 @@
 import type { BoardLayout } from './BoardLayout';
 import { cardRects, manaBarRect, MANA_H, TOP_INSET } from './HudLayout';
-import { ENEMY_SPRITES, UNIT_SPRITES } from './sprites';
+import { ENEMY_SPRITES, TILE_SPRITES, UNIT_SPRITES } from './sprites';
 import type { Cell, CombatSnapshot, EnemyDef, HandCard, UnitDef, UnitFamily } from '../sim/types';
 import { abilityLabel } from '../data/units';
 
@@ -25,6 +25,7 @@ function getSprite(table: Record<string, string>, key: string, cacheKey: string)
 }
 const getUnitSprite = (unitId: string) => getSprite(UNIT_SPRITES, unitId, 'u:' + unitId);
 const getEnemySprite = (enemyId: string) => getSprite(ENEMY_SPRITES, enemyId, 'e:' + enemyId);
+const getTile = (id: string) => getSprite(TILE_SPRITES, id, 't:' + id);
 function spriteReady(img: HTMLImageElement | null): img is HTMLImageElement {
   return !!img && img.complete && img.naturalWidth > 0;
 }
@@ -272,26 +273,32 @@ function drawBoard(
   ctx.fillStyle = 'rgba(255,240,200,0.12)';
   ctx.fillRect(ox, oy + boardH, boardW, 2);
 
-  // ---- tiles: square checker + a subtle bevel (top-left highlight, bottom-right shade) ----
+  // ---- ground: illustrated grass tile per cell (falls back to a bevelled checker) ----
+  const grass = getTile('grass');
   for (let row = 0; row < layout.rows; row++) {
     for (let col = 0; col < layout.cols; col++) {
       const x = ox + col * cs;
       const y = oy + row * cs;
+      // base fill so tile-corner transparency never shows the slab through
       ctx.fillStyle = (row + col) % 2 === 0 ? '#c6dea3' : '#b6d38f';
       ctx.fillRect(x, y, cs, cs);
-      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x + 0.5, y + cs - 1);
-      ctx.lineTo(x + 0.5, y + 0.5);
-      ctx.lineTo(x + cs - 1, y + 0.5);
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(42,60,26,0.15)';
-      ctx.beginPath();
-      ctx.moveTo(x + cs - 0.5, y + 0.5);
-      ctx.lineTo(x + cs - 0.5, y + cs - 0.5);
-      ctx.lineTo(x + 0.5, y + cs - 0.5);
-      ctx.stroke();
+      if (spriteReady(grass)) {
+        ctx.drawImage(grass, x, y, cs + 1, cs + 1);
+      } else {
+        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, y + cs - 1);
+        ctx.lineTo(x + 0.5, y + 0.5);
+        ctx.lineTo(x + cs - 1, y + 0.5);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(42,60,26,0.15)';
+        ctx.beginPath();
+        ctx.moveTo(x + cs - 0.5, y + 0.5);
+        ctx.lineTo(x + cs - 0.5, y + cs - 0.5);
+        ctx.lineTo(x + 0.5, y + cs - 0.5);
+        ctx.stroke();
+      }
     }
   }
 
@@ -321,29 +328,49 @@ function drawBoard(
   const spawn = render.path[0];
   const base = render.path[render.path.length - 1];
   if (spawn) {
-    ctx.fillStyle = 'rgba(150,60,44,0.88)';
-    ctx.beginPath();
-    ctx.arc(cx(spawn.col), cy(spawn.row), cs * 0.22, 0, Math.PI * 2);
-    ctx.fill();
+    const sx = cx(spawn.col);
+    const sy = cy(spawn.row);
+    const portal = getTile('spawn');
+    if (spriteReady(portal)) {
+      const h = cs * 1.1;
+      const w = (portal.naturalWidth / portal.naturalHeight) * h;
+      ctx.drawImage(portal, sx - w / 2, sy - h * 0.55, w, h);
+    } else {
+      ctx.fillStyle = 'rgba(150,60,44,0.88)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, cs * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   if (base) {
     const bx = cx(base.col);
     const by = cy(base.row);
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath();
-    ctx.ellipse(bx, by + cs * 0.2, cs * 0.3, cs * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#276b2b';
-    roundRectPath(ctx, bx - cs * 0.28, by - cs * 0.3, cs * 0.56, cs * 0.56, cs * 0.12);
-    ctx.fill();
-    ctx.fillStyle = '#3a9440';
-    roundRectPath(ctx, bx - cs * 0.28, by - cs * 0.3, cs * 0.56, cs * 0.24, cs * 0.12);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = `800 ${cs * 0.3}px 'Nunito', sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⌂', bx, by);
+    const keep = getTile('base');
+    if (spriteReady(keep)) {
+      const h = cs * 1.25;
+      const w = (keep.naturalWidth / keep.naturalHeight) * h;
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(bx, by + cs * 0.28, w * 0.4, cs * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.drawImage(keep, bx - w / 2, by - h * 0.6, w, h);
+    } else {
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(bx, by + cs * 0.2, cs * 0.3, cs * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#276b2b';
+      roundRectPath(ctx, bx - cs * 0.28, by - cs * 0.3, cs * 0.56, cs * 0.56, cs * 0.12);
+      ctx.fill();
+      ctx.fillStyle = '#3a9440';
+      roundRectPath(ctx, bx - cs * 0.28, by - cs * 0.3, cs * 0.56, cs * 0.24, cs * 0.12);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = `800 ${cs * 0.3}px 'Nunito', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⌂', bx, by);
+    }
   }
 
   // ---- valid-placement hints when a card is selected (square cells) ----
