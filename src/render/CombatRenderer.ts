@@ -1,6 +1,9 @@
 import type { BoardLayout } from './BoardLayout';
 import { cardRects, manaBarRect, MANA_H, TOP_INSET } from './HudLayout';
 import type { Cell, CombatSnapshot, EnemyDef, HandCard, UnitDef, UnitFamily } from '../sim/types';
+import { abilityLabel } from '../data/units';
+
+const FAMILY_LABEL: Record<UnitFamily, string> = { melee: 'Mêlée', ranged: 'Distance', gravity: 'Gravité' };
 
 /** Family palette + pictograms follow docs/design/design-tokens.md: melee = circle, ranged =
  * triangle, gravity = ring (the WARDENS-specific shape, kept distinct from the maquette's
@@ -100,10 +103,69 @@ export function drawCombatFrame(
 
   drawTopBar(ctx, canvasW, snapshot, render.levelName);
   drawBoard(ctx, layout, snapshot, ui, render, fx);
+  drawSelectedInfo(ctx, canvasW, canvasH, snapshot, ui, render);
   drawManaBar(ctx, canvasW, canvasH, snapshot);
   drawHand(ctx, canvasW, canvasH, snapshot.hand, ui.selectedCardIndex);
 
   if (snapshot.outcome !== 'ongoing') drawOutcomeOverlay(ctx, canvasW, canvasH, snapshot.outcome);
+}
+
+/** Info banner (above the mana bar) explaining the selected card or placed unit — what it does. */
+function drawSelectedInfo(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  snapshot: CombatSnapshot,
+  ui: CombatUiState,
+  render: RenderContext,
+): void {
+  let def: UnitDef | undefined;
+  let level: number | undefined;
+  if (ui.selectedCardIndex !== null && snapshot.hand[ui.selectedCardIndex]) {
+    def = render.unitDefs.get(snapshot.hand[ui.selectedCardIndex].unitId);
+  } else if (ui.selectedUnit) {
+    const u = snapshot.units.find((u) => u.col === ui.selectedUnit!.col && u.row === ui.selectedUnit!.row);
+    if (u) {
+      def = render.unitDefs.get(u.unitId);
+      level = u.level;
+    }
+  }
+  if (!def) return;
+
+  const ability = abilityLabel(def);
+  const title = `${def.name} · ${FAMILY_LABEL[def.family]}${level ? ` · Niv ${level}` : ''}`;
+  const desc = ability
+    ? `${ability.title} — ${ability.text}`
+    : def.family === 'gravity'
+      ? 'Ralentit les ennemis dans sa zone (ne tire pas).'
+      : 'Attaque les ennemis à portée.';
+
+  const r = manaBarRect(canvasW, canvasH);
+  const h = 42;
+  const y = r.y - h - 6;
+  roundRectPath(ctx, r.x, y, r.w, h, 10);
+  ctx.fillStyle = 'rgba(43,30,20,0.92)';
+  ctx.fill();
+  ctx.strokeStyle = FAMILY_COLOR[def.family];
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f0c26a';
+  ctx.font = "800 12px 'Baloo 2', sans-serif";
+  ctx.fillText(title, r.x + 12, y + 13);
+  ctx.fillStyle = '#efe4cf';
+  ctx.font = "600 10px 'Nunito', sans-serif";
+  ctx.fillText(fitText(ctx, desc, r.w - 24), r.x + 12, y + 29);
+}
+
+/** Truncates text with an ellipsis to fit a pixel width. */
+function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
 }
 
 function formatTime(sec: number): string {
