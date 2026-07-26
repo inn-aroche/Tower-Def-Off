@@ -1,0 +1,10 @@
+{
+  "pack_name": "tower_defense_svg_decor_pack",
+  "asset_count": 23,
+  "style": "cartoon mobile game, top-down / 3-4, clean minimal outlines",
+  "biomes": {
+    "forest": ["pine_tree", "round_tree", "bush", "flower_patch", "mushroom_cluster", "rock_cluster", "fence_segment", "stump", "crystal_cluster"],
+    "canyon": ["cactus", "bone_pile", "skull_rock", "dead_tree", "dry_bush", "wooden_sign", "sandstone_rock"],
+    "swamp": ["lily_pond", "twisted_root", "toxic_mushroom", "swamp_grass", "broken_totem", "slime_puddle", "glowing_reed"]
+  }
+}
