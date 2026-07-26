@@ -10,6 +10,8 @@ export const ARENA_LEVEL: LevelDef = {
   id: 'arena',
   name: 'Arène',
   playerStartLife: 20,
+  // PvP: a hard tower cap on the map keeps duels about merge quality, not board flooding.
+  maxSlots: 8,
   path: CAMPAIGN_PATH,
   waves: [
     {
@@ -52,6 +54,7 @@ export const BLITZ_ARENA_LEVEL: LevelDef = {
   id: 'arena-blitz',
   name: 'Arène Blitz',
   playerStartLife: 22,
+  maxSlots: 8,
   path: CAMPAIGN_PATH,
   waves: [
     {

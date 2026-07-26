@@ -17,6 +17,9 @@ import type { WaveDef, WaveSpawnGroup } from '../sim/types';
 export const SURVIVAL_WAVE_GAP_SEC = 5.5;
 /** Base life for a survival run (a touch more than a campaign node — you're meant to go deep). */
 export const SURVIVAL_START_LIFE = 20;
+/** Survie has NO emplacements cap on purpose: the mode's skill expression is precisely how fast
+ * you fill and merge a big board (the headless sim shows a hard cap flattens the depth ramp to a
+ * single value for every skill level). Campaign and PvP carry the cap instead. */
 
 /** Per-enemy HP multiplier for a given wave. Compounds exponentially so that — however good the
  * defense — an unbeatable wall always arrives; the only question is which wave you reach.

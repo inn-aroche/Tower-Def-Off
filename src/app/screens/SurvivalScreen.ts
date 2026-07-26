@@ -158,6 +158,7 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
       const card = snap.hand[ui.selectedCardIndex];
       const res = sim.summon(card.unitId, cell.col, cell.row);
       if (res.ok) ui.selectedCardIndex = null;
+      else if (res.reason === 'no-slot') toast(host, 'Emplacements pleins — fusionne pour libérer une place');
       return;
     }
 

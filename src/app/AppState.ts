@@ -1,7 +1,7 @@
 import type { AdProvider, AnalyticsProvider, IapProvider, SaveProvider } from '../platform/types';
 import type { UnitDef } from '../sim/types';
 import { UNITS, UNITS_BY_ID } from '../data/units';
-import { baseBonusLife, baseUpgradeCost, DECK_MAX, DECK_MIN, scaleUnitDef, upgradeCost, type OwnedUnit, type UpgradeCost } from '../data/meta';
+import { baseBonusLife, baseBonusSlots, baseUpgradeCost, DECK_MAX, DECK_MIN, scaleUnitDef, upgradeCost, type OwnedUnit, type UpgradeCost } from '../data/meta';
 import { CAMPAIGN } from '../data/campaign';
 import { leagueForTrophies, type League } from '../data/arena';
 import { openChestReward, type ChestKind, type ChestReward } from '../data/shop';
@@ -159,6 +159,11 @@ export class AppState {
   /** Extra starting life the base grants in PvE (campaign + survival). */
   baseBonusLife(): number {
     return baseBonusLife(this.data.base.level);
+  }
+
+  /** Extra defense emplacements from the base upgrade (PvE only). */
+  baseBonusSlots(): number {
+    return baseBonusSlots(this.data.base.level);
   }
   baseUpgradeCostFor(): { gold: number; shards: number } | null {
     return baseUpgradeCost(this.data.base.level);

@@ -37,6 +37,12 @@ export function baseBonusLife(level: number): number {
   return Math.max(0, (level - 1) * 2);
 }
 
+/** Extra defense emplacements granted by the base (one per 2 levels, so +3 at max). PvE only —
+ * PvP keeps a fixed cap so duels stay fair. This is the meta answer to the tightening slot curve. */
+export function baseBonusSlots(level: number): number {
+  return Math.max(0, Math.floor((level - 1) / 2));
+}
+
 /** Gold (+ Éclats at higher tiers) to take the base from `level` to `level+1`, or null at max. */
 export function baseUpgradeCost(level: number): { gold: number; shards: number } | null {
   if (level >= BASE_MAX_LEVEL) return null;

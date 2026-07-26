@@ -261,6 +261,19 @@ function drawTopBar(ctx: CanvasRenderingContext2D, canvasW: number, snapshot: Co
   ctx.textAlign = 'center';
   ctx.fillText(waveText, 96 + ww / 2, 64.5);
 
+  // emplacements pill — the placement budget; turns red when full so "merge to free a slot" reads
+  if (snapshot.maxSlots !== null) {
+    const full = snapshot.slotsUsed >= snapshot.maxSlots;
+    const slotText = `⛨ ${snapshot.slotsUsed}/${snapshot.maxSlots}`;
+    const sw = ctx.measureText(slotText).width + 18;
+    const sx = 96 + ww + 6;
+    roundRectPath(ctx, sx, 54, sw, 20, 10);
+    ctx.fillStyle = full ? 'rgba(179,49,42,0.85)' : 'rgba(0,0,0,0.34)';
+    ctx.fill();
+    ctx.fillStyle = full ? '#fff' : '#cfe0a8';
+    ctx.fillText(slotText, sx + sw / 2, 64.5);
+  }
+
   // life pill (top-right)
   ctx.font = "800 13px 'Baloo 2', 'Nunito', sans-serif";
   const lifeText = `❤ ${snapshot.life}`;
@@ -419,8 +432,9 @@ function drawBoard(
     }
   }
 
-  // ---- valid-placement hints when a card is selected (square cells) ----
-  if (ui.selectedCardIndex !== null) {
+  // ---- valid-placement hints when a card is selected (hidden once the slot budget is spent) ----
+  const slotsFull = snapshot.maxSlots !== null && snapshot.slotsUsed >= snapshot.maxSlots;
+  if (ui.selectedCardIndex !== null && !slotsFull) {
     const occupied = new Set(snapshot.units.map((u) => `${u.col},${u.row}`));
     for (let row = 0; row < layout.rows; row++) {
       for (let col = 0; col < layout.cols; col++) {

@@ -99,6 +99,9 @@ export interface LevelDef {
   /** Ordered, 4-connected waypoints from spawn (index 0, top) to base (last index). Enemies
    * follow it; units may only be placed on non-path cells. */
   path: Cell[];
+  /** Max defenses that may stand on the board at once (the "emplacements" budget). Merging frees a
+   * slot, so a tight cap turns merge from an option into the core play. `undefined` = unlimited. */
+  maxSlots?: number;
 }
 
 export interface EconomyConfig {
@@ -201,6 +204,9 @@ export interface CombatSnapshot {
   kills: number;
   /** Survival mode: waves are generated forever and the only end state is defeat. */
   endless: boolean;
+  /** Defenses currently on the board, and the cap for this combat (null = unlimited). */
+  slotsUsed: number;
+  maxSlots: number | null;
   /** Active hero state (configured=false when this combat has no hero). */
   hero: HeroSnapshot;
 }

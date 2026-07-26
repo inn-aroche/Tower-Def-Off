@@ -24,7 +24,12 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
   const nodeIndex = route.name === 'combat' ? route.nodeIndex : 0;
   const node = CAMPAIGN[Math.max(0, Math.min(CAMPAIGN.length - 1, nodeIndex))];
   // The base upgrade grants extra starting life in PvE.
-  const level = { ...node.level, playerStartLife: node.level.playerStartLife + app.baseBonusLife() };
+  const level = {
+    ...node.level,
+    playerStartLife: node.level.playerStartLife + app.baseBonusLife(),
+    // The base upgrade also widens the emplacements budget (PvE only).
+    maxSlots: (node.level.maxSlots ?? 0) + app.baseBonusSlots(),
+  };
 
   const scaledUnitDefs = app.scaledDeckDefs();
   const scaledEnemies: EnemyDef[] = ENEMIES.map((e) => scaleEnemyDef(e, node.enemyHpMult));
@@ -122,6 +127,8 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
         app.analytics.track('unit_summoned', { unitId: res.unitId, family: def?.family });
         if (def?.family === 'gravity') app.analytics.track('gravity_unit_played', { unitId: res.unitId });
         ui.selectedCardIndex = null;
+      } else if (res.reason === 'no-slot') {
+        toast(host, 'Emplacements pleins — fusionne deux unités pour libérer une place');
       }
       return;
     }

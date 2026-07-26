@@ -49,7 +49,7 @@ export type HeroActivateResult =
 
 export type SummonResult =
   | { ok: true; unitId: string }
-  | { ok: false; reason: 'not-ongoing' | 'cell-occupied' | 'out-of-bounds' | 'on-path' | 'not-enough-mana' | 'unknown-card' };
+  | { ok: false; reason: 'not-ongoing' | 'cell-occupied' | 'out-of-bounds' | 'on-path' | 'not-enough-mana' | 'unknown-card' | 'no-slot' };
 
 export type MergeResult =
   | { ok: true; newLevel: number }
@@ -58,6 +58,8 @@ export type MergeResult =
 export class CombatSim {
   private readonly economy: EconomyConfig;
   private readonly level: LevelDef;
+  /** Cap on simultaneous placed defenses for this combat (null = unlimited). Data-driven. */
+  private readonly maxSlots: number | null;
   private readonly path: Cell[];
   private readonly deck: string[];
   private readonly unitDefs: Map<string, UnitDef>;
@@ -100,6 +102,7 @@ export class CombatSim {
   constructor(config: CombatSimConfig, _seed = 0) {
     this.economy = config.economy;
     this.level = config.level;
+    this.maxSlots = config.level.maxSlots ?? null;
     this.path = config.level.path;
     this.deck = config.deck;
     this.unitDefs = new Map(config.unitDefs.map((u) => [u.id, u]));
@@ -397,6 +400,8 @@ export class CombatSim {
     if (isPathCell(this.path, col, row)) return { ok: false, reason: 'on-path' };
     const grid = new Grid(this.economy.gridCols, this.economy.gridRows, this.units);
     if (!grid.isEmpty(col, row)) return { ok: false, reason: 'cell-occupied' };
+    // Emplacement budget: the board only holds so many defenses. Merging frees one.
+    if (this.maxSlots !== null && this.units.length >= this.maxSlots) return { ok: false, reason: 'no-slot' };
     if (this.mana < def.cost) return { ok: false, reason: 'not-enough-mana' };
 
     this.mana -= def.cost;
@@ -464,6 +469,8 @@ export class CombatSim {
       totalWaves: this.level.waves.length,
       kills: this.kills,
       endless: this.survival !== undefined,
+      slotsUsed: this.units.length,
+      maxSlots: this.maxSlots,
       hero: this.heroSnapshot(),
     };
   }

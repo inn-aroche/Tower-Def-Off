@@ -995,3 +995,34 @@ n'étant pas arrivé sur le disque de la session, il est **documenté** dans
 **Verrous** : `typecheck` + **126 tests** + `build` verts ; vérif navigateur (champ continu, cartes,
 mana, HUD sans collision). **Reste** (documenté) : DA des personnages plus proche de la planche,
 écrans hors-combat, décor de bord d'arène.
+
+## Phase 16 — Emplacements limités (plafond de défenses)
+
+Retour utilisateur : « on peut limiter les emplacements des défenses au fur et à mesure pour que ce
+soit moins simple ? ». Arbitrage retenu : **un maximum de cases par niveau** en campagne, **un
+maximum de tours sur la map** en PvP.
+
+- **`sim`** (pur, inchangé côté déterminisme) : `LevelDef.maxSlots?` ; `summon()` refuse avec la
+  raison **`no-slot`** quand `units.length >= maxSlots` ; le snapshot expose `slotsUsed` / `maxSlots`.
+  **Fusionner libère une place** (2 unités → 1) — c'est le cœur du dilemme voulu.
+- **`data`** : `maxSlotsForNode()` = **8 pour tous les nœuds, +1 sur les boss**. Une courbe
+  **décroissante** (9→6) a été essayée d'abord et **rendue les nœuds 19-20 injouables (0 %)** :
+  elle s'ajoutait aux PV ennemis croissants en double peine. La progression passe donc par la
+  fusion, les niveaux d'unités et la **base** (`baseBonusSlots` : +1 tous les 2 niveaux, +3 au max,
+  PvE seulement). PvP : **8 fixes** pour les deux camps (équité).
+- **Survie : volontairement SANS plafond.** Le sim le montre : dès qu'on cape (8, 10, 12, 14),
+  la profondeur atteinte devient **identique pour tous les niveaux de skill** (ramp plat) alors que
+  sans plafond elle va de la vague 27 à 32. L'expression du skill en Survie *est* la vitesse de
+  remplissage du plateau ; le mode garde donc son identité et la campagne/PvP portent la contrainte.
+- **UI** : pastille **⛨ util/max** dans le HUD (rouge quand plein), indices de pose masqués une fois
+  le budget épuisé, toast « Emplacements pleins — fusionne pour libérer une place ».
+
+**Verrous** : `typecheck` + **131 tests** (+5 : refus au plafond, fusion qui libère, absence de
+plafond, cohérence campagne, bonus de base) + `build` verts, et les **3 simulations** re-jouées :
+campagne OK (profil identique au baseline, tous les nœuds jouables), PvP OK (rampe équitable),
+Survie OK (skill ramp préservé).
+
+**Note d'honnêteté** : le plafond à 8 **ne change pas les taux de victoire des sims** (les bots
+dépassent rarement 8 unités). Il contraint le *joueur humain* qui, lui, inonde le plateau. Rendre
+la campagne réellement plus dure demande un second levier (montée des PV/vagues ennemies) — à
+décider séparément, hors de cette demande.

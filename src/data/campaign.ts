@@ -49,9 +49,26 @@ function augmentLevel(base: LevelDef, index: number): LevelDef {
     // Each node runs on a cycled map for variety (render + placement read level.path generically).
     path: mapForNode(index).path,
     playerStartLife: base.playerStartLife + (bossId ? 4 : 0),
+    maxSlots: maxSlotsForNode(index),
     waves,
   };
 }
+
+/**
+ * Emplacements budget per node — the "moins simple" knob. The board can only hold this many
+ * defenses at once, so spreading cheap units stops working and merging becomes the way to keep
+ * building. Boss nodes get one extra slot so the finale stays winnable while the curve tightens.
+ * Validated by `npm run simulate` (every node must stay winnable by the fastest scripted player).
+ */
+export function maxSlotsForNode(index: number): number {
+  return BASE_MAX_SLOTS + (index in BOSS_AT ? 1 : 0);
+}
+
+/** Flat cap across the saga (boss nodes get +1). A *decreasing* curve was tried first and made the
+ * late nodes unwinnable — it stacked with the rising enemy HP into a double penalty. Keeping it
+ * flat puts the progression where it belongs: merge quality, unit levels, and the base upgrade
+ * (`baseBonusSlots`, up to +3), not a shrinking board. */
+export const BASE_MAX_SLOTS = 8;
 
 /**
  * 20-node saga built from the 5 authored templates, cycled with a rising HP multiplier, elites
