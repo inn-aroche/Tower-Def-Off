@@ -1,7 +1,8 @@
 import type { Screen, ScreenCtx } from '../Router';
-import { el, pictogram } from '../../ui/dom';
+import { el } from '../../ui/dom';
 import { UNITS_BY_ID } from '../../data/units';
-import { starRow } from './common';
+import { starRow, unitPortrait } from './common';
+import type { UnitDef } from '../../sim/types';
 
 export function ResultsScreen(ctx: ScreenCtx): Screen {
   const { nav, route } = ctx;
@@ -36,7 +37,7 @@ export function ResultsScreen(ctx: ScreenCtx): Screen {
     if (payload.rewards.gems > 0) rewardCards.append(rewardCard('gem', `+${payload.rewards.gems}`, 'linear-gradient(160deg,#d9b3f0,#9b59b6)', '#6c3483'));
     for (const d of payload.rewards.duplicates) {
       const def = UNITS_BY_ID.get(d.unitId);
-      if (def) rewardCards.append(dupCard(def.family, def.name, d.count));
+      if (def) rewardCards.append(dupCard(def, d.count));
     }
 
     const panel = el('div', {
@@ -80,9 +81,9 @@ function rewardCard(kind: 'coin' | 'gem', label: string, bg: string, edge: strin
   ]);
 }
 
-function dupCard(family: string, name: string, count: number): HTMLElement {
+function dupCard(def: UnitDef, count: number): HTMLElement {
   return el('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:4px' }, [
-    el('div', { style: 'width:52px;height:52px;border-radius:12px;background:linear-gradient(160deg,#8ecae6,#4a90c4);border-bottom:4px solid #2f6690;display:flex;align-items:center;justify-content:center' }, [pictogram(family, 26)]),
-    el('span', { style: 'font:800 10px "Baloo 2";color:var(--ink);text-align:center', text: `+${count} ${name}` }),
+    el('div', { style: 'width:52px;height:52px;border-radius:12px;background:linear-gradient(160deg,#8ecae6,#4a90c4);border-bottom:4px solid #2f6690;display:flex;align-items:center;justify-content:center' }, [unitPortrait(def, 44)]),
+    el('span', { style: 'font:800 10px "Baloo 2";color:var(--ink);text-align:center', text: `+${count} ${def.name}` }),
   ]);
 }

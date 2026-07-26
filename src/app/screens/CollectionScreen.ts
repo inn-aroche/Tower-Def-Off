@@ -1,11 +1,11 @@
 import type { Screen, ScreenCtx } from '../Router';
-import { el, pictogram } from '../../ui/dom';
+import { el } from '../../ui/dom';
 import type { Rarity } from '../../sim/types';
 import { UNITS, UNITS_BY_ID } from '../../data/units';
 import { HEROES_BY_ID } from '../../data/heroes';
 import { BASE_MAX_LEVEL, DECK_MAX } from '../../data/meta';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
-import { bottomNav, currencyPills, toast, unitTile } from './common';
+import { bottomNav, currencyPills, toast, unitPortrait, unitTile } from './common';
 import { heroTiles } from './heroRoster';
 
 type Tab = 'units' | 'base' | 'heroes';
@@ -65,7 +65,7 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
               if (!r.ok) toast(host, r.reason === 'too-few' ? 'Deck minimum 4 unités' : 'Impossible');
               else renderLoadout();
             },
-          }, [pictogram(def.family, 22), el('span', { style: 'font:800 8px "Nunito";color:#fff', text: def.name })]),
+          }, [unitPortrait(def, 30), el('span', { style: 'font:800 8px "Nunito";color:#fff', text: def.name })]),
         );
       } else {
         slots.append(

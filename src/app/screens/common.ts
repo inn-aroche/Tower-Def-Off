@@ -1,7 +1,24 @@
 import type { AppState } from '../AppState';
 import { el, pictogram } from '../../ui/dom';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
+import { unitArtUri } from '../../render/unitArt';
 import type { UnitDef } from '../../sim/types';
+
+/**
+ * The unit's illustration, identical to the one drawn on the battle board (same resolver), so the
+ * Collection, the deck slots, the chests and the combat cards all show the same character.
+ * Falls back to the family pictogram if a family ever has no art.
+ */
+export function unitPortrait(def: UnitDef, size: number | 'fill' = 28): HTMLElement {
+  const uri = unitArtUri(def.id, def.family, def.rarity);
+  if (!uri) return pictogram(def.family, size === 'fill' ? 28 : size);
+  const box = size === 'fill' ? 'flex:1;min-height:0;width:100%' : `width:${size}px;height:${size}px`;
+  return el('img', {
+    src: uri,
+    alt: def.name,
+    style: `${box};object-fit:contain;object-position:bottom;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));pointer-events:none`,
+  });
+}
 
 export function currencyPills(app: AppState): HTMLElement {
   return el('div', { style: 'display:flex;gap:6px;align-items:center' }, [
@@ -117,15 +134,14 @@ export function starRow(stars: number, max = 3, size = 14): HTMLElement {
   return row;
 }
 
-/** A collection/deck tile for a unit (rarity gradient, family pictogram, level badge). */
+/** A collection/deck tile for a unit (rarity gradient, illustration, level badge). */
 export function unitTile(def: UnitDef, opts: { level?: number; locked?: boolean; onClick?: () => void; badge?: string } = {}): HTMLElement {
   const tile = el('button', {
     class: `tile ${opts.locked ? 'tile--locked' : ''}`,
     style: `background:${RARITY_GRAD[def.rarity]};border-bottom:5px solid ${RARITY_EDGE[def.rarity]}`,
     onclick: opts.onClick,
   });
-  const pic = pictogram(def.family, 28);
-  tile.append(pic);
+  tile.append(unitPortrait(def, 'fill'));
   tile.append(el('span', { class: 'tile__name', text: def.name }));
   // Offensive units don't hold ground — they charge up the path. Mark them so a deck reads at a glance.
   if (def.role === 'offense') {

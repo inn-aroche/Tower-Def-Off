@@ -1,7 +1,8 @@
 import type { BoardLayout } from './BoardLayout';
 import { cardRects, manaBarRect, MANA_H, TOP_INSET } from './HudLayout';
 import { ENEMY_SPRITES, TILE_SPRITES, UNIT_SPRITES } from './sprites';
-import type { Cell, CombatSnapshot, EnemyDef, HandCard, UnitDef, UnitFamily } from '../sim/types';
+import { unitArtId } from './unitArt';
+import type { Cell, CombatSnapshot, EnemyDef, HandCard, Rarity, UnitDef, UnitFamily } from '../sim/types';
 import { abilityLabel } from '../data/units';
 
 const FAMILY_LABEL: Record<UnitFamily, string> = { melee: 'Mêlée', ranged: 'Distance', gravity: 'Gravité' };
@@ -23,7 +24,11 @@ function getSprite(table: Record<string, string>, key: string, cacheKey: string)
   spriteCache.set(cacheKey, img);
   return img;
 }
-const getUnitSprite = (unitId: string) => getSprite(UNIT_SPRITES, unitId, 'u:' + unitId);
+/** Resolves through unitArt so generated roster units get real art too (see src/render/unitArt.ts). */
+function getUnitSprite(unitId: string, family: UnitFamily, rarity?: Rarity): HTMLImageElement | null {
+  const art = unitArtId(unitId, family, rarity);
+  return art ? getSprite(UNIT_SPRITES, art, 'u:' + art) : null;
+}
 const getEnemySprite = (enemyId: string) => getSprite(ENEMY_SPRITES, enemyId, 'e:' + enemyId);
 const getTile = (id: string) => getSprite(TILE_SPRITES, id, 't:' + id);
 function spriteReady(img: HTMLImageElement | null): img is HTMLImageElement {
@@ -167,7 +172,7 @@ export function drawCombatFrame(
   drawBoard(ctx, layout, snapshot, ui, render, fx);
   drawSelectedInfo(ctx, canvasW, canvasH, snapshot, ui, render);
   drawManaBar(ctx, canvasW, canvasH, snapshot);
-  drawHand(ctx, canvasW, canvasH, snapshot.hand, ui.selectedCardIndex);
+  drawHand(ctx, canvasW, canvasH, snapshot.hand, ui.selectedCardIndex, render);
 
   if (snapshot.outcome !== 'ongoing') drawOutcomeOverlay(ctx, canvasW, canvasH, snapshot.outcome);
 }
@@ -502,7 +507,7 @@ function drawBoard(
     ctx.ellipse(x + cs / 2, y + cs - pad * 0.6, size * 0.48, size * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    const sprite = getUnitSprite(unit.unitId);
+    const sprite = getUnitSprite(unit.unitId, def.family, def.rarity);
     if (spriteReady(sprite)) {
       // selected: glowing halo behind the sprite
       if (selected) {
@@ -693,7 +698,8 @@ function drawBoard(
     ctx.beginPath();
     ctx.arc(ax, ay, ar * 1.15, 0, Math.PI * 2);
     ctx.stroke();
-    const sprite = getUnitSprite(ally.unitId);
+    const allyDef = render.unitDefs.get(ally.unitId);
+    const sprite = getUnitSprite(ally.unitId, allyDef?.family ?? 'melee', allyDef?.rarity);
     if (spriteReady(sprite)) {
       const th = cs * 1.0;
       const w = (sprite.naturalWidth / sprite.naturalHeight) * th;
@@ -815,6 +821,7 @@ function drawHand(
   canvasH: number,
   hand: HandCard[],
   selectedIndex: number | null,
+  render: RenderContext,
 ): void {
   const rects = cardRects(canvasW, canvasH, hand.length);
   hand.forEach((card, i) => {
@@ -851,7 +858,8 @@ function drawHand(
 
     const bcx = r.x + r.w / 2;
     const bcy = r.y + pad + wellH * 0.52;
-    const cardSprite = getUnitSprite(card.unitId);
+    // rarity comes from the def so a card and its board unit resolve to the exact same art
+    const cardSprite = getUnitSprite(card.unitId, card.family, render.unitDefs.get(card.unitId)?.rarity);
     if (spriteReady(cardSprite)) {
       const th = wellH * 0.94;
       const scl = th / cardSprite.naturalHeight;

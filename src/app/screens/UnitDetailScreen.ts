@@ -1,9 +1,9 @@
 import type { Screen, ScreenCtx } from '../Router';
-import { clear, el, pictogram } from '../../ui/dom';
+import { clear, el } from '../../ui/dom';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
 import { abilityLabel, UNITS_BY_ID } from '../../data/units';
 import { META_MAX_LEVEL, metaScale, RARITY_LABEL } from '../../data/meta';
-import { currencyPills } from './common';
+import { currencyPills, unitPortrait } from './common';
 
 export function UnitDetailScreen(ctx: ScreenCtx): Screen {
   const { app, nav, route } = ctx;
@@ -58,7 +58,7 @@ export function UnitDetailScreen(ctx: ScreenCtx): Screen {
     const hero = el('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:12px' }, [
       el('div', {
         style: `width:110px;height:110px;border-radius:20px;background:${RARITY_GRAD[def.rarity]};border-bottom:7px solid ${RARITY_EDGE[def.rarity]};box-shadow:inset 0 3px 0 rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center`,
-      }, [pictogram(def.family, 52)]),
+      }, [unitPortrait(def, 92)]),
       el('div', { style: 'display:flex;gap:5px' }, pipRow(level)),
       el('div', { style: 'font:800 14px "Baloo 2";color:var(--ink)', text: `Niveau ${level} · ${RARITY_LABEL[def.rarity]}` }),
       // Role is the first thing that changes how you play the card, so it sits right under the title.

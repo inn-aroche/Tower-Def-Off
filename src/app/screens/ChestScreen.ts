@@ -1,7 +1,8 @@
 import type { Screen, ScreenCtx } from '../Router';
-import { el, pictogram } from '../../ui/dom';
+import { el } from '../../ui/dom';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
 import { UNITS_BY_ID } from '../../data/units';
+import { unitPortrait } from './common';
 
 export function ChestScreen(ctx: ScreenCtx): Screen {
   const { app, nav, route } = ctx;
@@ -38,7 +39,7 @@ export function ChestScreen(ctx: ScreenCtx): Screen {
         el('div', {
           style: `position:relative;width:70px;height:70px;border-radius:14px;background:${RARITY_GRAD[def.rarity]};border-bottom:5px solid ${RARITY_EDGE[def.rarity]};display:flex;align-items:center;justify-content:center`,
         }, [
-          pictogram(def.family, 34),
+          unitPortrait(def, 54),
           el('span', {
             text: `×${d.count}`,
             style: 'position:absolute;bottom:3px;right:5px;font:800 11px "Baloo 2";color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)',

@@ -1058,3 +1058,34 @@ d'enlever une défense — c'est le dilemme voulu, mais à surveiller en playtes
 offensives ne sont **pas équilibrées par simulation** (le deck par défaut ne les contient pas) —
 il faudra une passe dédiée quand elles entreront dans les decks de référence ; (3) elles réutilisent
 les sprites d'unités existantes (éclaireuse / archère / gardien) faute d'art dédié.
+
+## Phase 18 — Visuels d'unités dans les écrans méta
+
+Constat utilisateur : « dans collection tu n'as pas lié les visuels des unités ». Exact — le plateau
+de combat affichait les sprites découpés de la planche d'art, mais la Collection, le deck, les
+coffres et l'écran de résultats affichaient encore les **pictogrammes de famille** (cercle / triangle
+/ anneau). Deux directions artistiques cohabitaient dans le même jeu.
+
+**Résolveur unique — `src/render/unitArt.ts`.** Seules les 15 unités taillées à la main possèdent un
+sprite ; les 85 unités générées n'en ont pas. Plutôt que de les laisser en pictogramme (la Collection
+paraissait inachevée à côté du plateau), chaque unité est mappée **de façon déterministe (hash FNV-1a
+de son id)** sur un sprite de **la même famille**, en préférant **la même rareté**. Le renderer canvas
+*et* les écrans DOM appellent le même résolveur : une unité a donc exactement la même illustration
+dans la Collection, dans le deck, dans un coffre, sur une carte de main et sur le plateau.
+
+- Les unités **offensives sont exclues du pool d'emprunt** : leur art fait partie de ce qui les
+  distingue, une défense ne doit jamais le porter.
+- Écrans câblés : `unitTile` (Collection), slots de deck, fiche d'unité, ouverture de coffre,
+  cartes de doublons de l'écran Résultats. `pictogram` ne subsiste plus qu'en **repli** si une
+  famille venait à n'avoir aucun art.
+- Le renderer résout maintenant les allié·es en marche et les cartes de main via le même chemin
+  (la rareté vient du `UnitDef`, pour que carte et unité posée ne divergent jamais).
+
+**Verrous** : `typecheck` + **143 tests** (+6 sur le résolveur : couverture totale du roster, art de
+la bonne famille, pas d'emprunt à l'offensif, déterminisme, dispersion) + `build` verts. Aucune
+modification de `src/data` ⇒ **pas de re-simulation nécessaire** (règle du projet respectée).
+Vérification navigateur (Playwright sur `dist/` en http) : 105 `<img>` décodées, 0 cassée.
+
+**Limite assumée** : les unités générées **partagent** les silhouettes des 12 unités cœur — la
+Collection est cohérente, mais pas variée à 100 unités distinctes. Il faudra une planche d'art
+supplémentaire (ou une recoloration par rareté) pour les différencier vraiment.
