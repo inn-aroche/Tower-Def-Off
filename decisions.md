@@ -759,3 +759,21 @@ bonus de vie, migration v7) + `build` verts. `simulate` / `simulate:pvp` / `simu
 (le baseline des sims part d'une base niveau 1 ⇒ équilibrage inchangé ; le bonus est un power-up
 joueur). Le bouton d'amélioration de la base arrive avec l'écran fusionné (phase suivante).
 Non-négos : sim intacte, tout l'équilibrage en data, save versionnée + migration testée, éco honnête.
+
+## Phase 6 (2/3) — Fusion Deck + Collection (UX, réf Rush Royale)
+
+**Brief (retour utilisateur + réf IMG_6688)** : Deck et Collection au même endroit.
+
+**`CollectionScreen` réécrit** en écran unifié « Deck & Collection » : en haut le **loadout de combat**
+(slot Héros — placeholder « Bientôt » en attendant la phase héros — + 5 slots d'unités, retirables au
+toucher), puis **onglets Unités / Base / Ressources**. Onglet *Unités* : filtre par rareté + grille
+de collection (membres du deck **surlignés or**, verrouillés grisés) → toucher ouvre le détail
+(équiper/améliorer). Onglet *Base* : carte 🏰 avec niveau, bonus de PV, bouton d'amélioration (or + ✦)
+— **c'est là que vit l'amélioration de la base** de la phase précédente. Onglet *Ressources* :
+récap or/gemmes/**Éclats** avec provenance. La barre de monnaies affiche désormais les **Éclats**.
+
+Route `deck` → même écran (alias) ; `DeckScreen` supprimé. Nav Hub/bas inchangée.
+
+**Verrous** : `typecheck` + **107 tests** + `build` verts. Smoke navigateur : loadout + 3 onglets
+rendus (unités surlignées, base améliorable, ressources), zéro erreur JS. UX : un seul endroit pour
+voir son deck, parcourir/améliorer la collection, et gonfler sa base.

@@ -4,7 +4,6 @@ import type { Route } from './app/routes';
 import { HubScreen } from './app/screens/HubScreen';
 import { CollectionScreen } from './app/screens/CollectionScreen';
 import { UnitDetailScreen } from './app/screens/UnitDetailScreen';
-import { DeckScreen } from './app/screens/DeckScreen';
 import { CombatScreen } from './app/screens/CombatScreen';
 import { ResultsScreen } from './app/screens/ResultsScreen';
 import { SurvivalScreen } from './app/screens/SurvivalScreen';
@@ -37,7 +36,7 @@ const factories: Record<Route['name'], ScreenFactory> = {
   hub: HubScreen,
   collection: CollectionScreen,
   unit: UnitDetailScreen,
-  deck: DeckScreen,
+  deck: CollectionScreen, // deck + collection are now one unified screen
   combat: CombatScreen,
   results: ResultsScreen,
   survival: SurvivalScreen,
