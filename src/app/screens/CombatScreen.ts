@@ -1,5 +1,6 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { el } from '../../ui/dom';
+import { toast } from './common';
 import { CombatSim } from '../../sim/CombatSim';
 import type { CombatSnapshot, EnemyDef } from '../../sim/types';
 import { ECONOMY } from '../../data/economy';
@@ -29,7 +30,8 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
   const scaledEnemies: EnemyDef[] = ENEMIES.map((e) => scaleEnemyDef(e, node.enemyHpMult));
   const deck = app.deck;
 
-  const sim = new CombatSim({ economy: ECONOMY, level, deck, unitDefs: scaledUnitDefs, enemyDefs: scaledEnemies });
+  const heroConfig = app.activeHeroConfig();
+  const sim = new CombatSim({ economy: ECONOMY, level, deck, unitDefs: scaledUnitDefs, enemyDefs: scaledEnemies, hero: heroConfig ?? undefined });
   const renderContext: RenderContext = {
     unitDefs: new Map(scaledUnitDefs.map((u) => [u.id, u])),
     enemyDefs: new Map(scaledEnemies.map((e) => [e.id, e])),
@@ -50,6 +52,28 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     onclick: () => nav({ name: 'hub' }),
   });
   screen.append(canvas, back);
+
+  // Hero deploy button (only when a hero is equipped).
+  let placingHero = false;
+  const heroBtn = heroConfig
+    ? el('button', {
+        style:
+          'position:absolute;left:12px;bottom:150px;z-index:20;width:62px;height:62px;border-radius:50%;border:3px solid #f0c26a;cursor:pointer;' +
+          'background:radial-gradient(circle at 50% 35%,#5a3b6e,#2b1e14);color:#fff;font:800 10px "Baloo 2",sans-serif;' +
+          'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 4px 10px rgba(0,0,0,.4)',
+        onclick: () => {
+          const h = sim.snapshot().hero;
+          if (h.deployed) return;
+          if (!h.ready) {
+            toast(host, 'Héros pas encore prêt');
+            return;
+          }
+          placingHero = !placingHero;
+          toast(host, placingHero ? 'Touche une case pour déployer le héros' : 'Déploiement annulé');
+        },
+      }, [el('div', { style: 'font-size:22px', text: '🦸' }), el('div', { text: 'HÉROS' })])
+    : null;
+  if (heroBtn) screen.append(heroBtn);
   host.append(screen);
   const c = canvas.getContext('2d')!;
 
@@ -69,6 +93,22 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
   function handleTap(x: number, y: number): void {
     const snap = sim.snapshot();
     if (snap.outcome !== 'ongoing') return;
+
+    // Hero placement takes priority once armed.
+    if (placingHero) {
+      const cell = pixelToCell(layout(), x, y);
+      if (cell) {
+        const r = sim.deployHero(cell.col, cell.row);
+        if (r.ok) {
+          placingHero = false;
+          audio.play('summon');
+          haptics.impact('medium');
+        } else if (r.reason === 'cell-occupied' || r.reason === 'on-path' || r.reason === 'out-of-bounds') {
+          toast(host, 'Case invalide pour le héros');
+        }
+      }
+      return;
+    }
 
     const cardIndex = hitCard(window.innerWidth, window.innerHeight, snap.hand.length, x, y);
     if (cardIndex !== null) {
@@ -155,6 +195,28 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     }, 650);
   };
 
+  function updateHeroBtn(snap: CombatSnapshot): void {
+    if (!heroBtn) return;
+    const h = snap.hero;
+    const label = heroBtn.lastElementChild as HTMLElement;
+    if (h.deployed) {
+      heroBtn.style.opacity = '0.5';
+      heroBtn.style.borderColor = '#8fe0da';
+      heroBtn.style.boxShadow = '0 4px 10px rgba(0,0,0,.4)';
+      label.textContent = 'ACTIF';
+    } else if (h.ready) {
+      heroBtn.style.opacity = '1';
+      heroBtn.style.borderColor = placingHero ? '#8fe0da' : '#8ee06a';
+      heroBtn.style.boxShadow = '0 0 0 4px rgba(120,220,120,.45),0 4px 10px rgba(0,0,0,.4)';
+      label.textContent = placingHero ? 'POSE' : 'PRÊT';
+    } else {
+      heroBtn.style.opacity = '0.9';
+      heroBtn.style.borderColor = '#f0c26a';
+      heroBtn.style.boxShadow = '0 4px 10px rgba(0,0,0,.4)';
+      label.textContent = `${Math.floor(h.energy * 100)}%`;
+    }
+  }
+
   const frame = (now: number) => {
     if (lastMs === null) lastMs = now;
     const frameDt = Math.min(0.25, (now - lastMs) / 1000);
@@ -178,10 +240,15 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
       } else if (ev.type === 'summon') audio.play('summon');
       else if (ev.type === 'kill') audio.play('kill');
       else if (ev.type === 'damage') audio.play('hit');
+      else if (ev.type === 'heroPower') {
+        haptics.impact('heavy');
+        audio.play('kill');
+      } else if (ev.type === 'heroDeath') audio.play('baseHit');
     }
     effects.update(frameDt);
     const snap = sim.snapshot();
     coach?.update(snap);
+    updateHeroBtn(snap);
 
     const shake = effects.shakeOffset();
     c.save();

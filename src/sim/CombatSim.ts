@@ -13,6 +13,8 @@ import type {
   EnemyAbility,
   EnemyDef,
   HandCard,
+  HeroConfig,
+  HeroSnapshot,
   LevelDef,
   LiveEnemy,
   PlacedUnit,
@@ -37,7 +39,13 @@ export interface CombatSimConfig {
   enemyDefs: EnemyDef[];
   /** When set, the level's own waves are ignored and waves are generated endlessly. */
   survival?: SurvivalConfig;
+  /** When set, the player may deploy this hero once its energy bar is full. */
+  hero?: HeroConfig;
 }
+
+export type HeroDeployResult =
+  | { ok: true }
+  | { ok: false; reason: 'no-hero' | 'not-ready' | 'already-out' | 'not-ongoing' | 'cell-occupied' | 'out-of-bounds' | 'on-path' };
 
 export type SummonResult =
   | { ok: true; unitId: string }
@@ -59,6 +67,17 @@ export class CombatSim {
   /** Next survival wave index to generate, and the absolute time it should start. */
   private survivalCursor = 0;
   private survivalNextAtSec = 0;
+
+  // Hero runtime.
+  private readonly heroConfig?: HeroConfig;
+  private heroDeployed = false;
+  private heroCol = 0;
+  private heroRow = 0;
+  private heroHp = 0;
+  private heroEnergy = 0;
+  private heroAttackCd = 0;
+  private heroPowerTimer = 0;
+  private heroActiveUntil = 0;
 
   private elapsedSec = 0;
   private mana: number;
@@ -85,6 +104,8 @@ export class CombatSim {
     this.unitDefs = new Map(config.unitDefs.map((u) => [u.id, u]));
     this.enemyDefs = new Map(config.enemyDefs.map((e) => [e.id, e]));
     this.survival = config.survival;
+    this.heroConfig = config.hero;
+    this.heroHp = config.hero?.maxHp ?? 0;
     // Survival ignores the level's authored waves — it generates them on the fly (see step()).
     this.schedule = config.survival ? [] : buildSpawnSchedule(config.level);
     this.mana = config.economy.manaStartValue;
@@ -178,10 +199,12 @@ export class CombatSim {
 
     const { killedEnemyInstanceIds, events } = resolveAttacks(deps, this.units, this.enemies, dtSec, this.elapsedSec);
     for (const e of events) this.events.push(e);
-    if (killedEnemyInstanceIds.length > 0) {
+    const heroKills = this.heroConfig ? this.tickHero(dtSec, deps) : [];
+    const allKilled = heroKills.length > 0 ? [...killedEnemyInstanceIds, ...heroKills] : killedEnemyInstanceIds;
+    if (allKilled.length > 0) {
       // Dedupe: two units can land the finishing blow on the same enemy in one tick, so the raw
       // list may contain the same instanceId twice — count and remove each enemy once.
-      const killedSet = new Set(killedEnemyInstanceIds);
+      const killedSet = new Set(allKilled);
       for (const enemy of this.enemies) {
         if (!killedSet.has(enemy.instanceId)) continue;
         this.events.push({ type: 'kill', x: enemy.x, y: enemy.y, enemyId: enemy.enemyId });
@@ -251,6 +274,98 @@ export class CombatSim {
     }
   }
 
+  /** Deploys the active hero onto a grass cell once its energy bar is full. */
+  deployHero(col: number, row: number): HeroDeployResult {
+    if (this.outcome !== 'ongoing') return { ok: false, reason: 'not-ongoing' };
+    if (!this.heroConfig) return { ok: false, reason: 'no-hero' };
+    if (this.heroDeployed) return { ok: false, reason: 'already-out' };
+    if (this.heroEnergy < 1) return { ok: false, reason: 'not-ready' };
+    if (!isInBounds(col, row, this.economy.gridCols, this.economy.gridRows)) return { ok: false, reason: 'out-of-bounds' };
+    if (isPathCell(this.path, col, row)) return { ok: false, reason: 'on-path' };
+    const grid = new Grid(this.economy.gridCols, this.economy.gridRows, this.units);
+    if (!grid.isEmpty(col, row)) return { ok: false, reason: 'cell-occupied' };
+
+    this.heroDeployed = true;
+    this.heroCol = col;
+    this.heroRow = row;
+    this.heroHp = this.heroConfig.maxHp;
+    this.heroActiveUntil = this.elapsedSec + this.heroConfig.durationSec;
+    this.heroPowerTimer = 0;
+    this.heroAttackCd = 0;
+    this.events.push({ type: 'heroDeploy', col, row });
+    return { ok: true };
+  }
+
+  /** Advances the hero: energy recharge when off-field; when deployed, attack + power + take contact
+   * damage, then expire on timeout or death. Returns enemy instanceIds it killed this tick. */
+  private tickHero(dtSec: number, deps: { unitDefs: Map<string, UnitDef>; enemyDefs: Map<string, EnemyDef> }): number[] {
+    const cfg = this.heroConfig!;
+    if (!this.heroDeployed) {
+      this.heroEnergy = Math.min(1, this.heroEnergy + dtSec / cfg.rechargeSec);
+      return [];
+    }
+    const killed: number[] = [];
+    const hx = this.heroCol + 0.5;
+    const hy = this.heroRow + 0.5;
+    const damageEnemy = (target: LiveEnemy, amount: number) => {
+      if (target.shieldedUntilSec > this.elapsedSec) return;
+      const armor = deps.enemyDefs.get(target.enemyId)?.armor ?? 0;
+      target.hp -= Math.max(1, Math.round(amount) - armor);
+      this.events.push({ type: 'damage', enemyInstanceId: target.instanceId, x: target.x, y: target.y, amount: Math.max(1, Math.round(amount) - armor) });
+      if (target.hp <= 0 && !killed.includes(target.instanceId)) killed.push(target.instanceId);
+    };
+
+    // Single-target attack on the most-advanced enemy in range.
+    this.heroAttackCd = Math.max(0, this.heroAttackCd - dtSec);
+    if (this.heroAttackCd <= 0) {
+      let best: LiveEnemy | undefined;
+      for (const e of this.enemies) {
+        if (e.shieldedUntilSec > this.elapsedSec) continue;
+        if (Math.hypot(hx - e.x, hy - e.y) > cfg.range) continue;
+        if (!best || e.pathProgress > best.pathProgress) best = e;
+      }
+      if (best) {
+        damageEnemy(best, cfg.damage);
+        this.heroAttackCd = cfg.attackIntervalSec;
+      }
+    }
+
+    // Signature power on its own period.
+    this.heroPowerTimer += dtSec;
+    if (this.heroPowerTimer >= cfg.power.periodSec) {
+      this.heroPowerTimer -= cfg.power.periodSec;
+      const p = cfg.power;
+      this.events.push({ type: 'heroPower', col: this.heroCol, row: this.heroRow, radius: p.kind === 'rally' ? 0 : p.radius });
+      if (p.kind === 'nova') {
+        for (const e of this.enemies) if (Math.hypot(hx - e.x, hy - e.y) <= p.radius) damageEnemy(e, p.damage);
+      } else if (p.kind === 'frost_nova') {
+        for (const e of this.enemies) {
+          if (Math.hypot(hx - e.x, hy - e.y) <= p.radius) {
+            e.chilledUntilSec = Math.max(e.chilledUntilSec, this.elapsedSec + p.durationSec);
+            e.chillFactor = Math.min(e.chillFactor === 0 ? 1 : e.chillFactor, p.slowFactor);
+          }
+        }
+      } else if (p.kind === 'rally') {
+        this.life = Math.min(this.level.playerStartLife, this.life + p.healBase);
+      }
+    }
+
+    // Enemies within reach chip the hero's HP (contact damage per second). 1.15 so an enemy on an
+    // orthogonally-adjacent cell (1.0 away) counts — that's how the hero gets worn down.
+    for (const e of this.enemies) {
+      if (Math.hypot(hx - e.x, hy - e.y) <= 1.15) {
+        this.heroHp -= (this.enemyDefs.get(e.enemyId)?.damageToBase ?? 1) * dtSec;
+      }
+    }
+
+    if (this.heroHp <= 0 || this.elapsedSec >= this.heroActiveUntil) {
+      this.heroDeployed = false;
+      this.heroEnergy = 0;
+      this.events.push({ type: 'heroDeath', col: this.heroCol, row: this.heroRow });
+    }
+    return killed;
+  }
+
   /** Places a specific unit from the deck (card-choice model) at a cell, paying its fixed cost. */
   summon(unitId: string, col: number, row: number): SummonResult {
     if (this.outcome !== 'ongoing') return { ok: false, reason: 'not-ongoing' };
@@ -296,6 +411,19 @@ export class CombatSim {
     return drained;
   }
 
+  private heroSnapshot(): HeroSnapshot {
+    return {
+      configured: this.heroConfig !== undefined,
+      deployed: this.heroDeployed,
+      col: this.heroCol,
+      row: this.heroRow,
+      hp: Math.max(0, this.heroHp),
+      maxHp: this.heroConfig?.maxHp ?? 0,
+      energy: this.heroEnergy,
+      ready: this.heroEnergy >= 1 && !this.heroDeployed,
+    };
+  }
+
   private hand(): HandCard[] {
     return this.deck.map((unitId) => {
       const def = this.unitDefs.get(unitId)!;
@@ -316,6 +444,7 @@ export class CombatSim {
       totalWaves: this.level.waves.length,
       kills: this.kills,
       endless: this.survival !== undefined,
+      hero: this.heroSnapshot(),
     };
   }
 }

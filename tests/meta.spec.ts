@@ -34,7 +34,7 @@ describe('save migration', () => {
   });
 
   it('current default save declares the current schema version', () => {
-    expect(SAVE_SCHEMA_VERSION).toBe(7);
+    expect(SAVE_SCHEMA_VERSION).toBe(8);
   });
 
   it('migrates a v2 save: carries state over and seeds the shop + progress blocks', () => {

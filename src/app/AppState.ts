@@ -14,6 +14,8 @@ import {
   type DailyMetric,
   type DailyQuest,
 } from '../data/progression';
+import { HEROES, HEROES_BY_ID, heroPromoteCost, scaleHeroConfig, type HeroDef } from '../data/heroes';
+import type { HeroConfig } from '../sim/types';
 import { createDefaultSaveData, type SaveData } from '../meta/SaveData';
 
 /** Single source of truth for meta state. Screens read from it and call mutators, which persist. */
@@ -81,6 +83,9 @@ export class AppState {
     this.data.currencies.gold += reward.gold;
     // Chests are the main Éclats source (epic chests give more).
     this.data.currencies.shards += kind === 'epic' ? 3 : 1;
+    // Hero cards cycle across heroes so they unlock and promote over time.
+    const heroId = HEROES[this.data.shop.chestsOpened % HEROES.length].id;
+    this.addHeroCards(heroId, kind === 'epic' ? 2 : 1);
     for (const d of reward.duplicates) this.addDuplicates(d.unitId, d.count);
     this.persist();
     this.analytics.track('chest_opened', { kind, gold: reward.gold });
@@ -172,6 +177,73 @@ export class AppState {
     this.persist();
     this.analytics.track('base_upgraded', { level: this.data.base.level });
     return this.data.base.level;
+  }
+
+  // ── Heroes ────────────────────────────────────────────────────────────────
+  get activeHeroId(): string {
+    return this.data.heroes.active;
+  }
+  isHeroOwned(id: string): boolean {
+    return id in this.data.heroes.owned;
+  }
+  heroLevel(id: string): number {
+    return this.data.heroes.owned[id]?.level ?? 0;
+  }
+  heroCards(id: string): number {
+    return this.data.heroes.owned[id]?.cards ?? 0;
+  }
+  /** All heroes with ownership + progression info (for the hero screen). */
+  heroRoster(): Array<{ def: HeroDef; owned: boolean; level: number; cards: number; active: boolean }> {
+    return HEROES.map((def) => ({
+      def,
+      owned: this.isHeroOwned(def.id),
+      level: this.heroLevel(def.id),
+      cards: this.heroCards(def.id),
+      active: this.data.heroes.active === def.id,
+    }));
+  }
+  /** Combat config for the active hero at its current level, or null if none owned/active. */
+  activeHeroConfig(): HeroConfig | null {
+    const id = this.data.heroes.active;
+    const def = HEROES_BY_ID.get(id);
+    if (!def || !this.isHeroOwned(id)) return null;
+    return scaleHeroConfig(def, this.heroLevel(id));
+  }
+  /** Sets the active hero (only if owned). */
+  selectHero(id: string): boolean {
+    if (!this.isHeroOwned(id)) return false;
+    this.data.heroes.active = id;
+    this.persist();
+    return true;
+  }
+  /** Adds hero cards; a not-yet-owned hero unlocks at level 1 on its first card. */
+  addHeroCards(id: string, count: number): void {
+    if (!HEROES_BY_ID.has(id)) return;
+    const owned = this.data.heroes.owned[id];
+    if (owned) owned.cards += count;
+    else this.data.heroes.owned[id] = { level: 1, cards: count };
+    this.persist();
+  }
+  heroPromoteCostFor(id: string): { cards: number; gold: number } | null {
+    if (!this.isHeroOwned(id)) return null;
+    return heroPromoteCost(this.heroLevel(id));
+  }
+  canPromoteHero(id: string): boolean {
+    const owned = this.data.heroes.owned[id];
+    const cost = owned ? heroPromoteCost(owned.level) : null;
+    return !!owned && !!cost && owned.cards >= cost.cards && this.data.currencies.gold >= cost.gold;
+  }
+  /** Spends cards + gold to raise a hero's level. Returns the new level or null. */
+  promoteHero(id: string): number | null {
+    if (!this.canPromoteHero(id)) return null;
+    const owned = this.data.heroes.owned[id]!;
+    const cost = heroPromoteCost(owned.level)!;
+    owned.cards -= cost.cards;
+    this.data.currencies.gold -= cost.gold;
+    owned.level += 1;
+    this.persist();
+    this.analytics.track('hero_promoted', { id, level: owned.level });
+    return owned.level;
   }
 
   // ── Deck ────────────────────────────────────────────────────────────────

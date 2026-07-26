@@ -139,6 +139,39 @@ export interface LiveEnemy {
   chillFactor: number;
 }
 
+/** A hero's signature power, cast periodically while it is deployed. Deterministic (no RNG). */
+export type HeroPower =
+  | { kind: 'nova'; periodSec: number; radius: number; damage: number }
+  | { kind: 'frost_nova'; periodSec: number; radius: number; slowFactor: number; durationSec: number }
+  | { kind: 'rally'; periodSec: number; radius: number; healBase: number };
+
+/** Combat-time configuration of the active hero (built from meta level in AppState). */
+export interface HeroConfig {
+  name: string;
+  maxHp: number;
+  damage: number;
+  attackIntervalSec: number;
+  range: number;
+  /** Seconds for the energy bar to fill from empty to ready. */
+  rechargeSec: number;
+  /** How long the hero stays on the field once deployed. */
+  durationSec: number;
+  power: HeroPower;
+}
+
+/** Read-only hero state for the render/HUD layer. */
+export interface HeroSnapshot {
+  configured: boolean;
+  deployed: boolean;
+  col: number;
+  row: number;
+  hp: number;
+  maxHp: number;
+  /** 0..1 energy toward the next deployment. */
+  energy: number;
+  ready: boolean;
+}
+
 export type CombatOutcome = 'ongoing' | 'victory' | 'defeat';
 
 /** A card in the player's hand this combat — one per deck entry, in fixed order. */
@@ -163,6 +196,8 @@ export interface CombatSnapshot {
   kills: number;
   /** Survival mode: waves are generated forever and the only end state is defeat. */
   endless: boolean;
+  /** Active hero state (configured=false when this combat has no hero). */
+  hero: HeroSnapshot;
 }
 
 /**
@@ -178,4 +213,7 @@ export type CombatEvent =
   | { type: 'summon'; col: number; row: number; family: UnitFamily }
   | { type: 'baseHit'; amount: number }
   | { type: 'stun'; col: number; row: number }
-  | { type: 'spawn'; x: number; y: number; boss: boolean };
+  | { type: 'spawn'; x: number; y: number; boss: boolean }
+  | { type: 'heroDeploy'; col: number; row: number }
+  | { type: 'heroPower'; col: number; row: number; radius: number }
+  | { type: 'heroDeath'; col: number; row: number };

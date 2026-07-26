@@ -2,6 +2,7 @@ import type { Screen, ScreenCtx } from '../Router';
 import { el, pictogram } from '../../ui/dom';
 import type { Rarity } from '../../sim/types';
 import { UNITS, UNITS_BY_ID } from '../../data/units';
+import { HEROES_BY_ID } from '../../data/heroes';
 import { BASE_MAX_LEVEL, DECK_MAX } from '../../data/meta';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
 import { bottomNav, currencyPills, toast, unitTile } from './common';
@@ -34,16 +35,17 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
     loadout.replaceChildren();
     const panel = el('div', { class: 'panel', style: 'display:flex;gap:10px;align-items:stretch' });
 
-    // Hero slot (placeholder until the hero system lands).
+    // Hero slot — shows the active hero; opens the hero screen.
+    const heroDef = HEROES_BY_ID.get(app.activeHeroId);
     const hero = el('button', {
       style:
-        'flex:0 0 92px;border:none;cursor:pointer;border-radius:14px;background:linear-gradient(160deg,#4a4a5a,#2b2b38);' +
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#c9c3d6;padding:8px',
-      onclick: () => toast(host, 'Le héros arrive très bientôt !'),
+        'flex:0 0 92px;border:none;cursor:pointer;border-radius:14px;background:radial-gradient(circle at 50% 30%,#6a4a8c,#2b2b38);' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#fff;padding:8px',
+      onclick: () => nav({ name: 'heroes' }),
     }, [
-      el('div', { style: 'font-size:30px', text: '🛡️' }),
-      el('div', { style: 'font:800 11px "Baloo 2",sans-serif;color:#fff', text: 'Héros' }),
-      el('div', { style: 'font:700 9px "Nunito",sans-serif;opacity:.8', text: 'Bientôt' }),
+      el('div', { style: 'font-size:30px', text: '🦸' }),
+      el('div', { style: 'font:800 11px "Baloo 2",sans-serif', text: heroDef?.name ?? 'Héros' }),
+      el('div', { style: 'font:700 9px "Nunito",sans-serif;color:#f0c26a', text: `Niv ${app.heroLevel(app.activeHeroId)}` }),
     ]);
 
     const slots = el('div', { style: 'flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px' });

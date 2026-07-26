@@ -777,3 +777,35 @@ Route `deck` → même écran (alias) ; `DeckScreen` supprimé. Nav Hub/bas inch
 **Verrous** : `typecheck` + **107 tests** + `build` verts. Smoke navigateur : loadout + 3 onglets
 rendus (unités surlignées, base améliorable, ressources), zéro erreur JS. UX : un seul endroit pour
 voir son deck, parcourir/améliorer la collection, et gonfler sa base.
+
+## Phase 6 (3/3) — Héros déployable (PV + pouvoirs)
+
+**Brief (retour utilisateur, choix « champion déployable »)** : un héros activable tous les X temps
+sur le champ de bataille, avec des PV et des pouvoirs.
+
+**Sim (pur, déterministe)** : `CombatSim` accepte un `hero?: HeroConfig`. Une **jauge d'énergie** se
+remplit (`rechargeSec`) tant qu'il n'est pas déployé ; `deployHero(col,row)` le pose sur une case
+d'herbe quand la jauge est pleine. Une fois déployé : il **attaque** l'ennemi le plus avancé à portée,
+lance un **pouvoir signature** périodique (`tickHero`), et **encaisse des dégâts de contact** des
+ennemis proches (rayon 1,15 ⇒ un ennemi sur la case adjacente le grignote) ; il part à l'expiration
+(`durationSec`) **ou à la mort** (PV ≤ 0), puis la jauge repart. Pouvoirs : `nova` (dégâts de zone),
+`frost_nova` (gèle/ralentit), `rally` (soigne la base). Snapshot expose `hero` ; events `heroDeploy`,
+`heroPower`, `heroDeath`. Ses kills passent par la même boucle de retrait (kill juice + explosions).
+
+**Data** (`data/heroes.ts`) : 3 héros — **Pyromancien** (nova, starter), **Roi de givre** (frost),
+**Paladin** (rally, très tanky). `scaleHeroConfig(level)` (PV/dégâts ~×1,12/niv). Cartes de promotion
++ or par niveau (max 6).
+
+**Méta** : **save v8** (`heroes: { active, owned:{level,cards} }`, starter = Pyromancien) + migration
+v7→v8 testée. `AppState` : héros actif, `activeHeroConfig` (scalé), sélection, promotion (cartes+or),
+`addHeroCards` (les **coffres** distribuent des cartes héros en rotation). Écran **Héros** (choisir
+l'actif + promouvoir), branché sur le **slot Héros** du loadout (fini le placeholder « Bientôt »).
+
+**Combat** : bouton héros (jauge %/PRÊT/ACTIF) en campagne **et survie** (PvE ; l'arène PvP reste sans
+héros pour la symétrie). Placement au toucher. **Rendu** : héros sur le plateau (jeton violet + aura
+pulsée + barre de PV) ; events héros câblés dans le juice (`Effects`) + audio/haptique.
+
+**Verrous** : `typecheck` + **118 tests** (jauge, refus avant recharge, attaque, dégâts de contact,
+expiration→recharge, déterminisme, scaling, promotion, migration v8) + `build` verts. 3 sims OK
+(le héros ne touche pas le baseline d'équilibrage — power-up joueur PvE). Smoke navigateur : écran
+Héros rendu, **héros déployé sur le plateau** (aura + PV), zéro erreur JS.

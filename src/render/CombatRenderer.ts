@@ -419,6 +419,43 @@ function drawBoard(
       ctx.fillText(def.name, ex, barY - 7);
     }
   }
+
+  // hero (drawn on top of the field when deployed)
+  const hero = snapshot.hero;
+  if (hero.configured && hero.deployed) {
+    const hx = layout.originX + (hero.col + 0.5) * cs;
+    const hy = layout.originY + (hero.row + 0.5) * cs;
+    const hr = cs * 0.44;
+    // aura ring
+    ctx.strokeStyle = `rgba(159,120,255,${0.5 + 0.3 * pulse})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(hx, hy, hr * 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+    // body
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(hx, hy + hr * 0.7, hr * 0.9, hr * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+    ctx.fillStyle = '#6a4a8c';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#ffd76a';
+    ctx.stroke();
+    ctx.font = `${hr * 1.1}px 'Baloo 2', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🦸', hx, hy + 1);
+    // HP bar
+    const hpFrac = Math.max(0, Math.min(1, hero.hp / Math.max(1, hero.maxHp)));
+    const bw = hr * 2;
+    ctx.fillStyle = '#1f1610';
+    ctx.fillRect(hx - hr, hy - hr - 8, bw, 5);
+    ctx.fillStyle = hpFrac > 0.4 ? '#4caf50' : '#e74c3c';
+    ctx.fillRect(hx - hr, hy - hr - 8, bw * hpFrac, 5);
+  }
 }
 
 function drawManaBar(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number, snapshot: CombatSnapshot): void {

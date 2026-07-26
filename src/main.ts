@@ -9,6 +9,7 @@ import { ResultsScreen } from './app/screens/ResultsScreen';
 import { SurvivalScreen } from './app/screens/SurvivalScreen';
 import { SurvivalResultsScreen } from './app/screens/SurvivalResultsScreen';
 import { ChallengesScreen } from './app/screens/ChallengesScreen';
+import { HeroScreen } from './app/screens/HeroScreen';
 import { ArenaScreen } from './app/screens/ArenaScreen';
 import { PvpCombatScreen } from './app/screens/PvpCombatScreen';
 import { PvpResultsScreen } from './app/screens/PvpResultsScreen';
@@ -42,6 +43,7 @@ const factories: Record<Route['name'], ScreenFactory> = {
   survival: SurvivalScreen,
   survivalResults: SurvivalResultsScreen,
   challenges: ChallengesScreen,
+  heroes: HeroScreen,
   arena: ArenaScreen,
   pvp: PvpCombatScreen,
   pvpResults: PvpResultsScreen,
