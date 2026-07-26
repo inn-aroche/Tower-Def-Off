@@ -1,4 +1,4 @@
-import type { UnitDef } from '../sim/types';
+import type { Rarity, UnitAbility, UnitDef, UnitFamily, UnitLevelStats } from '../sim/types';
 
 /**
  * Full M3 roster: 12 units across melee / ranged / gravity families and common / rare / epic
@@ -12,7 +12,8 @@ import type { UnitDef } from '../sim/types';
  * out true bend/regroup — a combat-design question flagged in decisions.md). The 3 gravity units
  * differ by field profile: wide-soft, focused-strong, and a heavy epic.
  */
-export const UNITS: UnitDef[] = [
+/** The 12 hand-tuned core units (validated by the balance sims and used by the default deck). */
+const CORE_UNITS: UnitDef[] = [
   // ── Common ────────────────────────────────────────────────────────────────
   {
     id: 'swordsman',
@@ -169,6 +170,102 @@ export const UNITS: UnitDef[] = [
     ],
   },
 ];
+
+/**
+ * The collection is expanded to 100 units. Beyond the 12 hand-tuned core units above, the rest are
+ * generated deterministically (stat curves by family + rarity + tier, thematic names, sparse
+ * signature abilities) for collection breadth. They're locked at start and none sit in the default
+ * deck, so the balance sims (which use fixed decks) stay authoritative. Curated tuning + real art
+ * come later — this is breadth, not final balance.
+ */
+const NAME_POOLS: Record<UnitFamily, { nouns: string[]; epithets: string[] }> = {
+  melee: {
+    nouns: ['Chevalier', 'Garde', 'Brute', 'Colosse', 'Lame', 'Gladiateur', 'Barbare', 'Cuirassier', 'Sentinelle', 'Champion'],
+    epithets: ['de fer', 'd’acier', 'sombre', 'runique', 'du vide', 'stellaire', 'ardent', 'royal'],
+  },
+  ranged: {
+    nouns: ['Archer', 'Arbalétrier', 'Mage', 'Sniper', 'Tireur', 'Frondeur', 'Baliste', 'Pyromage', 'Foudroyeur', 'Chasseur'],
+    epithets: ['des bois', 'de givre', 'd’argent', 'céleste', 'vénéneux', 'du désert', 'fantôme', 'de foudre'],
+  },
+  gravity: {
+    nouns: ['Puits', 'Vortex', 'Prisme', 'Orbe', 'Faille', 'Sceau', 'Rift', 'Nexus'],
+    epithets: ['gravitique', 'du vide', 'arcanique', 'temporel', 'sombre', 'stellaire'],
+  },
+};
+
+const RARITY_CYCLE: Rarity[] = ['common', 'common', 'rare', 'common', 'rare', 'epic'];
+const RARITY_DMG: Record<Rarity, number> = { common: 1, rare: 1.4, epic: 1.9 };
+const GRAV_SLOW: Record<Rarity, number> = { common: 0.65, rare: 0.55, epic: 0.42 };
+const GRAV_RANGE: Record<Rarity, number> = { common: 2.2, rare: 2.6, epic: 3.0 };
+const COST: Record<UnitFamily, Record<Rarity, number>> = {
+  melee: { common: 2, rare: 4, epic: 6 },
+  ranged: { common: 3, rare: 4, epic: 6 },
+  gravity: { common: 4, rare: 3, epic: 5 },
+};
+
+function genLevels(family: UnitFamily, rarity: Rarity): UnitLevelStats[] {
+  if (family === 'gravity') {
+    const slow = GRAV_SLOW[rarity];
+    const range = GRAV_RANGE[rarity];
+    return [0, 1, 2].map((t) => ({
+      damage: 0,
+      attackIntervalSec: 0,
+      range: +(range + 0.35 * t).toFixed(2),
+      slowFactor: +Math.max(0.15, slow - 0.1 * t).toFixed(2),
+    }));
+  }
+  const baseDmg = family === 'melee' ? 9 : 7;
+  const baseRange = family === 'melee' ? 1.7 : 3.2;
+  const baseInt = family === 'melee' ? 0.6 : 0.72;
+  const rMult = RARITY_DMG[rarity];
+  const tierDmg = [1, 1.7, 2.9];
+  return [0, 1, 2].map((t) => ({
+    damage: Math.round(baseDmg * rMult * tierDmg[t]),
+    attackIntervalSec: +(baseInt * Math.pow(0.93, t)).toFixed(2),
+    range: +(baseRange + 0.12 * t).toFixed(2),
+    slowFactor: 1,
+  }));
+}
+
+function genAbility(family: UnitFamily, i: number): UnitAbility | undefined {
+  if (family === 'ranged') {
+    if (i % 4 === 0) return { kind: 'splash', radius: 1.3, damageFactor: 0.5 };
+    if (i % 4 === 1) return { kind: 'slow_on_hit', slowFactor: 0.6, durationSec: 1.2 };
+    if (i % 4 === 2) return { kind: 'chain', jumps: 2, range: 2.2, damageFactor: 0.45 };
+  } else if (family === 'melee' && i % 5 === 0) {
+    return { kind: 'boost_aura', radius: 1.5, damageBonus: 0.2 };
+  }
+  return undefined;
+}
+
+function generatedUnits(): UnitDef[] {
+  const plan: Array<{ family: UnitFamily; count: number }> = [
+    { family: 'melee', count: 30 },
+    { family: 'ranged', count: 30 },
+    { family: 'gravity', count: 28 },
+  ];
+  const out: UnitDef[] = [];
+  for (const { family, count } of plan) {
+    const { nouns, epithets } = NAME_POOLS[family];
+    for (let i = 0; i < count; i++) {
+      const rarity = RARITY_CYCLE[i % RARITY_CYCLE.length];
+      const name = `${nouns[i % nouns.length]} ${epithets[Math.floor(i / nouns.length) % epithets.length]}`;
+      const ability = genAbility(family, i);
+      out.push({
+        id: `${family[0]}gen_${i}`,
+        name,
+        family,
+        rarity,
+        cost: COST[family][rarity],
+        levels: genLevels(family, rarity),
+        ...(ability ? { ability } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+export const UNITS: UnitDef[] = [...CORE_UNITS, ...generatedUnits()];
 
 export const UNITS_BY_ID = new Map(UNITS.map((u) => [u.id, u]));
 

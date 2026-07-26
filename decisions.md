@@ -809,3 +809,22 @@ pulsée + barre de PV) ; events héros câblés dans le juice (`Effects`) + audi
 expiration→recharge, déterminisme, scaling, promotion, migration v8) + `build` verts. 3 sims OK
 (le héros ne touche pas le baseline d'équilibrage — power-up joueur PvE). Smoke navigateur : écran
 Héros rendu, **héros déployé sur le plateau** (aura + PV), zéro erreur JS.
+
+## Phase 7 — Refonte héros + contenu (retours utilisateur)
+
+- **Héros = il remonte le chemin** : à l'activation (bouton, plus de placement), il entre à la base
+  et marche vers le spawn en combattant (`activateHero`, `marchSpeed`, position sur le chemin).
+- **20 héros en cartes + fiche** : roster porté à 20 (5 pouvoirs : nova, givre, ralliement, chaîne,
+  repoussée — les 2 derniers ajoutés au sim). Grille de cartes + `HeroDetailScreen` (toutes les
+  caractéristiques, activer, promouvoir avec ressources manquantes).
+- **Bandeau d'info en combat** : sélectionner une carte/unité affiche son nom, sa famille et ce
+  qu'elle fait.
+- **100 unités** : les 12 cœur (tunées, deck par défaut) + 88 générées déterministe­ment (courbes de
+  stats par famille/rareté/palier, noms thématiques, capacités éparses). Verrouillées au départ,
+  hors deck par défaut ⇒ les sims d'équilibrage (decks fixes) restent la référence.
+- **UX** : bouton Deck retiré du Hub ; onglet Ressources → Héros dans la Collection ; « ressources
+  manquantes » explicitées sur toutes les améliorations.
+
+**Verrous** (sur l'ensemble de la phase) : `typecheck` + **126 tests** + `build` verts, 3 sims OK.
+Note : les 88 unités et une partie des 20 héros sont du contenu de largeur, non équilibré par
+simulation (playtests + curation à venir) — assumé et documenté.
