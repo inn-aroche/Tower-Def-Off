@@ -36,6 +36,7 @@ export type Route =
   | { name: 'survivalResults'; payload: SurvivalResultPayload }
   | { name: 'arena' }
   | { name: 'heroes' }
+  | { name: 'hero'; heroId: string }
   | { name: 'challenges' }
   | { name: 'pvp'; blitz?: boolean }
   | { name: 'pvpResults'; payload: PvpResultPayload }

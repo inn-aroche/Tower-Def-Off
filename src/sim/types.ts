@@ -143,7 +143,9 @@ export interface LiveEnemy {
 export type HeroPower =
   | { kind: 'nova'; periodSec: number; radius: number; damage: number }
   | { kind: 'frost_nova'; periodSec: number; radius: number; slowFactor: number; durationSec: number }
-  | { kind: 'rally'; periodSec: number; radius: number; healBase: number };
+  | { kind: 'rally'; periodSec: number; radius: number; healBase: number }
+  | { kind: 'chain'; periodSec: number; jumps: number; range: number; damage: number }
+  | { kind: 'knockback'; periodSec: number; radius: number; distance: number; damage: number };
 
 /** Combat-time configuration of the active hero (built from meta level in AppState). */
 export interface HeroConfig {

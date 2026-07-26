@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CombatSim } from '../src/sim/CombatSim';
 import type { Cell, EconomyConfig, EnemyDef, HeroConfig, LevelDef, UnitDef } from '../src/sim/types';
-import { HEROES_BY_ID, heroPromoteCost, scaleHeroConfig, STARTER_HERO } from '../src/data/heroes';
+import { HEROES, HEROES_BY_ID, heroPromoteCost, scaleHeroConfig, STARTER_HERO } from '../src/data/heroes';
 import { AppState } from '../src/app/AppState';
 import { NullAdProvider, NullAnalyticsProvider, NullIapProvider } from '../src/platform/NullProviders';
 import type { SaveProvider } from '../src/platform/types';
@@ -155,6 +155,20 @@ describe('hero data + progression', () => {
   it('promote cost grows and caps at max level', () => {
     expect(heroPromoteCost(1)).toEqual({ cards: 2, gold: 300 });
     expect(heroPromoteCost(6)).toBeNull();
+  });
+
+  it('has 20 heroes with valid, distinct ids and a full spread of power kinds', () => {
+    expect(HEROES).toHaveLength(20);
+    expect(new Set(HEROES.map((h) => h.id)).size).toBe(20);
+    const kinds = new Set(HEROES.map((h) => h.power.kind));
+    for (const k of ['nova', 'frost_nova', 'rally', 'chain', 'knockback']) expect(kinds.has(k as never)).toBe(true);
+  });
+
+  it('scales chain and knockback damage with level', () => {
+    const storm = HEROES_BY_ID.get('stormcaller')!; // chain
+    const quake = HEROES_BY_ID.get('earthshaker')!; // knockback
+    expect((scaleHeroConfig(storm, 3).power as { damage: number }).damage).toBeGreaterThan((scaleHeroConfig(storm, 1).power as { damage: number }).damage);
+    expect((scaleHeroConfig(quake, 3).power as { damage: number }).damage).toBeGreaterThan((scaleHeroConfig(quake, 1).power as { damage: number }).damage);
   });
 });
 

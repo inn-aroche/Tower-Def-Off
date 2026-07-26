@@ -6,7 +6,7 @@ import { HEROES_BY_ID } from '../../data/heroes';
 import { BASE_MAX_LEVEL, DECK_MAX } from '../../data/meta';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
 import { bottomNav, currencyPills, toast, unitTile } from './common';
-import { heroRosterCards } from './heroRoster';
+import { heroTiles } from './heroRoster';
 
 type Tab = 'units' | 'base' | 'heroes';
 type Filter = 'all' | Rarity;
@@ -205,13 +205,9 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
   }
 
   function renderHeroes(): void {
-    // Re-render the whole screen on change so the loadout hero slot + currencies stay in sync.
-    content.append(
-      el('div', { style: 'display:flex;flex-direction:column;gap:14px' }, heroRosterCards(app, host, () => {
-        renderLoadout();
-        renderContent();
-      })),
-    );
+    const grid = el('div', { style: 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px' });
+    grid.append(...heroTiles(app, nav));
+    content.append(el('div', { class: 'section-label', style: 'padding:2px 0 8px', text: 'Touche un héros pour sa fiche' }), grid);
   }
 
   renderLoadout();

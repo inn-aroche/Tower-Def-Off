@@ -339,7 +339,8 @@ export class CombatSim {
     if (this.heroPowerTimer >= cfg.power.periodSec) {
       this.heroPowerTimer -= cfg.power.periodSec;
       const p = cfg.power;
-      this.events.push({ type: 'heroPower', x: hx, y: hy, radius: p.kind === 'rally' ? 0 : p.radius });
+      const fxRadius = p.kind === 'chain' ? p.range : p.kind === 'rally' ? 0 : p.radius;
+      this.events.push({ type: 'heroPower', x: hx, y: hy, radius: fxRadius });
       if (p.kind === 'nova') {
         for (const e of this.enemies) if (Math.hypot(hx - e.x, hy - e.y) <= p.radius) damageEnemy(e, p.damage);
       } else if (p.kind === 'frost_nova') {
@@ -351,6 +352,21 @@ export class CombatSim {
         }
       } else if (p.kind === 'rally') {
         this.life = Math.min(this.level.playerStartLife, this.life + p.healBase);
+      } else if (p.kind === 'chain') {
+        // Arc to the nearest eligible enemies, closest first.
+        const cands = this.enemies
+          .filter((e) => e.shieldedUntilSec <= this.elapsedSec)
+          .map((e) => ({ e, d: Math.hypot(hx - e.x, hy - e.y) }))
+          .filter((c) => c.d <= p.range)
+          .sort((a, b) => (a.d === b.d ? a.e.instanceId - b.e.instanceId : a.d - b.d));
+        for (let i = 0; i < Math.min(p.jumps, cands.length); i++) damageEnemy(cands[i].e, p.damage);
+      } else if (p.kind === 'knockback') {
+        for (const e of this.enemies) {
+          if (Math.hypot(hx - e.x, hy - e.y) <= p.radius) {
+            e.pathProgress = Math.max(0, e.pathProgress - p.distance);
+            if (p.damage > 0) damageEnemy(e, p.damage);
+          }
+        }
       }
     }
 

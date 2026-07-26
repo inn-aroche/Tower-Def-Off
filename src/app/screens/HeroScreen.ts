@@ -1,7 +1,7 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { el } from '../../ui/dom';
 import { currencyPills } from './common';
-import { heroRosterCards } from './heroRoster';
+import { heroTiles } from './heroRoster';
 
 /**
  * Heroes screen — pick the active deployable hero and promote it (cards + gold). A hero is unlocked
@@ -18,15 +18,12 @@ export function HeroScreen(ctx: ScreenCtx): Screen {
     pills,
   ]);
 
-  const scroll = el('div', { class: 'screen__scroll', style: 'padding:12px 14px 24px;display:flex;flex-direction:column;gap:14px' });
+  const scroll = el('div', { class: 'screen__scroll', style: 'padding:12px 14px 24px' });
+  const grid = el('div', { style: 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px' });
+  scroll.append(el('div', { class: 'section-label', style: 'padding:2px 0 8px', text: 'Touche un héros pour voir sa fiche' }), grid);
+  grid.append(...heroTiles(app, nav));
   screen.append(top, scroll);
   host.append(screen);
 
-  function render(): void {
-    pills.replaceChildren(currencyPills(app));
-    scroll.replaceChildren(...heroRosterCards(app, host, render));
-  }
-
-  render();
   return { unmount() {} };
 }
