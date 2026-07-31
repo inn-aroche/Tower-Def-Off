@@ -32,6 +32,7 @@ export type Route =
   | { name: 'deck' }
   | { name: 'combat'; nodeIndex: number }
   | { name: 'results'; payload: ResultsPayload }
+  | { name: 'survivalHome' }
   | { name: 'survival' }
   | { name: 'survivalResults'; payload: SurvivalResultPayload }
   | { name: 'arena' }

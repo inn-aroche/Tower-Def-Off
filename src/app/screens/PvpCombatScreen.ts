@@ -210,6 +210,7 @@ export function PvpCombatScreen(ctx: ScreenCtx): Screen {
     c.translate(shake.x, shake.y);
     drawCombatFrame(c, window.innerWidth, window.innerHeight, layout(), ps, ui, renderContext, {
       isFlashing: (id) => effects.isFlashing(id),
+      unitLunge: (col, row) => effects.unitLunge(col, row),
       pulseSec: ps.elapsedSec,
     });
     effects.draw(c, layout());

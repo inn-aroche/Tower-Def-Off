@@ -1089,3 +1089,54 @@ Vérification navigateur (Playwright sur `dist/` en http) : 105 `<img>` décodé
 **Limite assumée** : les unités générées **partagent** les silhouettes des 12 unités cœur — la
 Collection est cohérente, mais pas variée à 100 unités distinctes. Il faudra une planche d'art
 supplémentaire (ou une recoloration par rareté) pour les différencier vraiment.
+
+## Phase 19 — Les 5 sections + passe d'animation
+
+Deux demandes en une : structurer le jeu en 5 sections nommées, et « il faut de l'animation, sinon
+le rendu n'est pas beau ».
+
+### Navigation — 5 sections
+
+La barre basse passe de 3 à **5 entrées** : **Collection · PvP · Aventure · Survie · Boutique**.
+Aventure occupe la position centrale surélevée (mode principal). Conséquences :
+
+- **Survie** devient une section à part entière avec un **écran d'accueil** (`SurvivalHomeScreen`,
+  route `survivalHome`) — record, promesse du mode, bouton *Lancer une partie*. Un onglet de nav ne
+  doit jamais faire tomber le joueur dans un combat par mégarde ; l'ancien raccourci depuis le Hub
+  y allait directement. Fin de partie et abandon reviennent désormais ici, pas sur le Hub.
+- **PvP** (ex-Arène) et **Boutique** perdent leur flèche « ‹ » et gagnent la barre : ce sont des
+  destinations, plus des sous-écrans. Le Hub s'intitule **Aventure** et son bandeau Survie/Arène est
+  remplacé par l'état de la saga (nœud courant + étoiles), puisque ces modes ont leur propre onglet.
+- `sectionNav()` centralise le câblage des 5 destinations — une seule source de vérité.
+- La section PvP affiche explicitement les **deux postures** (⚔ Attaque : lancer les offensives qui
+  remontent le chemin / ⛨ Défense : poser et fusionner sur les emplacements limités), qui décrivent
+  ce que la main mixte permet déjà.
+
+### Animation
+
+**Choix assumé : animer les sprites 2D, pas passer en 3D.** La perspective avait déjà été refusée
+(« ça étire trop l'image et déforme les cases ») et un vrai moteur 3D la réintroduirait, en plus
+d'exiger des modèles que les planches d'art ne fournissent pas. Ce qui manquait n'était pas la
+profondeur, c'était le **mouvement**.
+
+- **Respiration au repos** : chaque unité posée oscille lentement, avec une **phase dérivée de sa
+  case** — sans ce déphasage, un plateau plein pulse à l'unisson et retombe dans l'effet « grille
+  d'autocollants ».
+- **Fente d'attaque** : sur l'événement `attack` déjà émis par le sim, l'unité s'élance vers sa
+  cible puis revient (0,22 s, aller-retour en sinus) avec un léger coup de zoom. C'est ce qui fait
+  qu'une unité **s'engage** visiblement dans son coup au lieu de tirer un rayon depuis une statue.
+- **Cycle de marche** : rebond à deux temps pour les ennemis à pied et pour les alliés offensifs qui
+  remontent le chemin ; les volants gardent leur survol.
+- **Les ombres restent au sol** et se rétractent quand le corps se soulève — c'est ce contraste qui
+  vend la hauteur, bien plus qu'une déformation en perspective.
+- Tout passe par `Effects` (couche rendu pure) : **le sim n'est pas touché**, donc le déterminisme
+  et les simulations d'équilibrage sont intacts. `prefers-reduced-motion` désactive la fente.
+
+**Verrous** : `typecheck` + **147 tests** (+4 sur la fente : repos, direction, retour au repos,
+aller-retour progressif) + `build` verts. Aucune modification de `src/data` ⇒ pas de re-simulation.
+Vérification navigateur : les 5 onglets naviguent, 0 erreur console, combat rendu correctement avec
+une unité visiblement engagée vers sa cible.
+
+**Limite assumée** : ce sont des animations **procédurales sur des sprites fixes** (translation,
+zoom, rebond). Elles donnent la vie, mais pas une vraie pose d'attaque ni un cycle de marche
+dessiné — il faudrait des planches multi-frames par unité pour ça.

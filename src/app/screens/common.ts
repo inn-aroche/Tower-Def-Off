@@ -2,6 +2,7 @@ import type { AppState } from '../AppState';
 import { el, pictogram } from '../../ui/dom';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
 import { unitArtUri } from '../../render/unitArt';
+import type { Route } from '../routes';
 import type { UnitDef } from '../../sim/types';
 
 /**
@@ -100,9 +101,19 @@ export function confirmDialog(
   host.append(scrim);
 }
 
-export type Tab = 'collection' | 'play' | 'shop';
+/** The app's five top-level sections. Every section screen shows the same bar, so the whole game
+ * is reachable in one tap from anywhere. Aventure sits in the middle, raised — it's the main mode. */
+export type Tab = 'collection' | 'pvp' | 'aventure' | 'survie' | 'boutique';
 
-export function bottomNav(active: Tab, handlers: { onCollection: () => void; onPlay: () => void; onShop: () => void }): HTMLElement {
+export interface NavHandlers {
+  onCollection: () => void;
+  onPvp: () => void;
+  onAventure: () => void;
+  onSurvie: () => void;
+  onBoutique: () => void;
+}
+
+export function bottomNav(active: Tab, handlers: NavHandlers): HTMLElement {
   const item = (tab: Tab, label: string, glyph: string, onClick: () => void, center = false) =>
     el('button', { class: `navbtn ${active === tab ? 'navbtn--active' : ''}`, onclick: onClick }, [
       el('div', {
@@ -116,9 +127,22 @@ export function bottomNav(active: Tab, handlers: { onCollection: () => void; onP
     ]);
   return el('div', { class: 'navbottom' }, [
     item('collection', 'Collection', '▦', handlers.onCollection),
-    item('play', 'Jouer', '▶', handlers.onPlay, true),
-    item('shop', 'Boutique', '◆', handlers.onShop),
+    item('pvp', 'PvP', '⚔', handlers.onPvp),
+    item('aventure', 'Aventure', '▶', handlers.onAventure, true),
+    item('survie', 'Survie', '🌊', handlers.onSurvie),
+    item('boutique', 'Boutique', '◆', handlers.onBoutique),
   ]);
+}
+
+/** The same wiring for every section screen — one place to keep the five destinations in sync. */
+export function sectionNav(active: Tab, nav: (route: Route) => void): HTMLElement {
+  return bottomNav(active, {
+    onCollection: () => nav({ name: 'collection' }),
+    onPvp: () => nav({ name: 'arena' }),
+    onAventure: () => nav({ name: 'hub' }),
+    onSurvie: () => nav({ name: 'survivalHome' }),
+    onBoutique: () => nav({ name: 'shop' }),
+  });
 }
 
 export function starRow(stars: number, max = 3, size = 14): HTMLElement {

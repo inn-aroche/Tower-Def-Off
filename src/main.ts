@@ -7,6 +7,7 @@ import { UnitDetailScreen } from './app/screens/UnitDetailScreen';
 import { CombatScreen } from './app/screens/CombatScreen';
 import { ResultsScreen } from './app/screens/ResultsScreen';
 import { SurvivalScreen } from './app/screens/SurvivalScreen';
+import { SurvivalHomeScreen } from './app/screens/SurvivalHomeScreen';
 import { SurvivalResultsScreen } from './app/screens/SurvivalResultsScreen';
 import { ChallengesScreen } from './app/screens/ChallengesScreen';
 import { HeroScreen } from './app/screens/HeroScreen';
@@ -41,6 +42,7 @@ const factories: Record<Route['name'], ScreenFactory> = {
   deck: CollectionScreen, // deck + collection are now one unified screen
   combat: CombatScreen,
   results: ResultsScreen,
+  survivalHome: SurvivalHomeScreen,
   survival: SurvivalScreen,
   survivalResults: SurvivalResultsScreen,
   challenges: ChallengesScreen,

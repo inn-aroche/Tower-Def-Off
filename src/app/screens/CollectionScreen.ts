@@ -5,7 +5,7 @@ import { UNITS, UNITS_BY_ID } from '../../data/units';
 import { HEROES_BY_ID } from '../../data/heroes';
 import { BASE_MAX_LEVEL, DECK_MAX } from '../../data/meta';
 import { RARITY_EDGE, RARITY_GRAD } from '../../ui/theme';
-import { bottomNav, currencyPills, toast, unitPortrait, unitTile } from './common';
+import { currencyPills, sectionNav, toast, unitPortrait, unitTile } from './common';
 import { heroTiles } from './heroRoster';
 
 type Tab = 'units' | 'base' | 'heroes';
@@ -22,8 +22,7 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
   let filter: Filter = 'all';
 
   const top = el('div', { class: 'topbar' }, [
-    el('button', { class: 'topbar__back', text: '‹', onclick: () => nav({ name: 'hub' }) }),
-    el('div', { class: 'topbar__title', text: 'Deck & Collection' }),
+    el('div', { class: 'topbar__title', text: 'Collection' }),
     currencyPills(app),
   ]);
 
@@ -214,13 +213,7 @@ export function CollectionScreen(ctx: ScreenCtx): Screen {
   renderTabs();
   renderContent();
 
-  const nav_ = bottomNav('collection', {
-    onCollection: () => nav({ name: 'collection' }),
-    onPlay: () => nav({ name: 'hub' }),
-    onShop: () => nav({ name: 'shop' }),
-  });
-
-  screen.append(top, loadout, tabsBar, content, nav_);
+  screen.append(top, loadout, tabsBar, content, sectionNav('collection', nav));
   host.append(screen);
   return { unmount() {} };
 }

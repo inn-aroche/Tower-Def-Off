@@ -2,7 +2,7 @@ import type { Screen, ScreenCtx } from '../Router';
 import { el } from '../../ui/dom';
 import { CAMPAIGN } from '../../data/campaign';
 import { todayStr } from '../../data/progression';
-import { bottomNav, currencyPills, starRow, toast } from './common';
+import { currencyPills, sectionNav, starRow, toast } from './common';
 
 export function HubScreen(ctx: ScreenCtx): Screen {
   const { app, host, nav } = ctx;
@@ -24,7 +24,7 @@ export function HubScreen(ctx: ScreenCtx): Screen {
 
   // Top bar
   const top = el('div', { class: 'topbar' }, [
-    el('div', { class: 'topbar__title', text: 'WARDENS' }),
+    el('div', { class: 'topbar__title', text: 'Aventure' }),
     currencyPills(app),
     challengesBtn,
     el('button', {
@@ -35,25 +35,19 @@ export function HubScreen(ctx: ScreenCtx): Screen {
     }),
   ]);
 
-  // Event banner + survival / arena access
-  const best = app.survivalBest;
-  const header = el('div', { style: 'padding:12px 14px 4px;display:flex;gap:10px;align-items:stretch' }, [
-    el('button', {
-      class: 'panel',
-      style:
-        'flex:1;padding:10px 12px;text-align:left;border:none;cursor:pointer;' +
-        'background:linear-gradient(160deg,#3a6a8f,#1f3d55);color:#fff',
-      onclick: () => nav({ name: 'survival' }),
-    }, [
-      el('div', { class: 'section-label', style: 'color:#bfe0f5', text: '🌊 Survie · sans fin' }),
-      el('div', {
-        style: 'font:800 14px "Baloo 2",sans-serif;color:#fff',
-        text: best > 0 ? `Record : vague ${best}` : 'Jusqu’où tiendras-tu ?',
-      }),
-    ]),
-    el('button', { class: 'btn btn--gold', style: 'flex:0 0 120px;padding:8px 14px;font-size:13px', onclick: () => nav({ name: 'arena' }) }, [
-      el('div', { text: '⚔ Arène' }),
-      el('div', { style: 'font:800 11px "Baloo 2";margin-top:2px', text: `${app.trophies} 🏆` }),
+  // Progress strip — Survie and PvP moved to their own nav tabs, so this row keeps the saga's own state.
+  const cleared = app.totalStars();
+  const header = el('div', { style: 'padding:12px 14px 4px' }, [
+    el('div', { class: 'panel', style: 'display:flex;align-items:center;gap:12px;padding:10px 14px' }, [
+      el('div', { style: 'font-size:24px', text: '🗺' }),
+      el('div', { style: 'flex:1' }, [
+        el('div', { class: 'section-label', text: 'Saga' }),
+        el('div', {
+          style: 'font:800 14px "Baloo 2",sans-serif;color:var(--ink)',
+          text: `Nœud ${Math.min(app.unlockedNode + 1, CAMPAIGN.length)} / ${CAMPAIGN.length}`,
+        }),
+      ]),
+      el('div', { style: 'font:800 14px "Baloo 2",sans-serif;color:var(--gold-ink)', text: `${cleared} ★` }),
     ]),
   ]);
 
@@ -95,13 +89,7 @@ export function HubScreen(ctx: ScreenCtx): Screen {
 
   scroll.append(map);
 
-  const nav_ = bottomNav('play', {
-    onCollection: () => nav({ name: 'collection' }),
-    onPlay: () => nav({ name: 'combat', nodeIndex: app.unlockedNode }),
-    onShop: () => nav({ name: 'shop' }),
-  });
-
-  screen.append(top, header, scroll, nav_);
+  screen.append(top, header, scroll, sectionNav('aventure', nav));
   host.append(screen);
 
   // Scroll so the current node is in view.

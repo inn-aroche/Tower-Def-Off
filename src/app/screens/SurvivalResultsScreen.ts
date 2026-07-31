@@ -7,7 +7,7 @@ export function SurvivalResultsScreen(ctx: ScreenCtx): Screen {
   const screen = el('div', { class: 'screen' });
 
   if (!payload) {
-    nav({ name: 'hub' });
+    nav({ name: 'survivalHome' });
     return { unmount() {} };
   }
 
@@ -53,7 +53,7 @@ export function SurvivalResultsScreen(ctx: ScreenCtx): Screen {
     el('button', {
       style: 'background:none;border:none;color:#cfe6f5;font:700 12px "Nunito";cursor:pointer;padding:6px',
       text: 'Retour au hub',
-      onclick: () => nav({ name: 'hub' }),
+      onclick: () => nav({ name: 'survivalHome' }),
     }),
   ]);
 

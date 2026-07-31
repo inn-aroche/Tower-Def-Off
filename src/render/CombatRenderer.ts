@@ -153,6 +153,17 @@ function drawPictogram(ctx: CanvasRenderingContext2D, family: UnitFamily, cx: nu
 export interface CombatFx {
   isFlashing?: (instanceId: number) => boolean;
   pulseSec?: number;
+  /** Attack recoil for the unit on a cell, in cell units (see Effects.unitLunge). */
+  unitLunge?: (col: number, row: number) => { dx: number; dy: number; scale: number } | null;
+}
+
+/**
+ * Idle "breathing" offset, in cell units. Every static sprite gets a slow vertical bob whose phase
+ * comes from its position, so a full board never pulses in unison — that lockstep is what made the
+ * board read as a spreadsheet of stickers rather than a living scene.
+ */
+function idleBob(t: number, phaseSeed: number): number {
+  return Math.sin(t * 2.1 + phaseSeed * 1.7) * 0.018;
 }
 
 export function drawCombatFrame(
@@ -501,10 +512,18 @@ function drawBoard(
     const r = size * 0.24;
     const selected = !!ui.selectedUnit && ui.selectedUnit.col === unit.col && ui.selectedUnit.row === unit.row;
 
+    // Animation: idle breathing + attack lunge. Only the body moves — the shadow stays on the
+    // ground and merely shrinks as the unit lifts, which is what sells the height.
+    const lunge = fx.unitLunge?.(unit.col, unit.row) ?? null;
+    const bob = idleBob(snapshot.elapsedSec, unit.col * 3 + unit.row);
+    const animX = (lunge?.dx ?? 0) * cs;
+    const animY = (lunge?.dy ?? 0) * cs + bob * cs;
+    const animScale = lunge?.scale ?? 1;
+
     // cast shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillStyle = `rgba(0,0,0,${0.22 - bob * 1.2})`;
     ctx.beginPath();
-    ctx.ellipse(x + cs / 2, y + cs - pad * 0.6, size * 0.48, size * 0.16, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + cs / 2 + animX * 0.5, y + cs - pad * 0.6, size * (0.48 - bob * 0.5), size * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
     const sprite = getUnitSprite(unit.unitId, def.family, def.rarity);
@@ -521,11 +540,11 @@ function drawBoard(
         ctx.restore();
       }
       // draw the sprite a touch larger than the cell, feet near the bottom (raised mini look)
-      const targetH = cs * 1.08;
+      const targetH = cs * 1.08 * animScale;
       const scl = targetH / sprite.naturalHeight;
       const w = sprite.naturalWidth * scl;
-      const dx = x + cs / 2 - w / 2;
-      const dy = y + cs - targetH - cs * 0.02;
+      const dx = x + cs / 2 - w / 2 + animX;
+      const dy = y + cs - targetH - cs * 0.02 + animY;
       ctx.drawImage(sprite, dx, dy, w, targetH);
     } else {
       // fallback: drawn token (dark base lip + bright face + pictogram)
@@ -576,12 +595,14 @@ function drawBoard(
     const radius = cs * (boss ? 0.42 : 0.3);
     const ex = ox + enemy.x * cs;
     const hover = def.flying ? radius * (1.05 + 0.12 * Math.sin(snapshot.elapsedSec * 4 + enemy.instanceId)) : 0;
-    const ey = oy + enemy.y * cs - hover;
+    // Walk cycle: a two-beat hop for anything on foot. Flyers already hover, so they skip it.
+    const walk = def.flying ? 0 : Math.abs(Math.sin(snapshot.elapsedSec * 6.5 + enemy.instanceId)) * radius * 0.16;
+    const ey = oy + enemy.y * cs - hover - walk;
     const groundY = oy + enemy.y * cs;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillStyle = `rgba(0,0,0,${0.22 - (walk / Math.max(1, radius)) * 0.5})`;
     ctx.beginPath();
-    ctx.ellipse(ex, groundY + radius * 0.7, radius * (def.flying ? 0.7 : 0.95), radius * 0.35, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, groundY + radius * 0.7, radius * (def.flying ? 0.7 : 0.95) - walk * 0.5, radius * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
 
     if (def.flying) {
@@ -686,11 +707,13 @@ function drawBoard(
   // ---- marching allies (offensive cards) — same treatment as the hero, no level badge ----
   for (const ally of snapshot.allies) {
     const ax = ox + ally.x * cs;
-    const ay = oy + ally.y * cs;
+    // marching allies get the same walk cycle as the enemies coming the other way
+    const aWalk = Math.abs(Math.sin(snapshot.elapsedSec * 6.5 + ally.instanceId)) * cs * 0.05;
+    const ay = oy + ally.y * cs - aWalk;
     const ar = cs * 0.4;
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.beginPath();
-    ctx.ellipse(ax, ay + ar * 0.55, ar * 0.8, ar * 0.3, 0, 0, Math.PI * 2);
+    ctx.ellipse(ax, oy + ally.y * cs + ar * 0.55, ar * 0.8 - aWalk * 0.5, ar * 0.3, 0, 0, Math.PI * 2);
     ctx.fill();
     // red banner ring marks "this one is attacking, not holding ground"
     ctx.strokeStyle = `rgba(231,110,80,${0.5 + 0.3 * pulse})`;

@@ -38,6 +38,12 @@ interface Ring { x: number; y: number; life: number; max: number; color: string;
 interface Projectile { x1: number; y1: number; x2: number; y2: number; t: number; dur: number; sprite: string; }
 /** A short-lived impact sprite that scales up + fades at a point. */
 interface Burst { x: number; y: number; life: number; max: number; sprite: string; size: number; }
+/** A unit's recoil after it attacks: a unit vector toward the target + remaining time. */
+interface Lunge { dx: number; dy: number; t: number; }
+
+/** How long a unit's attack lunge lasts, and how far it travels (in cell units). */
+const LUNGE_SEC = 0.22;
+const LUNGE_DIST = 0.17;
 
 const FAMILY_COLOR: Record<UnitFamily, string> = { melee: '#8ecae6', ranged: '#a3e0a3', gravity: '#8fe0da' };
 const ENEMY_COLOR: Record<string, string> = {
@@ -54,6 +60,7 @@ export class Effects {
   private projectiles: Projectile[] = [];
   private bursts: Burst[] = [];
   private flash = new Map<number, number>();
+  private lunges = new Map<string, Lunge>();
   private shakeT = 0;
   private shakeMag = 0;
   private baseFlashT = 0;
@@ -76,6 +83,14 @@ export class Effects {
   emit(e: CombatEvent): void {
     switch (e.type) {
       case 'attack': {
+        // The unit itself reacts: a short lunge toward its target. Static sprites read as alive
+        // only if they move when they act, so this is driven from the same event as the beam.
+        if (!this.reduced) {
+          const dx = e.toX - (e.fromCol + 0.5);
+          const dy = e.toY - (e.fromRow + 0.5);
+          const len = Math.hypot(dx, dy) || 1;
+          this.lunges.set(`${e.fromCol},${e.fromRow}`, { dx: dx / len, dy: dy / len, t: LUNGE_SEC });
+        }
         if (e.family === 'ranged') {
           // flying projectile sprite (arrow) instead of a beam; hit burst spawns on arrival
           this.projectiles.push({
@@ -183,6 +198,10 @@ export class Effects {
   }
 
   update(dt: number): void {
+    for (const [key, l] of this.lunges) {
+      l.t -= dt;
+      if (l.t <= 0) this.lunges.delete(key);
+    }
     for (const p of this.particles) {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -218,6 +237,19 @@ export class Effects {
 
   isFlashing(instanceId: number): boolean {
     return this.flash.has(instanceId);
+  }
+
+  /**
+   * The attack animation for the unit on a cell, in **cell units** (the renderer multiplies by the
+   * cell size). Travels out and back over LUNGE_SEC with a matching scale punch, so an attacking
+   * unit visibly commits to its blow. Returns null when the unit is idle.
+   */
+  unitLunge(col: number, row: number): { dx: number; dy: number; scale: number } | null {
+    const l = this.lunges.get(`${col},${row}`);
+    if (!l) return null;
+    const p = 1 - l.t / LUNGE_SEC; // 0 → 1 over the animation
+    const swing = Math.sin(p * Math.PI); // out and back
+    return { dx: l.dx * LUNGE_DIST * swing, dy: l.dy * LUNGE_DIST * swing, scale: 1 + 0.12 * swing };
   }
 
   shakeOffset(): { x: number; y: number } {

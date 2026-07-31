@@ -268,6 +268,7 @@ export function CombatScreen(ctx: ScreenCtx): Screen {
     c.translate(shake.x, shake.y);
     drawCombatFrame(c, window.innerWidth, window.innerHeight, layout(), snap, ui, renderContext, {
       isFlashing: (id) => effects.isFlashing(id),
+      unitLunge: (col, row) => effects.unitLunge(col, row),
       pulseSec: snap.elapsedSec,
     });
     effects.draw(c, layout());

@@ -71,11 +71,11 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
       'background:rgba(0,0,0,.42);color:#f0c26a;font:800 12px "Baloo 2",sans-serif;cursor:pointer',
     onclick: () => {
       if (finished) {
-        nav({ name: 'hub' });
+        nav({ name: 'survivalHome' });
         return;
       }
       confirmDialog(host, 'Quitter la Survie ? La partie en cours sera perdue.', () => {
-        nav({ name: 'hub' });
+        nav({ name: 'survivalHome' });
       });
     },
   });
@@ -259,6 +259,7 @@ export function SurvivalScreen(ctx: ScreenCtx): Screen {
     c.translate(shake.x, shake.y);
     drawCombatFrame(c, window.innerWidth, window.innerHeight, layout(), snap, ui, renderContext, {
       isFlashing: (id) => effects.isFlashing(id),
+      unitLunge: (col, row) => effects.unitLunge(col, row),
       pulseSec: snap.elapsedSec,
     });
     effects.draw(c, layout());

@@ -1,7 +1,7 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { clear, el } from '../../ui/dom';
 import { GEM_ITEMS, REAL_OFFERS, type GemItem, type RealOffer } from '../../data/shop';
-import { bottomNav, currencyPills, toast } from './common';
+import { currencyPills, sectionNav, toast } from './common';
 
 export function ShopScreen(ctx: ScreenCtx): Screen {
   const { app, host, nav } = ctx;
@@ -9,7 +9,6 @@ export function ShopScreen(ctx: ScreenCtx): Screen {
 
   const currencyHolder = el('div', { style: 'display:flex' }, [currencyPills(app)]);
   const top = el('div', { class: 'topbar' }, [
-    el('button', { class: 'topbar__back', text: '‹', onclick: () => nav({ name: 'hub' }) }),
     el('div', { class: 'topbar__title', text: 'Boutique' }),
     currencyHolder,
   ]);
@@ -64,12 +63,7 @@ export function ShopScreen(ctx: ScreenCtx): Screen {
   for (const offer of REAL_OFFERS.filter((o) => o.kind !== 'pass')) realGrid.append(realCard(offer));
   scroll.append(realGrid);
 
-  const nav_ = bottomNav('shop', {
-    onCollection: () => nav({ name: 'collection' }),
-    onPlay: () => nav({ name: 'hub' }),
-    onShop: () => nav({ name: 'shop' }),
-  });
-  screen.append(top, scroll, nav_);
+  screen.append(top, scroll, sectionNav('boutique', nav));
   host.append(screen);
 
   function purchaseReal(offer: RealOffer): void {

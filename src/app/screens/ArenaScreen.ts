@@ -1,7 +1,7 @@
 import type { Screen, ScreenCtx } from '../Router';
 import { el } from '../../ui/dom';
 import { LEAGUES } from '../../data/arena';
-import { currencyPills } from './common';
+import { currencyPills, sectionNav } from './common';
 
 export function ArenaScreen(ctx: ScreenCtx): Screen {
   const { app, nav } = ctx;
@@ -12,9 +12,26 @@ export function ArenaScreen(ctx: ScreenCtx): Screen {
   const next = LEAGUES[idx + 1];
 
   const top = el('div', { class: 'topbar' }, [
-    el('button', { class: 'topbar__back', text: '‹', onclick: () => nav({ name: 'hub' }) }),
-    el('div', { class: 'topbar__title', text: 'Arène' }),
+    el('div', { class: 'topbar__title', text: 'PvP' }),
     currencyPills(app),
+  ]);
+
+  // The section's promise in one line: the mixed hand means each duel is a stance choice.
+  const stance = el('div', {
+    style: 'margin:12px 14px 0;display:flex;gap:8px',
+  }, [
+    el('div', {
+      style:
+        'flex:1;padding:8px 10px;border-radius:12px;background:rgba(192,57,43,.12);border:1.5px solid #c0392b;' +
+        'font:700 10px "Nunito",sans-serif;color:var(--ink);line-height:1.4',
+      html: '<b>⚔ Attaque</b><br>Lance tes unités offensives : elles remontent le chemin et frappent avant la base.',
+    }),
+    el('div', {
+      style:
+        'flex:1;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.07);border:1.5px solid var(--panel-border);' +
+        'font:700 10px "Nunito",sans-serif;color:var(--ink);line-height:1.4',
+      html: '<b>⛨ Défense</b><br>Pose et fusionne sur tes emplacements limités pour tenir plus longtemps que l’adversaire.',
+    }),
   ]);
 
   // Current league banner
@@ -30,7 +47,7 @@ export function ArenaScreen(ctx: ScreenCtx): Screen {
       : el('div', { style: 'font:700 11px "Nunito";color:var(--ink-soft);margin-top:6px', text: 'Ligue maximale atteinte' }),
   ]);
 
-  const fight = el('div', { style: 'display:flex;gap:10px;margin:0 14px 14px' }, [
+  const fight = el('div', { style: 'display:flex;gap:10px;margin:12px 14px 14px' }, [
     el('button', {
       class: 'btn btn--green',
       style: 'flex:1;font-size:16px',
@@ -62,7 +79,7 @@ export function ArenaScreen(ctx: ScreenCtx): Screen {
     );
   }
 
-  screen.append(top, banner, fight, ladderLabel, ladder);
+  screen.append(top, banner, stance, fight, ladderLabel, ladder, sectionNav('pvp', nav));
   ctx.host.append(screen);
   return { unmount() {} };
 }
