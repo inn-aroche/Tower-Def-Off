@@ -1,5 +1,7 @@
 import type { BoardLayout } from './BoardLayout';
 import { FX_SPRITES } from './sprites';
+import { ANIMATIONS } from './animations';
+import { clipFinished, drawClip } from './anim';
 import type { CombatEvent, UnitFamily } from '../sim/types';
 
 /** Lazily-decoded FX sprites (projectiles + impact bursts), guarded for headless/test contexts. */
@@ -40,6 +42,8 @@ interface Projectile { x1: number; y1: number; x2: number; y2: number; t: number
 interface Burst { x: number; y: number; life: number; max: number; sprite: string; size: number; }
 /** A unit's recoil after it attacks: a unit vector toward the target + remaining time. */
 interface Lunge { dx: number; dy: number; t: number; }
+/** A killed enemy kept alive by the render layer just long enough to play its death clip. */
+interface Corpse { enemyId: string; x: number; y: number; t: number; }
 
 /** How long a unit's attack lunge lasts, and how far it travels (in cell units). */
 const LUNGE_SEC = 0.22;
@@ -61,6 +65,7 @@ export class Effects {
   private bursts: Burst[] = [];
   private flash = new Map<number, number>();
   private lunges = new Map<string, Lunge>();
+  private corpses: Corpse[] = [];
   private shakeT = 0;
   private shakeMag = 0;
   private baseFlashT = 0;
@@ -125,7 +130,12 @@ export class Effects {
       case 'kill': {
         this.spawnParticles(e.x, e.y, this.reduced ? 3 : 8, ENEMY_COLOR[e.enemyId] ?? '#ccc', 2.2);
         this.rings.push({ x: e.x, y: e.y, life: 0.35, max: 0.35, color: 'rgba(255,255,255,0.7)', maxR: 0.6 });
-        this.bursts.push({ x: e.x, y: e.y, life: 0.4, max: 0.4, sprite: 'fx_death', size: 1.1 });
+        // The sim drops a dead enemy immediately, so if the character has a death animation the
+        // render layer keeps a corpse around long enough to play it. The generic impact burst is
+        // skipped there — it would hide the very animation we're playing.
+        const death = ANIMATIONS[e.enemyId]?.death;
+        if (death && !this.reduced) this.corpses.push({ enemyId: e.enemyId, x: e.x, y: e.y, t: 0 });
+        else this.bursts.push({ x: e.x, y: e.y, life: 0.4, max: 0.4, sprite: 'fx_death', size: 1.1 });
         break;
       }
       case 'merge': {
@@ -198,6 +208,11 @@ export class Effects {
   }
 
   update(dt: number): void {
+    for (const c of this.corpses) c.t += dt;
+    this.corpses = this.corpses.filter((c) => {
+      const clip = ANIMATIONS[c.enemyId]?.death;
+      return !!clip && !clipFinished(clip, c.t);
+    });
     for (const [key, l] of this.lunges) {
       l.t -= dt;
       if (l.t <= 0) this.lunges.delete(key);
@@ -264,6 +279,14 @@ export class Effects {
     const cs = layout.cellSize;
     const px = (x: number) => layout.originX + x * layout.cellSize;
     const py = (y: number) => layout.originY + y * layout.cellSize;
+
+    // Corpses first: they belong to the ground layer, under every other effect.
+    for (const c of this.corpses) {
+      const clip = ANIMATIONS[c.enemyId]?.death;
+      if (!clip) continue;
+      const radius = cs * 0.3;
+      drawClip(ctx, clip, c.t, px(c.x), py(c.y) + radius * 0.55, radius * 2.6);
+    }
 
     for (const b of this.beams) {
       if (b.width <= 0) continue;

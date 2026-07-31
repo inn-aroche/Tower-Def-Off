@@ -1140,3 +1140,62 @@ une unité visiblement engagée vers sa cible.
 **Limite assumée** : ce sont des animations **procédurales sur des sprites fixes** (translation,
 zoom, rebond). Elles donnent la vie, mais pas une vraie pose d'attaque ni un cycle de marche
 dessiné — il faudrait des planches multi-frames par unité pour ça.
+
+## Phase 20 — Test d'un pack d'animation par frames (gobelin)
+
+Pack fourni par l'utilisateur (généré via ChatGPT) : `enemy_goblin`, 4 clips — idle 6 f, walk 8 f,
+attack 6 f, death 12 f — en PNG 512² + un manifeste JSON (fps, boucle, ancre). Objectif : juger sur
+pièce avant de généraliser à tout le bestiaire et au roster.
+
+### Ce qui a été construit (générique dès le départ)
+
+- **`scripts/build-animations.py`** — pipeline réutilisable : supprime les **fragments parasites**
+  laissés par le découpage automatique (composantes connexes < 4 % de la plus grande), recadre tous
+  les frames d'un clip sur **une bbox commune** (sinon les frames glissent les uns par rapport aux
+  autres), redimensionne au budget réel du plateau (112 px), encode en webp et émet des data-URI.
+- **`src/render/anim.ts`** — runtime : `frameIndex` (boucle / one-shot qui tient sa dernière frame),
+  `clipDuration`, `clipFinished`, `drawClip` avec **ancre au sol**. `drawClip` renvoie `false` tant
+  qu'une frame n'est pas décodée, pour retomber sur le sprite fixe au lieu de laisser un trou.
+- **`src/render/animations.ts`** — généré, data-URI inlinés (CSP de l'artefact oblige).
+- **Intégration** : l'ennemi joue `walk` (ou `idle` s'il est gelé sous 0,35 de vitesse), avec une
+  **phase décalée par `instanceId`** ; le rebond procédural de la phase 19 est désactivé quand un
+  vrai cycle existe (sinon on cumule deux animations). À la mort, `Effects` garde un **cadavre** le
+  temps de jouer `death` en one-shot — le sim, lui, supprime l'ennemi immédiatement, et il ne doit
+  surtout pas être modifié pour ça.
+
+Deux bugs réels attrapés par les tests avant toute vérification visuelle : le pack se nomme
+`enemy_goblin` alors que le jeu indexe l'ennemi par `goblin` (la recherche échouait silencieusement,
+d'où le paramètre d'id explicite dans le builder), et l'**ancre du manifeste sortait du cadre** après
+recadrage (0,92 de la frame padée tombe sous le bas du contenu détouré → clamp à 1).
+
+### Verdict sur le pack
+
+Le pipeline fonctionne : en jeu, les gobelins marchent, sont déphasés entre eux, et meurent avec
+leur animation. **Mais la cohérence dessin du pack est insuffisante pour de la production.**
+Mesure objective (écart moyen RGBA entre frames consécutives, 0 = identique) :
+
+| clip | écarts consécutifs | lecture |
+|---|---|---|
+| walk | 16 · 15 · 9 · **27** · 17 · 17 · 5 | saut net entre les frames 3 et 4 : la boucle mélange **deux designs** du personnage |
+| attack | 29 · 36 · 27 · 24 · 33 | l'épée **apparaît et disparaît** d'une frame à l'autre (frames 1, 2, 4 armées ; 0, 3, 5 non) |
+| idle | 22 · 21 · 28 · 15 · 12 | deux demi-boucles de tailles différentes |
+| death | saut anormal après la frame 1 | acceptable, la séquence de chute reste lisible |
+
+Un cycle propre a des écarts *petits et réguliers* ; ici ils sont grands et irréguliers, ce qui est
+la signature de frames générées indépendamment plutôt que dessinées comme une séquence.
+
+### Deux constats pour la généralisation
+
+1. **Poids.** Un seul ennemi ajoute **+187 Ko** au bundle (888 Ko → 1 075 Ko). Étendre à 12 ennemis
+   + 15 unités ⇒ **~5 Mo inlinés**, intenable. Les data-URI ne sont nécessaires que pour l'artefact
+   partageable ; le build mobile doit charger les frames comme **fichiers** (le pipeline n'aura qu'à
+   émettre un dossier au lieu d'un module).
+2. **`attack` est inutilisable pour un ennemi** : dans ce jeu les ennemis ne s'arrêtent jamais pour
+   combattre — ils marchent et frappent la base, ce qui les retire immédiatement. Le set utile est
+   **walk + death (+ idle si gelé)** pour un ennemi, et **idle + attack** pour une unité de défense,
+   qui elle attaque vraiment. À commander en conséquence.
+
+**Verrous** : `typecheck` + **153 tests** (+6 sur le runtime : cadence, boucle, one-shot, index
+toujours dans les bornes, intégrité du set livré, ancres dans le cadre) + `build` verts. Aucune
+modification de `src/data` ⇒ pas de re-simulation. Vérification navigateur : 0 erreur console,
+gobelins animés et déphasés entre eux.

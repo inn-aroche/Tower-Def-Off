@@ -2,6 +2,8 @@ import type { BoardLayout } from './BoardLayout';
 import { cardRects, manaBarRect, MANA_H, TOP_INSET } from './HudLayout';
 import { ENEMY_SPRITES, TILE_SPRITES, UNIT_SPRITES } from './sprites';
 import { unitArtId } from './unitArt';
+import { ANIMATIONS } from './animations';
+import { drawClip } from './anim';
 import type { Cell, CombatSnapshot, EnemyDef, HandCard, Rarity, UnitDef, UnitFamily } from '../sim/types';
 import { abilityLabel } from '../data/units';
 
@@ -595,8 +597,11 @@ function drawBoard(
     const radius = cs * (boss ? 0.42 : 0.3);
     const ex = ox + enemy.x * cs;
     const hover = def.flying ? radius * (1.05 + 0.12 * Math.sin(snapshot.elapsedSec * 4 + enemy.instanceId)) : 0;
-    // Walk cycle: a two-beat hop for anything on foot. Flyers already hover, so they skip it.
-    const walk = def.flying ? 0 : Math.abs(Math.sin(snapshot.elapsedSec * 6.5 + enemy.instanceId)) * radius * 0.16;
+    // Walk cycle: a two-beat hop for anything on foot. Flyers hover instead, and characters with a
+    // real frame animation bring their own cycle — stacking both would double the bounce.
+    const anim = ANIMATIONS[enemy.enemyId];
+    const walk =
+      def.flying || anim ? 0 : Math.abs(Math.sin(snapshot.elapsedSec * 6.5 + enemy.instanceId)) * radius * 0.16;
     const ey = oy + enemy.y * cs - hover - walk;
     const groundY = oy + enemy.y * cs;
 
@@ -615,8 +620,23 @@ function drawBoard(
       }
     }
 
-    const eSprite = getEnemySprite(enemy.enemyId);
-    if (spriteReady(eSprite)) {
+    // A real frame animation wins over the static sprite. The phase is offset per instance so a
+    // wave never marches in lockstep. A deeply chilled enemy plays 'idle' — it has stopped walking.
+    const clip = anim && (enemy.chilledUntilSec > snapshot.elapsedSec && enemy.chillFactor < 0.35 ? anim.idle : anim.walk);
+    const drewClip =
+      !!clip &&
+      drawClip(ctx, clip, snapshot.elapsedSec + enemy.instanceId * 0.137, ex, groundY + radius * 0.55, radius * 2.6);
+
+    const eSprite = drewClip ? null : getEnemySprite(enemy.enemyId);
+    if (drewClip) {
+      if (boss) {
+        ctx.strokeStyle = '#ffd76a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ex, ey, radius * 1.05, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else if (spriteReady(eSprite)) {
       // sprite sized to the enemy footprint, centred on the body
       const targetH = radius * 2.5;
       const scl = targetH / eSprite.naturalHeight;
