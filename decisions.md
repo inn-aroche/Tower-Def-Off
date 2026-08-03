@@ -1199,3 +1199,58 @@ la signature de frames générées indépendamment plutôt que dessinées comme 
 toujours dans les bornes, intégrité du set livré, ancres dans le cadre) + `build` verts. Aucune
 modification de `src/data` ⇒ pas de re-simulation. Vérification navigateur : 0 erreur console,
 gobelins animés et déphasés entre eux.
+
+## Phase 21 — Personnages 3D générés dans Blender
+
+**Il n'y a pas de serveur MCP Blender connecté à cette session** (les connecteurs disponibles sont
+Figma, Netlify, Notion, Supabase, monday, GitHub ; Stripe et Zapier demandent une autorisation).
+J'ai donc pris l'autre route : **`pip install bpy`** — Blender 5.0.1 comme module Python — qui tourne
+en headless dans le conteneur, rend en Cycles CPU (~0,4 s la frame en 192²).
+
+### Ce qui a été construit
+
+**`scripts/blender/build_character.py`** — construit, rigge, anime et rend un personnage :
+
+- **Modèle** : chibi assemblé en primitives (tête, oreilles, capuche, torse, ceinture, épaulière,
+  bras, jambes, visage, lanterne), palette et options (`ears`, `hood`, `prop`) dans un dictionnaire
+  `CHARACTERS` — **ajouter une unité, c'est de la donnée, pas du code**.
+- **Rig** : armature 8 os (root/hips/torso/head/arm.L,R/leg.L,R), chaque partie **rigid-parentée**
+  à un os. Le parentage d'os place l'origine de l'enfant sur la **queue** de l'os, pas sa tête :
+  calculer la matrice inverse à la main décalait chaque pièce d'une longueur d'os (les membres
+  partaient en morceaux). Corrigé en mémorisant la matrice monde avant parentage et en la
+  restaurant après.
+- **Animations** : idle 6 f, walk 8 f, attack 6 f, death 12 f, clés posées par formule (sinus
+  déphasés pour les cycles, poses clés pour l'attaque, chute amortie pour la mort). Les cycles sont
+  bouclés proprement (frame n+1 == frame 1).
+- **Sortie** : frames PNG + `goblin.animations.json` **dans le format exact** que
+  `scripts/build-animations.py` consomme déjà — donc aucune modification du pipeline ni du runtime.
+  Le **`.glb` riggé** est exporté dans `assets/models/` : c'est lui l'actif réutilisable, il se
+  re-pose et se re-rend sans repasser par la génération.
+
+Caméra orthographique 3/4 avant visée par contrainte Track-To (les angles d'Euler calculés à la
+main coupaient la tête hors cadre au premier essai). Freestyle est **désactivé** : sous Blender 5
+headless, le lineset arrive sans linestyle et chaque frame lève `NoneType has no attribute
+use_chaining` — l'outline sombre de l'art de référence sera à ajouter au compositing.
+
+### Le gain réel, et le problème réel
+
+**Gain** : la cohérence est parfaite *par construction*. Le défaut mesuré en phase 20 (le pack IA
+mélangeait deux designs dans une même boucle, l'épée apparaissait et disparaissait) **ne peut plus
+se produire** : toutes les frames viennent du même modèle sous la même caméra. Le poids baisse
+aussi — 147 Ko contre 179 Ko pour le pack IA, à nombre de frames égal.
+
+**Problème, et il est visible en jeu** : un personnage modélisé **par script à partir de primitives
+est nettement en dessous de l'art peint 2D**. Sur le plateau, les épéistes peints (contours noirs,
+matières travaillées) et les gobelins 3D (plastique lisse, sans contour) ne sont manifestement pas
+du même jeu. **L'intégration est faite comme demandé, mais c'est une régression visuelle** par
+rapport au pack peint de la phase 20.
+
+Revenir en arrière tient en une commande — le module précédent est dans l'historique :
+`git checkout 3e71a22 -- src/render/animations.ts`
+
+Ce que Blender apporterait vraiment, c'est le même pipeline avec des **modèles réellement
+sculptés** (silhouette, matières, textures de visage) plutôt que des sphères assemblées : là on
+aurait à la fois la cohérence *et* la qualité. C'est un travail d'artiste 3D, pas de script.
+
+**Verrous** : `typecheck` + **153 tests** + `build` verts, 0 erreur console en jeu, aucune
+modification de `src/data` ⇒ pas de re-simulation.
