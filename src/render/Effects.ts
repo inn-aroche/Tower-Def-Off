@@ -259,6 +259,13 @@ export class Effects {
    * cell size). Travels out and back over LUNGE_SEC with a matching scale punch, so an attacking
    * unit visibly commits to its blow. Returns null when the unit is idle.
    */
+  /** Seconds since this cell's unit started attacking, or null when it is idle. Drives the
+   * 'attack' clip of characters that have one. */
+  unitAttackTime(col: number, row: number): number | null {
+    const l = this.lunges.get(`${col},${row}`);
+    return l ? LUNGE_SEC - l.t : null;
+  }
+
   unitLunge(col: number, row: number): { dx: number; dy: number; scale: number } | null {
     const l = this.lunges.get(`${col},${row}`);
     if (!l) return null;

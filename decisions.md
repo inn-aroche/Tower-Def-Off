@@ -1254,3 +1254,73 @@ aurait à la fois la cohérence *et* la qualité. C'est un travail d'artiste 3D,
 
 **Verrous** : `typecheck` + **153 tests** + `build` verts, 0 erreur console en jeu, aucune
 modification de `src/data` ⇒ pas de re-simulation.
+
+## Phase 22 — Le roster complet en 3D (16 personnages)
+
+Arbitrage utilisateur : **affiner les modèles procéduraux** plutôt que d'importer des `.glb`
+externes, et **modéliser les 15 tours** de la planche de référence comme le gobelin.
+
+### Style de rendu — le contour
+
+L'art de référence est défini par son **contour sombre**. Freestyle étant inutilisable (phase 21),
+je l'ai obtenu par **coque inversée** : un modificateur Solidify épaissit une coque vers l'extérieur
+avec les normales retournées et un 2ᵉ slot matériau. Deux pièges, tous deux rencontrés :
+
+1. **Cycles n'a pas de back-face culling** — une coque noire recouvre simplement tout le personnage
+   (premier essai : une silhouette entièrement noire). Le matériau fait donc le culling lui-même :
+   les faces proches de la caméra sont *backfacing* (normales retournées) ⇒ transparentes ; les
+   faces lointaines émettent le noir et ne se voient que là où elles dépassent de la silhouette.
+2. **La coque bloquait la lumière** : le personnage se retrouvait dans sa propre ombre. Corrigé en
+   ne rendant l'encre visible **que pour les rayons caméra** (nœud Light Path).
+3. L'épaisseur est locale et les pièces sont mises à l'échelle non-uniformément : diviser par le
+   **plus petit** axe transformait les sourcils et les oreilles en pâtés noirs. Diviser par le plus
+   **grand** donne un trait lisible partout, et les micro-détails (pupilles, sourcils, boucle) sont
+   passés sans contour.
+
+### Les archétypes
+
+Ajouter 15 unités ne pouvait pas être 15 fois du code. Le générateur expose 4 archétypes —
+`humanoid`, `machine` (engin de siège à roues + bras de lancer), `arcane` (socle + cœur flottant),
+`golem` — et **tous partagent le même squelette 8 os**. C'est ce qui permet à un seul jeu de
+fonctions d'animation de piloter indifféremment un personnage, une catapulte ou un portail : le
+cœur arcanique est bindé sur l'os `head`, donc l'idle partagé le fait léviter tout seul.
+
+Une entrée de roster est un appel à `unit(...)` : couleurs, casque, capuche, arme, bouclier, clips.
+**16 personnages, 0 ligne de code spécifique.**
+
+Deux défauts corrigés après première passe visuelle : sans casque, toutes les unités blindées
+étaient le même crâne chauve (ajout de `helmet` — plain/horned/crested/plume) ; et les 3 engins
+arcaniques étaient un même globe blanc surexposé (émission 6 → 1,6, et cœurs distincts —
+anneau / orbe / vortex).
+
+### Clips rendus, et pourquoi pas plus
+
+Le constat de la phase 20 est appliqué : **on ne rend que ce que le jeu peut montrer**.
+Une défense ne marche jamais ⇒ `idle` + `attack`. Un ennemi ne s'arrête jamais pour combattre ⇒
+`idle` + `walk` + `death`. Les 3 unités offensives remontent le chemin ⇒ + `walk`.
+Les cycles ont aussi été raccourcis (idle 6→4 f, attack 6→5 f, death 12→10 f).
+
+`scripts/build-animations.py` accepte maintenant `--all` : un dossier racine, un sous-dossier par
+personnage, un seul module en sortie.
+
+### Le prix, mesuré
+
+**Le bundle passe de 1 043 Ko à 1 757 Ko** (+714 Ko) pour 16 personnages animés, soit 626 Ko de
+webp. C'est exactement le mur annoncé en phase 20 : l'inlining en data-URI n'est tenable que pour
+l'artefact partageable. **Le build mobile devra charger les frames comme fichiers** — le pipeline
+n'aura qu'à écrire un dossier au lieu d'un module, mais c'est un chantier à faire avant toute
+soumission store.
+
+### Limites assumées
+
+- Les **cartes de la main restent en art peint 2D** alors que les unités posées sont en 3D : la
+  carte et l'unité qu'elle invoque ne se ressemblent plus. Il faudrait rendre les portraits de
+  cartes depuis les mêmes modèles.
+- Les **85 unités générées** n'ont pas de modèle et gardent le sprite peint emprunté (phase 18).
+- La **catapulte** garde un boulet qui flotte, détaché du bras ; le **golem** manque de contraste.
+  Ce sont des limites de la modélisation par primitives, pas du pipeline.
+- Les `.glb` riggés sont versionnés dans `assets/models/` (3,2 Mo) : ce sont eux l'actif
+  réutilisable, tout le reste se régénère.
+
+**Verrous** : `typecheck` + **153 tests** + `build` verts, 0 erreur console en jeu, aucune
+modification de `src/data` ⇒ pas de re-simulation.

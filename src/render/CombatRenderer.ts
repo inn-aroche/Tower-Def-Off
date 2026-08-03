@@ -157,6 +157,8 @@ export interface CombatFx {
   pulseSec?: number;
   /** Attack recoil for the unit on a cell, in cell units (see Effects.unitLunge). */
   unitLunge?: (col: number, row: number) => { dx: number; dy: number; scale: number } | null;
+  /** Seconds into the current attack for the unit on a cell (see Effects.unitAttackTime). */
+  unitAttackTime?: (col: number, row: number) => number | null;
 }
 
 /**
@@ -528,8 +530,28 @@ function drawBoard(
     ctx.ellipse(x + cs / 2 + animX * 0.5, y + cs - pad * 0.6, size * (0.48 - bob * 0.5), size * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    const sprite = getUnitSprite(unit.unitId, def.family, def.rarity);
-    if (spriteReady(sprite)) {
+    // A character with real frame animations plays them instead of the static sprite: 'attack'
+    // while its lunge is running, 'idle' otherwise. The procedural bob and lunge are skipped —
+    // the clip already carries that motion.
+    const uAnim = ANIMATIONS[unit.unitId];
+    const attackT = uAnim?.attack ? fx.unitAttackTime?.(unit.col, unit.row) ?? null : null;
+    const uClip = uAnim && (attackT !== null ? uAnim.attack : uAnim.idle);
+    const drewUnitClip =
+      !!uClip &&
+      drawClip(ctx, uClip, attackT ?? snapshot.elapsedSec + (unit.col * 3 + unit.row) * 0.21,
+               x + cs / 2, y + cs - cs * 0.04, cs * 1.02);
+
+    const sprite = drewUnitClip ? null : getUnitSprite(unit.unitId, def.family, def.rarity);
+    if (drewUnitClip) {
+      if (selected) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,246,217,0.9)';
+        ctx.lineWidth = 3;
+        roundRectPath(ctx, x + pad * 0.6, y + pad * 0.6, cs - pad * 1.2, cs - pad * 1.2, r);
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else if (spriteReady(sprite)) {
       // selected: glowing halo behind the sprite
       if (selected) {
         ctx.save();
@@ -742,7 +764,13 @@ function drawBoard(
     ctx.arc(ax, ay, ar * 1.15, 0, Math.PI * 2);
     ctx.stroke();
     const allyDef = render.unitDefs.get(ally.unitId);
-    const sprite = getUnitSprite(ally.unitId, allyDef?.family ?? 'melee', allyDef?.rarity);
+    const allyAnim = ANIMATIONS[ally.unitId];
+    const allyClip = allyAnim?.walk ?? allyAnim?.idle;
+    const drewAllyClip =
+      !!allyClip &&
+      drawClip(ctx, allyClip, snapshot.elapsedSec + ally.instanceId * 0.137, ax,
+               oy + ally.y * cs + ar * 0.5, cs * 1.0);
+    const sprite = drewAllyClip ? null : getUnitSprite(ally.unitId, allyDef?.family ?? 'melee', allyDef?.rarity);
     if (spriteReady(sprite)) {
       const th = cs * 1.0;
       const w = (sprite.naturalWidth / sprite.naturalHeight) * th;
