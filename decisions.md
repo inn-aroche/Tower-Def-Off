@@ -1324,3 +1324,62 @@ soumission store.
 
 **Verrous** : `typecheck` + **153 tests** + `build` verts, 0 erreur console en jeu, aucune
 modification de `src/data` ⇒ pas de re-simulation.
+
+## Phase 23 — Passe qualité : matières, éclairage, silhouettes, poses
+
+Suite du feu vert « améliore le design et les détails ». Quatre leviers travaillés dans le script,
+plus deux régressions attrapées à l'œil et corrigées avant intégration.
+
+### 1. Matières
+`material()` acceptait un seul `roughness` pour tout : acier, cuir et peau réfléchissaient pareil,
+d'où l'aspect plastique mat. Chaque famille a maintenant sa propre réponse — **métal** (`Metallic=1,
+Roughness≈0.34`), **tissu/pierre** (`Roughness≈0.92`), **peau** (`Roughness≈0.62` + un soupçon de
+sous-surface). Une **couleur d'accent** (`accent`) par unité habille bords d'armure et boucles.
+
+### 2. Éclairage
+Trois lumières blanches ne donnaient aucun contraste de couleur, et le film transparent ne renvoie
+aucune ambiance. Remplacé par **key chaude / fill froide / rim** (le classique orangé-bleu) plus une
+**couleur de monde** ambiante légère pour que les zones d'ombre ne tombent pas au noir pur. Palette
+de base également **plus saturée** (+20-30 %) pour se rapprocher de la planche peinte.
+
+### 3. Silhouettes
+Épéiste, lancier, gardien et champion étaient le même corps avec un chapeau différent. Trois
+paramètres ajoutés à `unit()` — **`bulk`** (épaisseur torse/membres), **`head`** (ratio tête/corps),
+**`stance`** (écartement des jambes) — plus un **`size`** global appliqué à l'échelle du rig entier
+(uniforme, donc les proportions internes ne se déforment pas). Chaque unité a désormais sa propre
+carrure.
+
+### 4. Poses de repos
+Tout le monde était au garde-à-vous. Un dictionnaire `REST_POSES` (garde à l'arme, tir à l'arc,
+lanceur de sorts, lourd) est ajouté **comme offset** dans `key()` — l'animation continue de jouer
+par-dessus, donc aucune duplication de logique d'animation.
+
+### Deux régressions attrapées à l'œil, corrigées avant intégration
+
+1. **Casque = masque complet.** La première passe couvrait tout le visage (grande visière), les
+   yeux flottaient bizarrement à la surface du métal. Redessiné en **casque ouvert** : calotte sur
+   le dessus/l'arrière du crâne, bandeau fin au front, coquilles aux joues — le visage reste visible,
+   ce qui compte plus que le réalisme du casque à cette échelle.
+2. **La pose d'archer envoyait l'arc voler.** Une rotation de bras trop large (~60°), combinée à un
+   arc trop grand et rigidement lié à l'os du bras, le faisait sortir de la silhouette et se lire
+   comme un anneau flottant, déconnecté du corps. Rotation réduite (~28°), arc rapproché de la main
+   et rapetissé. **Et un vrai bug de forme** : un tore Blender est à plat par défaut (axe Z) — avec
+   une rotation quasi nulle il présentait sa tranche à la caméra et se lisait comme une palette, pas
+   un arc. Corrigé en le redressant de 90° pour qu'il fasse face à la caméra.
+
+### Résultat mesuré
+
+`typecheck` + **153 tests** + `build` verts. Bundle **1 043 → 1 746 Ko** (+703 Ko pour 16
+personnages animés, 619 Ko de webp) — cohérent avec le mur annoncé en phase 22. 0 erreur console en
+jeu ; capture de combat confirmant visages visibles, casques lisibles, plateau cohérent avec
+lui-même (défenses et ennemis dans le même traitement matière/lumière).
+
+### Limites qui subsistent
+
+- L'arc reste un anneau stylisé, pas une silhouette de bois courbé — correct à la taille d'affichage,
+  mais ne résisterait pas à un zoom.
+- Le boulet de catapulte flotte toujours détaché du bras (non retouché cette passe).
+- Les **cartes de main restent en art peint 2D** pendant que les unités posées sont en 3D — écart
+  déjà noté en phase 22, pas encore traité.
+- Plafond de l'assemblage par primitives inchangé : bon prototype lisible, pas la richesse de la
+  planche peinte de référence.

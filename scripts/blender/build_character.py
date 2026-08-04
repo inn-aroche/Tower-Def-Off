@@ -35,53 +35,65 @@ def unit(archetype, cloth, cloth2, *, skin=(0.94, 0.76, 0.60, 1), metal=STEEL, g
             'clips': list(clips), **extra}
 
 
-GREEN_CLOTH = (0.16, 0.42, 0.20, 1)
-BROWN = (0.40, 0.24, 0.12, 1)
-ICE = (0.55, 0.82, 0.92, 1)
-ARCANE = (0.34, 0.20, 0.48, 1)
+# Saturated on purpose: the first pass sat 20-30 % below the painted reference and read washed out.
+GREEN_CLOTH = (0.10, 0.46, 0.16, 1)
+BROWN = (0.42, 0.22, 0.08, 1)
+ICE = (0.45, 0.85, 1.00, 1)
+BLUE = (0.10, 0.36, 0.78, 1)
 
 CHARACTERS = {
     # ── enemies: they march and they die, they never stop to fight ──────────────
     'goblin': {
-        'archetype': 'humanoid', 'skin': (0.30, 0.62, 0.10, 1), 'cloth': (0.40, 0.20, 0.08, 1),
-        'cloth2': (0.14, 0.22, 0.08, 1), 'metal': STEEL, 'glow': (1.0, 0.52, 0.06, 1),
-        'ears': 'long', 'hood': True, 'prop': 'lantern', 'shield': False,
+        'archetype': 'humanoid', 'skin': (0.28, 0.66, 0.08, 1), 'cloth': (0.42, 0.20, 0.06, 1),
+        'cloth2': (0.12, 0.24, 0.06, 1), 'metal': STEEL, 'glow': (1.0, 0.50, 0.04, 1),
+        'accent': (0.62, 0.45, 0.14, 1), 'ears': 'long', 'hood': True, 'prop': 'lantern',
+        'shield': False, 'pose': 'heavy', 'bulk': 0.95, 'head': 1.06, 'stance': 1.1, 'size': 0.92,
         'clips': ['idle', 'walk', 'attack', 'death'],
     },
 
     # ── defensive units: they hold a cell and strike from it ───────────────────
-    'swordsman': unit('humanoid', (0.42, 0.45, 0.52, 1), (0.30, 0.20, 0.14, 1),
-                      prop='sword', shield=True, helmet='plain', glow=(0.30, 0.62, 0.95, 1)),
-    'archer': unit('humanoid', GREEN_CLOTH, BROWN, hood=True, prop='bow'),
-    'lancer': unit('humanoid', (0.38, 0.41, 0.48, 1), (0.26, 0.28, 0.34, 1),
-                   prop='spear', shield=True, glow=(0.30, 0.62, 0.95, 1), helmet='horned'),
-    'scout': unit('humanoid', (0.22, 0.46, 0.24, 1), BROWN, hood=True, prop='sword'),
-    'catapult': unit('machine', (0.44, 0.28, 0.14, 1), (0.30, 0.19, 0.10, 1),
-                     glow=(0.52, 0.50, 0.48, 1)),
-    'guardian': unit('humanoid', (0.46, 0.49, 0.56, 1), (0.20, 0.34, 0.55, 1),
-                     prop='spear', shield=True, glow=(0.30, 0.62, 0.95, 1), helmet='plume'),
-    'frost_archer': unit('humanoid', (0.62, 0.80, 0.90, 1), (0.75, 0.72, 0.40, 1),
-                         hood=True, prop='bow', glow=ICE),
-    'gravity_well': unit('arcane', (0.24, 0.20, 0.32, 1), (0.18, 0.15, 0.26, 1),
-                         glow=(0.60, 0.25, 0.90, 1), core='ring'),
-    'repulsor': unit('arcane', (0.26, 0.22, 0.34, 1), (0.18, 0.15, 0.26, 1),
-                     glow=(0.72, 0.35, 0.95, 1)),
-    'golem': unit('golem', (0.44, 0.34, 0.24, 1), (0.34, 0.26, 0.18, 1),
-                  glow=(0.55, 0.90, 0.25, 1)),
-    'storm_caller': unit('humanoid', (0.16, 0.28, 0.52, 1), GOLD, hood=True, prop='staff',
-                         glow=(0.40, 0.80, 1.0, 1)),
-    'singularity': unit('arcane', (0.20, 0.16, 0.30, 1), (0.14, 0.12, 0.22, 1),
-                        glow=(0.85, 0.45, 1.0, 1), core='vortex'),
+    'swordsman': unit('humanoid', (0.34, 0.40, 0.52, 1), (0.34, 0.18, 0.08, 1),
+                      prop='sword', shield=True, helmet='plain', glow=BLUE, accent=GOLD,
+                      pose='guard', bulk=1.05, size=1.0),
+    'archer': unit('humanoid', GREEN_CLOTH, BROWN, hood=True, prop='bow', accent=GOLD,
+                   pose='archer', bulk=0.88, head=1.02, stance=0.9, size=0.96),
+    'lancer': unit('humanoid', (0.30, 0.36, 0.50, 1), (0.20, 0.24, 0.34, 1),
+                   prop='spear', shield=True, glow=BLUE, helmet='horned', accent=(0.75, 0.78, 0.85, 1),
+                   pose='guard', bulk=1.10, stance=1.15, size=1.02),
+    'scout': unit('humanoid', (0.14, 0.50, 0.20, 1), BROWN, hood=True, prop='sword', accent=GOLD,
+                  pose='archer', bulk=0.82, head=0.98, stance=0.85, size=0.9),
+    'catapult': unit('machine', (0.46, 0.26, 0.08, 1), (0.30, 0.16, 0.06, 1),
+                     glow=(0.46, 0.44, 0.42, 1), accent=(0.62, 0.45, 0.14, 1), size=1.05),
+    'guardian': unit('humanoid', (0.38, 0.44, 0.56, 1), (0.10, 0.32, 0.62, 1),
+                     prop='spear', shield=True, glow=BLUE, helmet='plume', accent=GOLD,
+                     pose='guard', bulk=1.22, stance=1.2, size=1.06),
+    'frost_archer': unit('humanoid', (0.55, 0.82, 0.96, 1), (0.82, 0.76, 0.32, 1),
+                         hood=True, prop='bow', glow=ICE, accent=(0.80, 0.92, 1.0, 1),
+                         pose='archer', bulk=0.88, size=0.97),
+    'gravity_well': unit('arcane', (0.22, 0.16, 0.36, 1), (0.14, 0.11, 0.26, 1),
+                         glow=(0.62, 0.18, 0.96, 1), accent=(0.70, 0.55, 0.95, 1), core='ring'),
+    'repulsor': unit('arcane', (0.24, 0.18, 0.38, 1), (0.14, 0.11, 0.26, 1),
+                     glow=(0.78, 0.30, 1.0, 1), accent=(0.70, 0.55, 0.95, 1)),
+    'golem': unit('golem', (0.40, 0.30, 0.18, 1), (0.26, 0.19, 0.11, 1),
+                  glow=(0.50, 1.0, 0.16, 1), accent=(0.55, 0.42, 0.24, 1), size=1.18),
+    'storm_caller': unit('humanoid', (0.08, 0.24, 0.60, 1), GOLD, hood=True, prop='staff',
+                         glow=(0.35, 0.85, 1.0, 1), accent=GOLD,
+                         pose='caster', bulk=0.92, head=1.05, size=0.98),
+    'singularity': unit('arcane', (0.18, 0.13, 0.32, 1), (0.11, 0.09, 0.22, 1),
+                        glow=(0.90, 0.38, 1.0, 1), accent=(0.75, 0.55, 1.0, 1), core='vortex'),
 
     # ── offensive units: these march up the path, so they need a walk cycle ────
-    'raider': unit('humanoid', (0.44, 0.26, 0.14, 1), (0.28, 0.18, 0.10, 1), skin=(0.32, 0.60, 0.14, 1),
-                   ears='long', hood=True, prop='axe', clips=('idle', 'walk', 'attack')),
-    'skirmisher': unit('humanoid', (0.28, 0.44, 0.26, 1), BROWN, hood=True, prop='bow',
-                       clips=('idle', 'walk', 'attack')),
-    'champion': unit('humanoid', (0.50, 0.42, 0.22, 1), (0.34, 0.26, 0.16, 1), metal=GOLD,
-                     prop='sword', shield=True, helmet='crested', clips=('idle', 'walk', 'attack')),
+    'raider': unit('humanoid', (0.48, 0.24, 0.08, 1), (0.26, 0.15, 0.06, 1), skin=(0.30, 0.64, 0.10, 1),
+                   ears='long', hood=True, prop='axe', accent=(0.62, 0.45, 0.14, 1),
+                   pose='heavy', bulk=1.0, stance=1.1, size=0.94,
+                   clips=('idle', 'walk', 'attack')),
+    'skirmisher': unit('humanoid', (0.18, 0.48, 0.24, 1), BROWN, hood=True, prop='bow', accent=GOLD,
+                       pose='archer', bulk=0.86, size=0.95, clips=('idle', 'walk', 'attack')),
+    'champion': unit('humanoid', (0.56, 0.42, 0.12, 1), (0.30, 0.20, 0.10, 1), metal=GOLD,
+                     prop='sword', shield=True, helmet='crested', accent=GOLD,
+                     pose='guard', bulk=1.18, stance=1.15, size=1.08,
+                     clips=('idle', 'walk', 'attack')),
 }
-
 CLIPS = {
     'idle': {'frames': 4, 'fps': 4, 'loop': True},
     'walk': {'frames': 8, 'fps': 9, 'loop': True},
@@ -93,16 +105,34 @@ RES = 192
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
-def material(name, rgba, emission=0.0):
+def material(name, rgba, emission=0.0, metallic=0.0, roughness=0.75, subsurface=0.0):
+    """One uniform roughness for everything is what made the first pass read as matte plastic:
+    steel, leather and skin all reflected identically. Each family now gets its own response."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     bsdf = m.node_tree.nodes['Principled BSDF']
     bsdf.inputs['Base Color'].default_value = rgba
-    bsdf.inputs['Roughness'].default_value = 0.75
+    bsdf.inputs['Roughness'].default_value = roughness
+    bsdf.inputs['Metallic'].default_value = metallic
+    if subsurface and 'Subsurface Weight' in bsdf.inputs:
+        bsdf.inputs['Subsurface Weight'].default_value = subsurface
+        bsdf.inputs['Subsurface Radius'].default_value = (0.6, 0.22, 0.15)
     if emission:
         bsdf.inputs['Emission Color'].default_value = rgba
         bsdf.inputs['Emission Strength'].default_value = emission
     return m
+
+
+def palette(spec):
+    """The five materials every archetype shares, with the right surface response for each."""
+    return {
+        'skin': material('skin', spec['skin'], roughness=0.62, subsurface=0.18),
+        'cloth': material('cloth', spec['cloth'], roughness=0.92),
+        'cloth2': material('cloth2', spec['cloth2'], roughness=0.92),
+        'metal': material('metal', spec['metal'], metallic=1.0, roughness=0.34),
+        'accent': material('accent', spec.get('accent', spec['metal']), metallic=1.0, roughness=0.28),
+        'glow': material('glow', spec['glow'], emission=spec.get('emission', 3.0)),
+    }
 
 
 _ink = None
@@ -188,23 +218,28 @@ def shape(kind, name, loc, scale, mat, rot=(0, 0, 0), outline=0.04):
 
 def build_humanoid(spec):
     """A chibi character. Z is up, the character faces -Y (toward the camera)."""
-    skin = material('skin', spec['skin'])
-    cloth = material('cloth', spec['cloth'])
-    cloth2 = material('cloth2', spec['cloth2'])
-    metal = material('metal', spec['metal'])
-    glow = material('glow', spec['glow'], emission=3.0)
+    pal = palette(spec)
+    skin, cloth, cloth2 = pal['skin'], pal['cloth'], pal['cloth2']
+    metal, accent, glow = pal['metal'], pal['accent'], pal['glow']
+    bulk = spec.get('bulk', 1.0)      # torso / limb thickness
+    headr = spec.get('head', 1.0)     # head-to-body ratio
+    stance = spec.get('stance', 1.0)  # how wide the feet sit
 
     parts = {'hips': [], 'torso': [], 'head': [], 'arm.L': [], 'arm.R': [], 'leg.L': [], 'leg.R': []}
 
-    parts['hips'].append(shape('sphere', 'pelvis', (0, 0, 0.62), (0.30, 0.26, 0.20), cloth2))
-    parts['torso'].append(shape('sphere', 'chest', (0, 0, 0.86), (0.34, 0.29, 0.28), cloth))
+    parts['hips'].append(
+        shape('sphere', 'pelvis', (0, 0, 0.62), (0.30 * bulk, 0.26 * bulk, 0.20), cloth2))
+    parts['torso'].append(
+        shape('sphere', 'chest', (0, 0, 0.86), (0.34 * bulk, 0.29 * bulk, 0.28), cloth))
     # belt hugs the waist (a flat cube reads as a plank sticking out of the body)
-    parts['torso'].append(shape('sphere', 'belt', (0, 0, 0.68), (0.33, 0.28, 0.055), cloth2))
+    parts['torso'].append(
+        shape('sphere', 'belt', (0, 0, 0.68), (0.33 * bulk, 0.28 * bulk, 0.055), cloth2))
     parts['torso'].append(shape('cube', 'buckle', (0, -0.26, 0.68), (0.055, 0.03, 0.05), metal, outline=0))
     parts['torso'].append(
         shape('sphere', 'pauldron', (0.34, -0.05, 1.00), (0.17, 0.15, 0.07), metal, rot=(0, 0.5, 0)))
 
-    parts['head'].append(shape('sphere', 'head', (0, 0, 1.32), (0.42, 0.40, 0.40), skin))
+    parts['head'].append(
+        shape('sphere', 'head', (0, 0, 1.32), (0.42 * headr, 0.40 * headr, 0.40 * headr), skin))
     if spec['ears'] == 'long':
         for side, sx in (('L', 1), ('R', -1)):
             parts['head'].append(
@@ -212,8 +247,18 @@ def build_humanoid(spec):
                       rot=(0, sx * 1.15, 0)))
     helmet = spec.get('helmet')
     if helmet:
-        parts['head'].append(shape('sphere', 'helm', (0, 0.02, 1.40), (0.44, 0.42, 0.34), metal))
-        parts['head'].append(shape('sphere', 'visor', (0, -0.20, 1.28), (0.40, 0.26, 0.10), metal))
+        # First pass made 'helm' + 'visor' spheres big enough to swallow the whole face — the eyes
+        # ended up floating on a metal mask instead of reading as a person under a hood of steel.
+        # An open-face helm reads better at this size: a cap over the top/back of the skull, plus a
+        # thin brow band, with nothing in front of the eyes, nose or mouth.
+        parts['head'].append(
+            shape('sphere', 'helm', (0, 0.14, 1.40), (0.44 * headr, 0.38 * headr, 0.34 * headr), metal))
+        parts['head'].append(
+            shape('cube', 'brow', (0, -0.31, 1.42), (0.38 * headr, 0.05, 0.045), metal))
+        for side, sx in (('L', 1), ('R', -1)):
+            parts['head'].append(
+                shape('sphere', f'cheek.{side}', (sx * 0.38 * headr, -0.14, 1.24),
+                      (0.07, 0.16, 0.14), metal))
         if helmet == 'horned':
             for side, sx in (('L', 1), ('R', -1)):
                 parts['head'].append(
@@ -246,17 +291,27 @@ def build_humanoid(spec):
     parts['head'].append(shape('sphere', 'snout', (0, -0.33, 1.22), (0.15, 0.10, 0.09), skin))
 
     for side, sx in (('L', 1), ('R', -1)):
+        ax_ = sx * (0.40 * bulk)
+        lx = sx * (0.17 * stance)
         parts[f'arm.{side}'].append(
-            shape('sphere', f'arm.{side}', (sx * 0.40, 0, 0.86), (0.13, 0.13, 0.24), cloth))
+            shape('sphere', f'arm.{side}', (ax_, 0, 0.86), (0.13 * bulk, 0.13 * bulk, 0.24), cloth))
         parts[f'arm.{side}'].append(
-            shape('sphere', f'hand.{side}', (sx * 0.42, -0.02, 0.64), (0.12, 0.12, 0.11), skin))
+            shape('sphere', f'hand.{side}', (ax_ + sx * 0.02, -0.02, 0.64),
+                  (0.12 * bulk, 0.12 * bulk, 0.11), skin))
         parts[f'leg.{side}'].append(
-            shape('sphere', f'leg.{side}', (sx * 0.17, 0, 0.30), (0.14, 0.14, 0.28), cloth2))
+            shape('sphere', f'leg.{side}', (lx, 0, 0.30), (0.14 * bulk, 0.14 * bulk, 0.28), cloth2))
         parts[f'leg.{side}'].append(
-            shape('sphere', f'foot.{side}', (sx * 0.17, -0.08, 0.09), (0.16, 0.20, 0.09), cloth))
+            shape('sphere', f'foot.{side}', (lx, -0.08, 0.09), (0.16 * bulk, 0.20, 0.09), cloth))
+        # trim: the small ornament that separates "finished" from "prototype"
+        parts[f'arm.{side}'].append(
+            shape('sphere', f'cuff.{side}', (ax_, 0, 0.70), (0.135 * bulk, 0.135 * bulk, 0.035),
+                  accent, outline=0))
 
     add_prop(parts, spec, skin, cloth, metal, glow)
-    return rig(parts)
+    arm = rig(parts)
+    arm.scale = (spec.get('size', 1.0),) * 3   # uniform: silhouette scale without distortion
+    bpy.context.view_layer.update()
+    return arm
 
 
 def add_prop(parts, spec, skin, cloth, metal, glow):
@@ -276,9 +331,14 @@ def add_prop(parts, spec, skin, cloth, metal, glow):
         parts['arm.R'].append(shape('cylinder', 'shaft', (-0.52, -0.10, 0.92), (0.024, 0.024, 0.48), cloth))
         parts['arm.R'].append(shape('cone', 'tip', (-0.52, -0.10, 1.44), (0.055, 0.055, 0.12), metal))
     elif prop == 'bow':
-        parts['arm.R'].append(shape('torus', 'bow', (-0.50, -0.12, 0.80), (0.30, 0.09, 0.30), cloth,
-                                    rot=(0, 0.25, 0)))
-        parts['arm.R'].append(shape('cylinder', 'arrow', (-0.50, -0.16, 0.80), (0.014, 0.014, 0.22), metal,
+        # Smaller and closer to the hand: at the old 0.30 radius, even a moderate draw pose swung
+        # it past the silhouette and it read as a ring floating next to the character. A torus is
+        # flat-on-the-ground by default (its axis is Z); with almost no rotation it presented its
+        # THIN edge to the camera and read as a paddle, not a bow. Rotating 90° about X stands the
+        # ring up facing the camera, so it actually reads as a bow.
+        parts['arm.R'].append(shape('torus', 'bow', (-0.46, -0.10, 0.66), (0.22, 0.06, 0.22), cloth,
+                                    rot=(math.pi / 2, 0.15, 0)))
+        parts['arm.R'].append(shape('cylinder', 'arrow', (-0.46, -0.13, 0.66), (0.012, 0.012, 0.17), metal,
                                     rot=(math.pi / 2, 0, 0)))
     elif prop == 'staff':
         parts['arm.R'].append(shape('cylinder', 'staff', (-0.52, -0.10, 0.92), (0.026, 0.026, 0.50), cloth))
@@ -333,9 +393,8 @@ def rig(parts):
 
 def build_machine(spec):
     """A siege engine: wheeled frame + a throwing arm bound to arm.R so 'attack' recoils it."""
-    wood = material('wood', spec['cloth'])
-    metal = material('metal', spec['metal'])
-    glow = material('glow', spec['glow'], emission=3.0)
+    pal = palette(spec)
+    wood, metal, glow, accent = pal['cloth'], pal['metal'], pal['glow'], pal['accent']
     parts = {'hips': [], 'torso': [], 'head': [], 'arm.L': [], 'arm.R': [], 'leg.L': [], 'leg.R': []}
     parts['hips'].append(shape('cube', 'frame', (0, 0, 0.34), (0.42, 0.30, 0.16), wood))
     parts['hips'].append(shape('cube', 'beam', (0, 0, 0.54), (0.12, 0.26, 0.10), wood))
@@ -359,10 +418,11 @@ def build_machine(spec):
 def build_arcane(spec):
     """A gravity device: a stone base with a floating core bound to 'head', so the shared idle
     animation makes it hover and the attack pose makes it lurch."""
-    stone = material('stone', spec['cloth'])
-    metal = material('metal', spec['metal'])
+    pal = palette(spec)
+    stone, metal, accent = pal['cloth'], pal['metal'], pal['accent']
     # Emission 6 washed the core to a featureless white ball and made all three devices identical.
     glow = material('glow', spec['glow'], emission=1.6)
+    accent = pal['accent']
     parts = {'hips': [], 'torso': [], 'head': [], 'arm.L': [], 'arm.R': [], 'leg.L': [], 'leg.R': []}
     parts['hips'].append(shape('cylinder', 'base', (0, 0, 0.16), (0.46, 0.46, 0.16), stone))
     parts['hips'].append(shape('cylinder', 'ring', (0, 0, 0.34), (0.34, 0.34, 0.05), metal))
@@ -390,9 +450,10 @@ def build_arcane(spec):
 
 def build_golem(spec):
     """A rock creature — the humanoid skeleton with boulders instead of limbs."""
-    rock = material('rock', spec['cloth'])
-    rock2 = material('rock2', spec['cloth2'])
+    pal = palette(spec)
+    rock, rock2, accent = pal['cloth'], pal['cloth2'], pal['accent']
     glow = material('glow', spec['glow'], emission=2.2)
+    accent = pal['accent']
     parts = {'hips': [], 'torso': [], 'head': [], 'arm.L': [], 'arm.R': [], 'leg.L': [], 'leg.R': []}
     parts['hips'].append(shape('sphere', 'pelvis', (0, 0, 0.58), (0.34, 0.30, 0.22), rock2))
     parts['torso'].append(shape('sphere', 'chest', (0, 0, 0.92), (0.46, 0.38, 0.34), rock))
@@ -423,11 +484,17 @@ def build(spec):
 
 
 # ── animation ────────────────────────────────────────────────────────────────
+REST = {}
+
+
 def key(arm, bone, frame, rot=None, loc=None):
+    """Keys a bone, offset by the character's rest pose. Without it every unit stood to
+    attention, arms straight down — the single biggest reason the roster looked lifeless."""
     pb = arm.pose.bones[bone]
     pb.rotation_mode = 'XYZ'
     if rot is not None:
-        pb.rotation_euler = rot
+        base = REST.get(bone, (0, 0, 0))
+        pb.rotation_euler = (rot[0] + base[0], rot[1] + base[1], rot[2] + base[2])
         pb.keyframe_insert('rotation_euler', frame=frame)
     if loc is not None:
         pb.location = loc
@@ -439,7 +506,7 @@ def animate(arm, clip, n):
     arm.animation_data_clear()
     for pb in arm.pose.bones:
         pb.rotation_mode = 'XYZ'
-        pb.rotation_euler = (0, 0, 0)
+        pb.rotation_euler = REST.get(pb.name, (0, 0, 0))
         pb.location = (0, 0, 0)
 
     if clip == 'idle':
@@ -527,9 +594,10 @@ def setup_scene():
     c.track_axis = 'TRACK_NEGATIVE_Z'
     c.up_axis = 'UP_Y'
 
-    def light(kind, loc, energy, size=3.0, rot=(0, 0, 0)):
+    def light(kind, loc, energy, size=3.0, rot=(0, 0, 0), color=(1, 1, 1)):
         d = bpy.data.lights.new('l', type=kind)
         d.energy = energy
+        d.color = color
         if kind == 'AREA':
             d.size = size
         o = bpy.data.objects.new('l', d)
@@ -537,9 +605,17 @@ def setup_scene():
         o.rotation_euler = rot
         s.collection.objects.link(o)
 
-    light('SUN', (2, -3, 5), 3.2, rot=(math.radians(35), 0, math.radians(35)))
-    light('AREA', (-2.5, -2, 2), 220)   # fill
-    light('AREA', (0, 3, 2.6), 160)     # rim
+    # Three white lights gave no colour contrast, and a transparent film returns no bounce, so
+    # every shadow fell to grey. Warm key / cool fill / bright rim sculpts the volume for free.
+    light('SUN', (2, -3, 5), 4.0, color=(1.0, 0.93, 0.80),
+          rot=(math.radians(35), 0, math.radians(35)))
+    light('AREA', (-2.6, -2.2, 1.9), 260, color=(0.62, 0.74, 1.0))          # cool fill
+    light('AREA', (-0.6, 2.8, 3.0), 420, color=(1.0, 0.88, 0.72), size=2)   # rim, behind-left
+    world = bpy.data.worlds.new('w')
+    world.use_nodes = True
+    world.node_tree.nodes['Background'].inputs['Color'].default_value = (0.42, 0.46, 0.52, 1)
+    world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.35
+    s.world = world
 
 
 def render_clip(arm, clip, cfg, out_dir, char_id):
@@ -555,9 +631,31 @@ def render_clip(arm, clip, cfg, out_dir, char_id):
     return [f'frames/{clip}/{char_id}_{clip}_{i:02d}.png' for i in range(n)]
 
 
+REST_POSES = {
+    # weapon-forward guard: chest turned, weapon arm cocked, shield arm across the body
+    'guard': {'torso': (0.05, 0, -0.12), 'head': (0.02, 0, 0.10),
+              'arm.R': (-0.55, 0, -0.30), 'arm.L': (-0.25, 0, 0.45),
+              'leg.L': (0.10, 0, 0.10), 'leg.R': (-0.10, 0, -0.10)},
+    # drawing a bow: the first pass rotated the arms so far that the bow (rigidly bound to arm.R)
+    # swung out past the silhouette and read as a disconnected floating ring. A more moderate draw
+    # keeps the prop over the body while still reading as "aiming".
+    'archer': {'torso': (0.04, 0, -0.18), 'head': (0, 0, 0.14),
+               'arm.R': (-0.50, 0, -0.15), 'arm.L': (-0.45, 0, 0.15),
+               'leg.L': (0.12, 0, 0.12), 'leg.R': (-0.12, 0, -0.12)},
+    # staff planted, free hand raised
+    'caster': {'torso': (0.03, 0, -0.08), 'head': (0.03, 0, 0.06),
+               'arm.R': (-0.35, 0, -0.15), 'arm.L': (-0.70, 0, 0.35)},
+    # heavy: wide, arms hanging away from a thick body
+    'heavy': {'torso': (0.06, 0, 0), 'head': (0.05, 0, 0),
+              'arm.R': (-0.15, 0, -0.45), 'arm.L': (-0.15, 0, 0.45)},
+    'none': {},
+}
+
+
 def build_one(char_id, out_dir):
-    global _ink
+    global _ink, REST
     spec = CHARACTERS[char_id]
+    REST = REST_POSES.get(spec.get('pose', 'none'), {})
     bpy.ops.wm.read_factory_settings(use_empty=True)
     _ink = None  # the cached material does not survive a scene reset (StructRNA removed)
     setup_scene()
